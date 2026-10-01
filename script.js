@@ -16,8 +16,11 @@ async function loadBusiness() {
       }
     });
 
-    if (!response.ok) {
-      throw new Error("Ошибка Supabase");
+   if (!response.ok) {
+  const errorText = await response.text();
+  console.error("SUPABASE ERROR:", response.status, errorText);
+  throw new Error("Ошибка Supabase");
+}
     }
 
     const businesses = await response.json();
