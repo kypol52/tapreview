@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>TapReview</title>
+  <script>
+    const path = window.location.pathname;
+
+    const repo = "/tapreview";
+    const slug = path.startsWith(repo)
+      ? path.slice(repo.length).replace(/^\/|\/$/g, "")
+      : path.replace(/^\/|\/$/g, "");
+
+    window.location.replace(
+      `${repo}/?slug=${encodeURIComponent(slug)}`
+    );
+  </script>
+</head>
+<body>
+  Загрузка...
+</body>
+</html>
