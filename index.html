@@ -1,0 +1,91 @@
+```html
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Оставьте отзыв</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      color: #222;
+    }
+
+    .card {
+      width: min(90%, 420px);
+      background: white;
+      padding: 40px 25px;
+      border-radius: 20px;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+    }
+
+    h1 {
+      margin: 0 0 15px;
+      font-size: 28px;
+    }
+
+    p {
+      color: #666;
+      margin-bottom: 30px;
+      line-height: 1.5;
+    }
+
+    .button {
+      display: block;
+      width: 100%;
+      padding: 15px;
+      margin: 12px 0;
+      border-radius: 12px;
+      text-decoration: none;
+      color: white;
+      background: #222;
+      font-size: 17px;
+    }
+
+    .button.disabled {
+      background: #ccc;
+      pointer-events: none;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="card">
+
+    <h1 id="businessName">Мой бизнес</h1>
+
+    <p>
+      Спасибо за ваш визит!<br>
+      Поделитесь впечатлением:
+    </p>
+
+    <a id="google" class="button disabled" href="#">
+      ⭐ Оставить отзыв в Google
+    </a>
+
+    <a id="yandex" class="button disabled" href="#">
+      ⭐ Оставить отзыв в Яндекс
+    </a>
+
+    <a id="twogis" class="button disabled" href="#">
+      ⭐ Оставить отзыв в 2ГИС
+    </a>
+
+  </div>
+
+</body>
+</html>
+```
