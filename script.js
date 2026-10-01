@@ -2,8 +2,8 @@ const SUPABASE_URL = "https://snrnusvqqrhnljcmnncb.supabase.co";
 const SUPABASE_KEY = "sb_publishable_6tOGONYM3yQkS8ZOeJDLHQ_f9u75f0d";
 
 async function loadBusiness() {
-  const path = window.location.pathname.split("/").filter(Boolean);
-const slug = path[path.length - 1] || "test";
+  const params = new URLSearchParams(window.location.search);
+const slug = params.get("slug") || "test";
 
   const url =
     `${SUPABASE_URL}/rest/v1/businesses` +
