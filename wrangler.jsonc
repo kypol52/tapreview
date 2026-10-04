@@ -1,0 +1,22 @@
+// Настройки Cloudflare Worker для TapReview.
+// "name" должен совпадать с именем Worker в панели Cloudflare.
+{
+  "name": "tapreview",
+  "main": "src/index.js",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": ".",
+    "binding": "ASSETS",
+    "not_found_handling": "404-page"
+  },
+  // Это публичные значения (не секреты): publishable-ключ защищён RLS в Supabase.
+  // Секретные ключи сюда НЕ писать — только через Settings → Variables and Secrets (тип Secret).
+  "vars": {
+    "SUPABASE_URL": "https://snrnusvqqrhnljcmnncb.supabase.co",
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_6tOGONYM3yQkS8ZOeJDLHQ_f9u75f0d"
+  },
+  "keep_vars": true,
+  "observability": {
+    "enabled": true
+  }
+}

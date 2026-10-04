@@ -1,0 +1,7 @@
+.git
+.github
+.assetsignore
+wrangler.jsonc
+src
+supabase
+functions
