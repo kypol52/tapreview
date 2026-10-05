@@ -64,6 +64,7 @@
               <th>Название</th>
               <th>Категория</th>
               <th>Статус</th>
+              <th>За 30 дней</th>
               <th>Ссылка</th>
               <th></th>
             </tr>
@@ -85,7 +86,7 @@
       </div>
 
       <div id="link-box" class="link-box" hidden>
-        <div class="link-label">Постоянная ссылка (для NFC и QR)</div>
+        <div class="link-label">Ссылка для записи в NFC-карту</div>
         <div class="link-row">
           <input id="link-url" type="text" readonly>
           <button id="link-copy" class="btn btn-secondary" type="button">Копировать</button>
@@ -101,14 +102,62 @@
           <div class="qr-info">
             <div class="link-label">QR-код</div>
             <p class="muted qr-text">
-              Ведёт на постоянную ссылку выше. При изменении ссылок Google, Яндекс или 2ГИС
-              QR-код остаётся прежним — перепечатывать не нужно.
+              Ведёт на ту же страницу бизнеса (с пометкой «QR» для статистики).
+              При изменении ссылок Google, Яндекс или 2ГИС QR-код остаётся прежним —
+              перепечатывать не нужно.
             </p>
             <div class="qr-buttons">
               <button id="qr-png" class="btn btn-secondary" type="button">Скачать PNG</button>
               <button id="qr-svg" class="btn btn-secondary" type="button">Скачать SVG (для печати)</button>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div id="stats-box" class="stats-box" hidden>
+        <div class="link-label">Статистика за 30 дней</div>
+        <p id="stats-loading" class="muted">Загрузка…</p>
+        <p id="stats-error" class="error" hidden></p>
+
+        <div id="stats-content" hidden>
+          <div class="tiles">
+            <div class="tile">
+              <div class="tile-label">Открытия страницы</div>
+              <div id="st-views" class="tile-value">0</div>
+              <div id="st-sources" class="tile-sub"></div>
+            </div>
+            <div class="tile">
+              <div class="tile-label">Клики Google</div>
+              <div id="st-google" class="tile-value">0</div>
+            </div>
+            <div class="tile">
+              <div class="tile-label">Клики Яндекс</div>
+              <div id="st-yandex" class="tile-value">0</div>
+            </div>
+            <div class="tile">
+              <div class="tile-label">Клики 2ГИС</div>
+              <div id="st-twogis" class="tile-value">0</div>
+            </div>
+          </div>
+
+          <table id="stats-table" class="table stats-table">
+            <thead>
+              <tr>
+                <th>Дата</th>
+                <th>Открытия</th>
+                <th>Google</th>
+                <th>Яндекс</th>
+                <th>2ГИС</th>
+              </tr>
+            </thead>
+            <tbody id="stats-rows"></tbody>
+          </table>
+          <p id="stats-empty" class="muted" hidden>Пока нет ни одного перехода.</p>
+
+          <p class="muted stats-note">
+            Один посетитель засчитывается не чаще раза в 30 минут, роботы не учитываются.
+            Клик по кнопке означает переход на площадку, а не опубликованный отзыв.
+          </p>
         </div>
       </div>
 

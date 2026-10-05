@@ -1,82 +1,115 @@
-// Публичная страница бизнеса /b/:slug.
-// Собирается на сервере: посетитель получает готовый HTML за один запрос,
+// Публичная страница бизнеса /b/:slug и переходы на площадки /go/:slug/:platform.
+// Страница собирается на сервере: посетитель получает готовый HTML за один запрос,
 // ключи не попадают в браузер.
+// Кнопки ведут не прямо на Google/Яндекс/2ГИС, а через /go/... — так мы считаем клики,
+// после чего сразу перенаправляем посетителя на нужную площадку.
+
+import { db } from "./supabase.js";
+import { logEvent, sourceFrom } from "./analytics.js";
 
 const SLUG_RE = /^[A-Za-z0-9_-]{3,64}$/;
 const COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
 const DEFAULT_COLOR = "#111827";
 
 const PLATFORMS = [
-  { field: "google_url", label: "Оставить отзыв в Google" },
-  { field: "yandex_url", label: "Оставить отзыв в Яндекс Картах" },
-  { field: "twogis_url", label: "Оставить отзыв в 2ГИС" }
+  { key: "google", field: "google_url", label: "Оставить отзыв в Google" },
+  { key: "yandex", field: "yandex_url", label: "Оставить отзыв в Яндекс Картах" },
+  { key: "twogis", field: "twogis_url", label: "Оставить отзыв в 2ГИС" }
 ];
 
-export async function handleBusinessPage(env, slug) {
-  if (!SLUG_RE.test(slug)) {
-    return notFoundPage();
+export async function handleBusinessPage(request, env, ctx, slug) {
+  const result = await loadBusiness(env, slug);
+  if (result.response) return result.response;
+
+  const business = result.business;
+  const source = sourceFrom(new URL(request.url));
+
+  ctx.waitUntil(
+    logEvent(request, env, { businessId: business.id, eventType: "page_view", source })
+  );
+
+  return businessPage(business, source);
+}
+
+export async function handleGo(request, env, ctx, slug, platformKey) {
+  const platform = PLATFORMS.find((p) => p.key === platformKey);
+  if (!platform) return notFoundPage();
+
+  const result = await loadBusiness(env, slug);
+  if (result.response) return result.response;
+
+  const business = result.business;
+  const target = business[platform.field];
+
+  // Ссылку убрали, а посетитель нажал старую кнопку — возвращаем на страницу бизнеса
+  if (!isHttpsUrl(target)) {
+    return redirect(`/b/${business.slug}`);
   }
 
-  let business;
+  ctx.waitUntil(
+    logEvent(request, env, {
+      businessId: business.id,
+      eventType: "click",
+      destination: platform.key,
+      source: sourceFrom(new URL(request.url))
+    })
+  );
+
+  return redirect(target);
+}
+
+// Возвращает { business } или { response } с готовой страницей ошибки
+async function loadBusiness(env, slug) {
+  if (!SLUG_RE.test(slug)) {
+    return { response: notFoundPage() };
+  }
+
   try {
-    business = await fetchBusiness(env, slug);
+    const rows = await db(
+      env,
+      `businesses?slug=eq.${encodeURIComponent(slug)}&is_active=eq.true` +
+        `&select=id,slug,name,logo_url,brand_color,google_url,yandex_url,twogis_url&limit=1`
+    );
+    return rows.length ? { business: rows[0] } : { response: notFoundPage() };
   } catch (error) {
     console.error(`Ошибка загрузки бизнеса: ${error.message}\n${error.stack}`);
-    return renderPage({
-      status: 500,
-      title: "Не удалось загрузить",
-      color: DEFAULT_COLOR,
-      body: `
+    return {
+      response: renderPage({
+        status: 500,
+        title: "Не удалось загрузить",
+        color: DEFAULT_COLOR,
+        body: `
         <h1>Не удалось загрузить страницу</h1>
         <p class="lead">Попробуйте обновить страницу через минуту.</p>`
-    });
+      })
+    };
   }
-
-  if (!business) {
-    return notFoundPage();
-  }
-
-  return businessPage(business);
 }
 
-async function fetchBusiness(env, slug) {
-  if (!env.SUPABASE_URL || !env.SUPABASE_PUBLISHABLE_KEY) {
-    throw new Error(
-      "Не заданы переменные SUPABASE_URL или SUPABASE_PUBLISHABLE_KEY в wrangler.jsonc"
-    );
-  }
-
-  const url =
-    `${env.SUPABASE_URL}/rest/v1/businesses` +
-    `?slug=eq.${encodeURIComponent(slug)}` +
-    `&select=name,logo_url,brand_color,google_url,yandex_url,twogis_url` +
-    `&limit=1`;
-
-  const response = await fetch(url, {
+function redirect(location) {
+  return new Response(null, {
+    status: 302,
     headers: {
-      apikey: env.SUPABASE_PUBLISHABLE_KEY,
-      Accept: "application/json"
+      Location: location,
+      "Cache-Control": "no-store",
+      "Referrer-Policy": "no-referrer"
     }
   });
-
-  if (!response.ok) {
-    throw new Error(`Supabase ${response.status}: ${await response.text()}`);
-  }
-
-  const rows = await response.json();
-  return rows[0] || null;
 }
 
-function businessPage(business) {
+function businessPage(business, source) {
   const color = COLOR_RE.test(business.brand_color || "")
     ? business.brand_color
     : DEFAULT_COLOR;
+
+  // Источник (NFC / QR) передаём дальше, чтобы клик тоже знал, откуда пришёл посетитель
+  const sourceQuery = source === "direct" ? "" : `?s=${source}`;
 
   const buttons = PLATFORMS
     .filter((p) => isHttpsUrl(business[p.field]))
     .map(
       (p) =>
-        `<a class="button" href="${escapeHtml(business[p.field])}" rel="noopener">${p.label}</a>`
+        `<a class="button" href="/go/${escapeHtml(business.slug)}/${p.key}${sourceQuery}" rel="nofollow">${p.label}</a>`
     )
     .join("\n");
 

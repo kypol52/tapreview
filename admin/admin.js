@@ -17,6 +17,7 @@ const state = {
   config: null,
   session: null,
   businesses: [],
+  summary: {}, // id бизнеса → { page_views, clicks } за 30 дней
   editing: null // бизнес, который сейчас открыт в форме (null = новый)
 };
 
@@ -252,7 +253,16 @@ async function loadBusinesses() {
   hideError("list-error");
 
   try {
-    state.businesses = await api("/api/admin/businesses");
+    const [businesses, summary] = await Promise.all([
+      api("/api/admin/businesses"),
+      // если статистика не загрузится, список всё равно покажем
+      api("/api/admin/stats-summary?days=30").catch(() => ({ rows: [] }))
+    ]);
+    state.businesses = businesses;
+    state.summary = {};
+    for (const row of summary.rows) {
+      state.summary[row.business_id] = row;
+    }
     renderList();
   } catch (error) {
     if (!$("app-view").hidden) {
@@ -304,6 +314,14 @@ function renderRow(business) {
       : el("span", "badge badge-off", "Выключен")
   );
 
+  // Статистика за 30 дней
+  const stats = state.summary[business.id];
+  const statsCell = el(
+    "td",
+    "cell-stats",
+    stats ? `${stats.page_views} откр. · ${stats.clicks} кликов` : "—"
+  );
+
   // Ссылка
   const linkCell = document.createElement("td");
   const linkWrap = el("div", "slug-cell");
@@ -324,7 +342,7 @@ function renderRow(business) {
   editButton.addEventListener("click", () => openEditor(business));
   actionsCell.append(openLink, editButton);
 
-  tr.append(nameCell, categoryCell, statusCell, linkCell, actionsCell);
+  tr.append(nameCell, categoryCell, statusCell, statsCell, linkCell, actionsCell);
   return tr;
 }
 
@@ -352,6 +370,7 @@ function openEditor(business) {
   $("f-color").value = hasColor ? business.brand_color.toLowerCase() : "#2563eb";
 
   showLinkBox(business);
+  loadStats(business);
 
   if (!$("editor").open) $("editor").showModal();
   $("f-name").focus();
@@ -362,10 +381,89 @@ function showLinkBox(business) {
   if (!business) return;
 
   const url = publicUrl(business);
-  $("link-url").value = url;
+  $("link-url").value = sourceUrl(business, "nfc");
   $("link-open").href = url;
   $("temp-domain-warning").hidden = !isTemporaryDomain(url);
-  $("qr-preview").src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(qrSvg(url))}`;
+  $("qr-preview").src =
+    `data:image/svg+xml;charset=utf-8,${encodeURIComponent(qrSvg(sourceUrl(business, "qr")))}`;
+}
+
+// ================= Статистика =================
+
+async function loadStats(business) {
+  $("stats-box").hidden = !business;
+  if (!business) return;
+
+  $("stats-loading").hidden = false;
+  $("stats-content").hidden = true;
+  hideError("stats-error");
+
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Moscow";
+    const data = await api(
+      `/api/admin/businesses/${business.id}/stats?days=30&tz=${encodeURIComponent(tz)}`
+    );
+    // Пока грузилось, могли открыть другой бизнес
+    if (state.editing !== business) return;
+    renderStats(data.rows);
+  } catch (error) {
+    if (state.editing === business) showError("stats-error", error.message);
+  } finally {
+    if (state.editing === business) $("stats-loading").hidden = true;
+  }
+}
+
+function renderStats(rows) {
+  const totals = { views: 0, nfc: 0, qr: 0, direct: 0, google: 0, yandex: 0, twogis: 0 };
+  const byDay = {};
+
+  for (const row of rows) {
+    const count = Number(row.events);
+    const day = (byDay[row.day] = byDay[row.day] || { views: 0, google: 0, yandex: 0, twogis: 0 });
+
+    if (row.event_type === "page_view") {
+      totals.views += count;
+      totals[row.source] = (totals[row.source] || 0) + count;
+      day.views += count;
+    } else if (row.event_type === "click" && row.destination in totals) {
+      totals[row.destination] += count;
+      day[row.destination] += count;
+    }
+  }
+
+  $("st-views").textContent = totals.views;
+  $("st-sources").textContent = `NFC ${totals.nfc} · QR ${totals.qr} · прямые ${totals.direct}`;
+  $("st-google").textContent = totals.google;
+  $("st-yandex").textContent = totals.yandex;
+  $("st-twogis").textContent = totals.twogis;
+
+  const days = Object.keys(byDay).sort().reverse();
+  $("stats-rows").replaceChildren(
+    ...days.map((day) => {
+      const d = byDay[day];
+      const tr = document.createElement("tr");
+      tr.append(
+        el("td", "", formatDay(day)),
+        el("td", "", String(d.views)),
+        el("td", "", String(d.google)),
+        el("td", "", String(d.yandex)),
+        el("td", "", String(d.twogis))
+      );
+      return tr;
+    })
+  );
+  $("stats-table").hidden = days.length === 0;
+  $("stats-empty").hidden = days.length !== 0;
+  $("stats-content").hidden = false;
+}
+
+function formatDay(isoDate) {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "short",
+    weekday: "short"
+  });
 }
 
 function isTemporaryDomain(url) {
@@ -532,14 +630,14 @@ function qrPngBlob(text) {
 async function downloadQrPng() {
   const business = state.editing;
   if (!business) return;
-  const blob = await qrPngBlob(publicUrl(business));
+  const blob = await qrPngBlob(sourceUrl(business, "qr"));
   downloadBlob(blob, `tapreview-qr-${business.slug}.png`);
 }
 
 function downloadQrSvg() {
   const business = state.editing;
   if (!business) return;
-  const blob = new Blob([qrSvg(publicUrl(business))], { type: "image/svg+xml" });
+  const blob = new Blob([qrSvg(sourceUrl(business, "qr"))], { type: "image/svg+xml" });
   downloadBlob(blob, `tapreview-qr-${business.slug}.svg`);
 }
 
@@ -558,6 +656,11 @@ function downloadBlob(blob, fileName) {
 function publicUrl(business) {
   const base = (state.config && state.config.publicBaseUrl) || window.location.origin;
   return `${base.replace(/\/+$/, "")}/b/${business.slug}`;
+}
+
+// Та же страница, но с пометкой источника для статистики: ?s=nfc или ?s=qr
+function sourceUrl(business, source) {
+  return `${publicUrl(business)}?s=${source}`;
 }
 
 // Пока открыто окно формы, остальная страница «заморожена»,

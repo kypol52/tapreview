@@ -4,9 +4,13 @@
 //   POST   /api/admin/businesses         — создать бизнес (slug генерируется здесь)
 //   PATCH  /api/admin/businesses/:id     — изменить бизнес
 //   DELETE /api/admin/businesses/:id     — удалить бизнес
+//   GET    /api/admin/businesses/:id/stats?days=30&tz=Europe/Moscow — статистика по дням
+//   GET    /api/admin/stats-summary?days=30 — итоги по всем бизнесам (для списка)
 //
 // Каждый запрос к /api/admin/ проверяет токен входа Supabase и email из ADMIN_EMAILS.
 // С базой работаем секретным ключом SUPABASE_SECRET_KEY — он есть только на сервере.
+
+import { db } from "./supabase.js";
 
 const CATEGORIES = ["restaurant", "beauty", "shop", "hotel", "auto", "other"];
 
@@ -55,6 +59,15 @@ export async function handleApi(request, env, url) {
       if (idMatch) {
         if (method === "PATCH") return await updateBusiness(request, env, idMatch[1]);
         if (method === "DELETE") return await deleteBusiness(env, idMatch[1]);
+      }
+
+      const statsMatch = path.match(/^\/api\/admin\/businesses\/(\d{1,18})\/stats$/);
+      if (statsMatch && method === "GET") {
+        return await businessStats(env, statsMatch[1], url);
+      }
+
+      if (path === "/api/admin/stats-summary" && method === "GET") {
+        return await statsSummary(env, url);
       }
     }
 
@@ -236,40 +249,34 @@ function generateSlug() {
   return slug;
 }
 
-// ---------- Вспомогательные функции ----------
+// ---------- Статистика ----------
 
-async function db(env, path, options = {}) {
-  if (!env.SUPABASE_SECRET_KEY) {
-    throw new Error(
-      "Не задан секрет SUPABASE_SECRET_KEY (Cloudflare → Worker → Settings → Variables and Secrets)"
-    );
-  }
-
-  const headers = {
-    apikey: env.SUPABASE_SECRET_KEY,
-    Accept: "application/json",
-    "Content-Type": "application/json"
-  };
-  if (options.prefer) {
-    headers.Prefer = options.prefer;
-  }
-
-  const response = await fetch(`${env.SUPABASE_URL}/rest/v1/${path}`, {
-    method: options.method || "GET",
-    headers,
-    body: options.body ? JSON.stringify(options.body) : undefined
-  });
-
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
-
-  if (!response.ok) {
-    const error = new Error(`Supabase ${response.status}: ${text}`);
-    error.code = data && data.code;
-    throw error;
-  }
-  return data;
+function statsParams(url) {
+  const days = Math.min(Math.max(parseInt(url.searchParams.get("days"), 10) || 30, 1), 365);
+  const tzParam = url.searchParams.get("tz") || "";
+  const tz = /^[A-Za-z_]+(\/[A-Za-z0-9_+-]+){0,2}$/.test(tzParam) ? tzParam : "Europe/Moscow";
+  return { days, tz };
 }
+
+async function businessStats(env, id, url) {
+  const { days, tz } = statsParams(url);
+  const rows = await db(env, "rpc/business_stats", {
+    method: "POST",
+    body: { p_business_id: Number(id), p_days: days, p_tz: tz }
+  });
+  return json({ days, tz, rows });
+}
+
+async function statsSummary(env, url) {
+  const { days } = statsParams(url);
+  const rows = await db(env, "rpc/stats_summary", {
+    method: "POST",
+    body: { p_days: days }
+  });
+  return json({ days, rows });
+}
+
+// ---------- Вспомогательные функции ----------
 
 async function readJson(request) {
   const text = await request.text();

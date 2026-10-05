@@ -257,6 +257,25 @@ input[type="color"]:disabled { opacity: 0.4; }
 .qr-text { font-size: 13px; margin-bottom: 10px; }
 .qr-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
 
+/* ---------- Статистика ---------- */
+
+.stats-box {
+  margin-bottom: 18px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+.tile { padding: 10px; background: var(--bg); border-radius: 8px; }
+.tile-label { font-size: 12px; color: var(--muted); }
+.tile-value { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tile-sub { font-size: 12px; color: var(--muted); }
+.stats-table { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.stats-table td { padding: 6px 12px; font-variant-numeric: tabular-nums; }
+.stats-table th { padding: 6px 12px; }
+.stats-note { font-size: 12px; margin-top: 10px; }
+.cell-stats { font-size: 13px; color: var(--muted); white-space: nowrap; }
+
 /* ---------- Уведомление ---------- */
 
 .toast {
@@ -287,6 +306,13 @@ input[type="color"]:disabled { opacity: 0.4; }
   .qr-row { flex-direction: column; align-items: center; text-align: center; }
   .qr-preview { width: 200px; height: 200px; }
   .qr-buttons { justify-content: center; }
+  .tiles { grid-template-columns: 1fr 1fr; }
+  /* Таблица по дням остаётся таблицей и на телефоне */
+  .stats-table:not([hidden]) { display: table !important; }
+  .stats-table thead { display: table-header-group !important; }
+  .stats-table tbody { display: table-row-group !important; }
+  .stats-table tr { display: table-row !important; padding: 0; margin: 0; border: none; }
+  .stats-table td, .stats-table th { display: table-cell !important; width: auto; padding: 6px 8px !important; }
 
   /* Таблица превращается в карточки */
   .table-wrap { background: transparent; border: none; }
