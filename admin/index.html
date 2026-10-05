@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>TapReview — админ-панель</title>
+  <link rel="stylesheet" href="/admin/admin.css">
+  <script src="/admin/admin.js" defer></script>
+</head>
+<body>
+
+  <!-- ===== Вход ===== -->
+  <section id="login-view" class="login" hidden>
+    <form id="login-form" class="login-card">
+      <div class="brand">TapReview</div>
+      <h1>Вход в админ-панель</h1>
+
+      <label class="field">
+        <span>Email</span>
+        <input id="login-email" type="email" autocomplete="username" required>
+      </label>
+
+      <label class="field">
+        <span>Пароль</span>
+        <input id="login-password" type="password" autocomplete="current-password" required>
+      </label>
+
+      <p id="login-error" class="error" hidden></p>
+
+      <button id="login-button" class="btn btn-primary btn-block" type="submit">Войти</button>
+    </form>
+  </section>
+
+  <!-- ===== Панель ===== -->
+  <div id="app-view" hidden>
+    <header class="topbar">
+      <div class="brand">TapReview</div>
+      <div class="topbar-right">
+        <span id="user-email" class="muted"></span>
+        <button id="logout-button" class="btn btn-ghost" type="button">Выйти</button>
+      </div>
+    </header>
+
+    <main class="container">
+      <div class="page-head">
+        <div>
+          <h1>Бизнесы</h1>
+          <p id="count" class="muted"></p>
+        </div>
+        <button id="new-button" class="btn btn-primary" type="button">+ Новый бизнес</button>
+      </div>
+
+      <input id="search" class="search" type="search" placeholder="Поиск по названию или ссылке">
+
+      <p id="list-error" class="error" hidden></p>
+      <p id="loading" class="muted">Загрузка…</p>
+
+      <div class="table-wrap">
+        <table id="table" class="table" hidden>
+          <thead>
+            <tr>
+              <th>Название</th>
+              <th>Категория</th>
+              <th>Статус</th>
+              <th>Ссылка</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+
+      <p id="empty" class="empty" hidden>Пока нет ни одного бизнеса. Нажмите «+ Новый бизнес».</p>
+    </main>
+  </div>
+
+  <!-- ===== Форма создания / редактирования ===== -->
+  <dialog id="editor" class="editor">
+    <form id="editor-form" method="dialog">
+      <div class="editor-head">
+        <h2 id="editor-title">Новый бизнес</h2>
+        <button id="editor-close" class="btn btn-ghost" type="button" aria-label="Закрыть">✕</button>
+      </div>
+
+      <div id="link-box" class="link-box" hidden>
+        <div class="link-label">Постоянная ссылка (для NFC и QR)</div>
+        <div class="link-row">
+          <input id="link-url" type="text" readonly>
+          <button id="link-copy" class="btn btn-secondary" type="button">Копировать</button>
+          <a id="link-open" class="btn btn-secondary" target="_blank" rel="noopener">Открыть</a>
+        </div>
+      </div>
+
+      <label class="field">
+        <span>Название *</span>
+        <input id="f-name" type="text" maxlength="200" required>
+      </label>
+
+      <div class="grid-2">
+        <label class="field">
+          <span>Категория</span>
+          <select id="f-category">
+            <option value="">— не выбрана —</option>
+            <option value="restaurant">Ресторан / кафе</option>
+            <option value="beauty">Салон красоты / барбершоп</option>
+            <option value="shop">Магазин</option>
+            <option value="hotel">Отель</option>
+            <option value="auto">Автосервис</option>
+            <option value="other">Другое</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>Адрес</span>
+          <input id="f-address" type="text" maxlength="300">
+        </label>
+      </div>
+
+      <label class="field">
+        <span>Ссылка на отзывы Google</span>
+        <input id="f-google" type="url" placeholder="https://…">
+      </label>
+
+      <label class="field">
+        <span>Ссылка на отзывы Яндекс Карт</span>
+        <input id="f-yandex" type="url" placeholder="https://…">
+      </label>
+
+      <label class="field">
+        <span>Ссылка на отзывы 2ГИС</span>
+        <input id="f-twogis" type="url" placeholder="https://…">
+      </label>
+
+      <label class="field">
+        <span>Ссылка на логотип (необязательно)</span>
+        <input id="f-logo" type="url" placeholder="https://…/logo.png">
+      </label>
+
+      <div class="grid-2">
+        <div class="field">
+          <span>Цвет кнопок</span>
+          <div class="color-row">
+            <label class="check">
+              <input id="f-color-on" type="checkbox">
+              Свой цвет
+            </label>
+            <input id="f-color" type="color" value="#2563eb" disabled>
+          </div>
+        </div>
+
+        <div class="field">
+          <span>Статус</span>
+          <label class="check">
+            <input id="f-active" type="checkbox" checked>
+            Активен (страница открывается)
+          </label>
+        </div>
+      </div>
+
+      <p id="editor-error" class="error" hidden></p>
+
+      <div class="editor-actions">
+        <button id="delete-button" class="btn btn-danger" type="button" hidden>Удалить</button>
+        <div class="spacer"></div>
+        <button id="cancel-button" class="btn btn-ghost" type="button">Отмена</button>
+        <button id="save-button" class="btn btn-primary" type="submit">Сохранить</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" hidden></div>
+
+</body>
+</html>

@@ -8,8 +8,8 @@
     "directory": ".",
     "binding": "ASSETS",
     "not_found_handling": "404-page",
-    // Адреса /b/... всегда обрабатывает код из src/index.js, а не файлы
-    "run_worker_first": ["/b/*"]
+    // Адреса /b/... и /api/... всегда обрабатывает код из src/, а не файлы
+    "run_worker_first": ["/b/*", "/api/*"]
   },
   // Это публичные значения (не секреты): publishable-ключ защищён RLS в Supabase.
   // Секретные ключи сюда НЕ писать — только через Settings → Variables and Secrets (тип Secret).
