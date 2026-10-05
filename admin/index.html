@@ -6,6 +6,7 @@
   <meta name="robots" content="noindex">
   <title>TapReview — админ-панель</title>
   <link rel="stylesheet" href="/admin/admin.css">
+  <script src="/admin/vendor/qrcode.js" defer></script>
   <script src="/admin/admin.js" defer></script>
 </head>
 <body>
@@ -89,6 +90,25 @@
           <input id="link-url" type="text" readonly>
           <button id="link-copy" class="btn btn-secondary" type="button">Копировать</button>
           <a id="link-open" class="btn btn-secondary" target="_blank" rel="noopener">Открыть</a>
+        </div>
+
+        <p id="temp-domain-warning" class="warning" hidden>
+          Это временный адрес. Не печатайте карты и не записывайте NFC, пока не подключён свой домен.
+        </p>
+
+        <div class="qr-row">
+          <img id="qr-preview" class="qr-preview" alt="QR-код">
+          <div class="qr-info">
+            <div class="link-label">QR-код</div>
+            <p class="muted qr-text">
+              Ведёт на постоянную ссылку выше. При изменении ссылок Google, Яндекс или 2ГИС
+              QR-код остаётся прежним — перепечатывать не нужно.
+            </p>
+            <div class="qr-buttons">
+              <button id="qr-png" class="btn btn-secondary" type="button">Скачать PNG</button>
+              <button id="qr-svg" class="btn btn-secondary" type="button">Скачать SVG (для печати)</button>
+            </div>
+          </div>
         </div>
       </div>
 

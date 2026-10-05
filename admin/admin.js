@@ -56,6 +56,8 @@ function bindEvents() {
   $("cancel-button").addEventListener("click", closeEditor);
   $("delete-button").addEventListener("click", onDelete);
   $("link-copy").addEventListener("click", () => copyText($("link-url").value));
+  $("qr-png").addEventListener("click", downloadQrPng);
+  $("qr-svg").addEventListener("click", downloadQrSvg);
   $("f-color-on").addEventListener("change", () => {
     $("f-color").disabled = !$("f-color-on").checked;
   });
@@ -357,10 +359,18 @@ function openEditor(business) {
 
 function showLinkBox(business) {
   $("link-box").hidden = !business;
-  if (business) {
-    $("link-url").value = publicUrl(business);
-    $("link-open").href = publicUrl(business);
-  }
+  if (!business) return;
+
+  const url = publicUrl(business);
+  $("link-url").value = url;
+  $("link-open").href = url;
+  $("temp-domain-warning").hidden = !isTemporaryDomain(url);
+  $("qr-preview").src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(qrSvg(url))}`;
+}
+
+function isTemporaryDomain(url) {
+  const host = new URL(url).hostname;
+  return host.endsWith(".workers.dev") || host.endsWith(".pages.dev") || host.endsWith(".github.io");
 }
 
 function closeEditor() {
@@ -449,10 +459,105 @@ function upsertBusiness(saved) {
   }
 }
 
+// ================= QR-коды =================
+// Библиотека qrcode-generator (MIT) только рассчитывает узор,
+// а картинки PNG и SVG рисуем сами — так их качество под нашим контролем.
+
+const QR_QUIET_ZONE = 4; // белая рамка по стандарту QR — 4 модуля
+const QR_PNG_SIZE = 2048; // пикселей: хватает для печати любого размера карты
+
+function qrMatrix(text) {
+  // "M" — средняя коррекция ошибок (~15%): надёжно считывается даже с потёртой карты
+  const qr = qrcode(0, "M");
+  qr.addData(text, "Byte");
+  qr.make();
+
+  const count = qr.getModuleCount();
+  const rows = [];
+  for (let r = 0; r < count; r++) {
+    const row = [];
+    for (let c = 0; c < count; c++) {
+      row.push(qr.isDark(r, c));
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+
+function qrSvg(text) {
+  const matrix = qrMatrix(text);
+  const size = matrix.length + QR_QUIET_ZONE * 2;
+
+  let path = "";
+  matrix.forEach((row, r) => {
+    row.forEach((dark, c) => {
+      if (dark) path += `M${c + QR_QUIET_ZONE},${r + QR_QUIET_ZONE}h1v1h-1z`;
+    });
+  });
+
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" ` +
+    `width="${size * 10}" height="${size * 10}" shape-rendering="crispEdges">` +
+    `<rect width="${size}" height="${size}" fill="#ffffff"/>` +
+    `<path d="${path}" fill="#000000"/>` +
+    `</svg>`
+  );
+}
+
+function qrPngBlob(text) {
+  const matrix = qrMatrix(text);
+  const modules = matrix.length + QR_QUIET_ZONE * 2;
+  const scale = Math.floor(QR_PNG_SIZE / modules);
+  const size = modules * scale;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, size, size);
+  ctx.fillStyle = "#000000";
+  matrix.forEach((row, r) => {
+    row.forEach((dark, c) => {
+      if (dark) {
+        ctx.fillRect((c + QR_QUIET_ZONE) * scale, (r + QR_QUIET_ZONE) * scale, scale, scale);
+      }
+    });
+  });
+
+  return new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+}
+
+async function downloadQrPng() {
+  const business = state.editing;
+  if (!business) return;
+  const blob = await qrPngBlob(publicUrl(business));
+  downloadBlob(blob, `tapreview-qr-${business.slug}.png`);
+}
+
+function downloadQrSvg() {
+  const business = state.editing;
+  if (!business) return;
+  const blob = new Blob([qrSvg(publicUrl(business))], { type: "image/svg+xml" });
+  downloadBlob(blob, `tapreview-qr-${business.slug}.svg`);
+}
+
+function downloadBlob(blob, fileName) {
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = fileName;
+  overlayHost().append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+
 // ================= Мелочи =================
 
 function publicUrl(business) {
-  return `${window.location.origin}/b/${business.slug}`;
+  const base = (state.config && state.config.publicBaseUrl) || window.location.origin;
+  return `${base.replace(/\/+$/, "")}/b/${business.slug}`;
 }
 
 // Пока открыто окно формы, остальная страница «заморожена»,

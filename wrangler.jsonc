@@ -14,6 +14,9 @@
   // Это публичные значения (не секреты): publishable-ключ защищён RLS в Supabase.
   // Секретные ключи сюда НЕ писать — только через Settings → Variables and Secrets (тип Secret).
   "vars": {
+    // Адрес, который попадает в ссылки, QR-коды и NFC-карты.
+    // После подключения своего домена поменять здесь (например, на "https://tapreview.ru").
+    "PUBLIC_BASE_URL": "https://tapreview.kypolrodniki.workers.dev",
     "SUPABASE_URL": "https://snrnusvqqrhnljcmnncb.supabase.co",
     "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_6tOGONYM3yQkS8ZOeJDLHQ_f9u75f0d"
   },

@@ -37,7 +37,8 @@ export async function handleApi(request, env, url) {
     if (path === "/api/config" && method === "GET") {
       return json({
         supabaseUrl: env.SUPABASE_URL,
-        publishableKey: env.SUPABASE_PUBLISHABLE_KEY
+        publishableKey: env.SUPABASE_PUBLISHABLE_KEY,
+        publicBaseUrl: env.PUBLIC_BASE_URL || url.origin
       });
     }
 

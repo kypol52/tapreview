@@ -236,6 +236,27 @@ input[type="color"]:disabled { opacity: 0.4; }
 .link-row { display: flex; gap: 8px; }
 .link-row input { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px; }
 
+.warning {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 13px;
+}
+
+.qr-row { display: flex; gap: 16px; align-items: flex-start; margin-top: 14px; }
+.qr-preview {
+  width: 140px;
+  height: 140px;
+  flex-shrink: 0;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.qr-text { font-size: 13px; margin-bottom: 10px; }
+.qr-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+
 /* ---------- Уведомление ---------- */
 
 .toast {
@@ -263,6 +284,9 @@ input[type="color"]:disabled { opacity: 0.4; }
   .editor form { padding: 16px; }
   .link-row { flex-wrap: wrap; }
   .link-row input { flex-basis: 100%; }
+  .qr-row { flex-direction: column; align-items: center; text-align: center; }
+  .qr-preview { width: 200px; height: 200px; }
+  .qr-buttons { justify-content: center; }
 
   /* Таблица превращается в карточки */
   .table-wrap { background: transparent; border: none; }
