@@ -28,6 +28,8 @@ class HttpError extends Error {
 }
 
 export async function handleApi(request, env, url) {
+  let isAdmin = false;
+
   try {
     const path = url.pathname;
     const method = request.method;
@@ -41,6 +43,7 @@ export async function handleApi(request, env, url) {
 
     if (path.startsWith("/api/admin/")) {
       await requireAdmin(request, env);
+      isAdmin = true;
 
       if (path === "/api/admin/businesses") {
         if (method === "GET") return await listBusinesses(env);
@@ -59,8 +62,14 @@ export async function handleApi(request, env, url) {
     if (error instanceof HttpError) {
       return json({ error: error.message }, error.status);
     }
-    console.error("API error:", error);
-    return json({ error: "Ошибка сервера. Подробности — в логах Cloudflare." }, 500);
+    // Cloudflare сохраняет в логе только строки, поэтому пишем текст ошибки явно
+    console.error(`API error: ${error.message}\n${error.stack}`);
+
+    // Подробности видит только вошедший администратор, посторонним — общий текст
+    const message = isAdmin
+      ? `Ошибка сервера: ${error.message}`
+      : "Ошибка сервера. Подробности — в логах Cloudflare.";
+    return json({ error: message }, 500);
   }
 }
 

@@ -21,7 +21,7 @@ export async function handleBusinessPage(env, slug) {
   try {
     business = await fetchBusiness(env, slug);
   } catch (error) {
-    console.error("Ошибка загрузки бизнеса:", error);
+    console.error(`Ошибка загрузки бизнеса: ${error.message}\n${error.stack}`);
     return renderPage({
       status: 500,
       title: "Не удалось загрузить",
