@@ -21,6 +21,10 @@
     "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_6tOGONYM3yQkS8ZOeJDLHQ_f9u75f0d"
   },
   "keep_vars": true,
+  // Каждый день в 03:17 по UTC (06:17 МСК) — запрос к базе, чтобы Supabase не «уснул»
+  "triggers": {
+    "crons": ["17 3 * * *"]
+  },
   "observability": {
     "enabled": true
   }

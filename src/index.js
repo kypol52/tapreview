@@ -6,6 +6,7 @@
 
 import { handleBusinessPage, handleGo } from "./public-page.js";
 import { handleApi } from "./admin-api.js";
+import { db } from "./supabase.js";
 
 export default {
   async fetch(request, env, ctx) {
@@ -27,5 +28,20 @@ export default {
     }
 
     return env.ASSETS.fetch(request);
+  },
+
+  // Раз в сутки (расписание — в wrangler.jsonc, "crons") делаем маленький запрос к базе,
+  // чтобы бесплатный проект Supabase не приостановился из-за неактивности.
+  async scheduled(controller, env, ctx) {
+    ctx.waitUntil(keepDatabaseAwake(env));
   }
 };
+
+async function keepDatabaseAwake(env) {
+  try {
+    await db(env, "businesses?select=id&limit=1");
+    console.log("Supabase keep-alive: ok");
+  } catch (error) {
+    console.error(`Supabase keep-alive failed: ${error.message}`);
+  }
+}
