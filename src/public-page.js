@@ -270,14 +270,14 @@ function renderPage({ status, title, accent, body }) {
     .name {
       margin: 0;
       font-family: var(--serif);
-      font-weight: 500;
+      font-weight: 600;
       font-size: 46px;
       line-height: 1.1;
       letter-spacing: -0.01em;
       overflow-wrap: anywhere;
     }
-    .name-mid { font-size: 36px; }
-    .name-long { font-size: 28px; }
+    .name-mid { font-size: 32px; }
+    .name-long { font-size: 26px; }
     .tagline {
       margin: 10px 0 0;
       font-size: 12px;
@@ -299,7 +299,7 @@ function renderPage({ status, title, accent, body }) {
     .thanks {
       margin: 0 0 8px;
       font-size: 24px;
-      font-weight: 500;
+      font-weight: 400;
       line-height: 1.25;
     }
     .lead {
@@ -357,8 +357,8 @@ function renderPage({ status, title, accent, body }) {
     @media (max-width: 360px) {
       .card { padding: 26px 18px 22px; }
       .name { font-size: 38px; }
-      .name-mid { font-size: 30px; }
-      .name-long { font-size: 24px; }
+      .name-mid { font-size: 28px; }
+      .name-long { font-size: 23px; }
       .tagline { letter-spacing: 0.22em; padding-left: 0.22em; }
       .button { gap: 12px; padding: 12px 16px 12px 12px; }
       .label { font-size: 15px; }
