@@ -9,13 +9,56 @@ import { logEvent, sourceFrom } from "./analytics.js";
 
 const SLUG_RE = /^[A-Za-z0-9_-]{3,64}$/;
 const COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
-const DEFAULT_COLOR = "#111827";
+// Тёплый золотисто-бежевый — черта под названием, если свой цвет не задан
+const DEFAULT_ACCENT = "#c9a27e";
 
+// Подпись под названием, если в админке её не заполнили
+const CATEGORY_TAGLINES = {
+  restaurant: "Ресторан",
+  beauty: "Салон красоты",
+  shop: "Магазин",
+  hotel: "Отель",
+  auto: "Автосервис"
+};
+
+// Порядок здесь = порядок кнопок на странице
 const PLATFORMS = [
-  { key: "google", field: "google_url", label: "Оставить отзыв в Google" },
-  { key: "yandex", field: "yandex_url", label: "Оставить отзыв в Яндекс Картах" },
-  { key: "twogis", field: "twogis_url", label: "Оставить отзыв в 2ГИС" }
+  { key: "yandex", field: "yandex_url", label: "в Яндекс Картах" },
+  { key: "google", field: "google_url", label: "в Google Maps" },
+  { key: "twogis", field: "twogis_url", label: "в 2ГИС" }
 ];
+
+// Значки площадок — рисуем сами (inline SVG), без загрузки картинок со сторонних сайтов
+const ICONS = {
+  yandex: `<svg viewBox="0 0 40 40" aria-hidden="true">
+    <circle cx="20" cy="20" r="20" fill="#fc3f1d"/>
+    <path fill="#fff" d="M22.4 31h3.9V9h-5.7c-5.7 0-8.7 2.9-8.7 7.2 0 3.4 1.6 5.5 4.6 7.6L11.3 31h4.2l5.7-8.5-2-1.3c-2.4-1.6-3.6-2.9-3.6-5.6 0-2.4 1.7-4 4.9-4h1.9V31z"/>
+  </svg>`,
+  google: `<svg viewBox="0 0 40 40" aria-hidden="true">
+    <defs><clipPath id="gm-pin"><path d="M20 2c-7.2 0-13 5.6-13 12.6 0 9.4 13 23.4 13 23.4s13-14 13-23.4C33 7.6 27.2 2 20 2z"/></clipPath></defs>
+    <g clip-path="url(#gm-pin)">
+      <rect x="0" y="0" width="40" height="40" fill="#34a853"/>
+      <path d="M0 0h20v16L0 30z" fill="#fbbc04"/>
+      <path d="M0 0h40v8L20 16 7 6z" fill="#4285f4"/>
+      <path d="M20 0h20v22L20 16z" fill="#ea4335"/>
+      <path d="M7 0h22L20 14z" fill="#1a73e8"/>
+    </g>
+    <circle cx="20" cy="14.6" r="4.8" fill="#fff"/>
+  </svg>`,
+  twogis: `<svg viewBox="0 0 40 40" aria-hidden="true">
+    <rect width="40" height="40" rx="10" fill="#19aa1e"/>
+    <path d="M0 10a10 10 0 0 1 10-10h20a10 10 0 0 1 10 10v8H0z" fill="#ffd200"/>
+    <path d="M0 16h40v6H0z" fill="#fff" opacity=".9"/>
+    <path d="M20 8.5c-5.2 0-9.3 3.9-9.3 8.8 0 6.6 9.3 14.2 9.3 14.2s9.3-7.6 9.3-14.2c0-4.9-4.1-8.8-9.3-8.8z" fill="#fff"/>
+    <path d="M20 10.8c-3.9 0-7 2.9-7 6.5 0 4.8 7 10.9 7 10.9s7-6.1 7-10.9c0-3.6-3.1-6.5-7-6.5z" fill="#1ba1f2"/>
+  </svg>`
+};
+
+const ARROW = `<svg class="arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+const STAR = `<svg viewBox="0 0 24 24"><path d="M12 2.6l2.9 6 6.6.8-4.9 4.6 1.3 6.5L12 17.3l-5.9 3.2 1.3-6.5L2.5 9.4l6.6-.8z"/></svg>`;
+
+const HEART = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7a4.3 4.3 0 0 1 7.5 2.8C19.5 15.4 12 20 12 20z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
 
 export async function handleBusinessPage(request, env, ctx, slug) {
   const result = await loadBusiness(env, slug);
@@ -68,7 +111,7 @@ async function loadBusiness(env, slug) {
     const rows = await db(
       env,
       `businesses?slug=eq.${encodeURIComponent(slug)}&is_active=eq.true` +
-        `&select=id,slug,name,logo_url,brand_color,google_url,yandex_url,twogis_url&limit=1`
+        `&select=id,slug,name,tagline,category,logo_url,brand_color,google_url,yandex_url,twogis_url&limit=1`
     );
     return rows.length ? { business: rows[0] } : { response: notFoundPage() };
   } catch (error) {
@@ -77,9 +120,9 @@ async function loadBusiness(env, slug) {
       response: renderPage({
         status: 500,
         title: "Не удалось загрузить",
-        color: DEFAULT_COLOR,
+        accent: DEFAULT_ACCENT,
         body: `
-        <h1>Не удалось загрузить страницу</h1>
+        <h2 class="thanks">Не удалось загрузить страницу</h2>
         <p class="lead">Попробуйте обновить страницу через минуту.</p>`
       })
     };
@@ -98,9 +141,9 @@ function redirect(location) {
 }
 
 function businessPage(business, source) {
-  const color = COLOR_RE.test(business.brand_color || "")
+  const accent = COLOR_RE.test(business.brand_color || "")
     ? business.brand_color
-    : DEFAULT_COLOR;
+    : DEFAULT_ACCENT;
 
   // Источник (NFC / QR) передаём дальше, чтобы клик тоже знал, откуда пришёл посетитель
   const sourceQuery = source === "direct" ? "" : `?s=${source}`;
@@ -108,27 +151,42 @@ function businessPage(business, source) {
   const buttons = PLATFORMS
     .filter((p) => isHttpsUrl(business[p.field]))
     .map(
-      (p) =>
-        `<a class="button" href="/go/${escapeHtml(business.slug)}/${p.key}${sourceQuery}" rel="nofollow">${p.label}</a>`
+      (p) => `
+        <a class="button button-${p.key}" href="/go/${escapeHtml(business.slug)}/${p.key}${sourceQuery}" rel="nofollow">
+          <span class="icon">${ICONS[p.key]}</span>
+          <span class="label">Оставить отзыв<br>${p.label}</span>
+          ${ARROW}
+        </a>`
     )
-    .join("\n");
+    .join("");
 
   const logo = isHttpsUrl(business.logo_url)
-    ? `<img class="logo" src="${escapeHtml(business.logo_url)}" alt="${escapeHtml(business.name)}" referrerpolicy="no-referrer">`
+    ? `<img class="logo" src="${escapeHtml(business.logo_url)}" alt="" referrerpolicy="no-referrer">`
     : "";
 
+  const taglineText = business.tagline || CATEGORY_TAGLINES[business.category] || "";
+  const tagline = taglineText ? `<p class="tagline">${escapeHtml(taglineText)}</p>` : "";
+
+  // Длинные названия делаем мельче, чтобы помещались на экран телефона
+  const nameLength = [...business.name].length;
+  const nameClass = nameLength > 22 ? "name name-long" : nameLength > 12 ? "name name-mid" : "name";
+
   const actions = buttons
-    ? `<p class="lead">Спасибо за ваш визит!<br>Пожалуйста, поделитесь впечатлением:</p>
+    ? `<p class="lead">Пожалуйста, поделитесь впечатлением о&nbsp;нашем заведении.</p>
+       <div class="stars" role="img" aria-label="Пять звёзд">${STAR.repeat(5)}</div>
        <div class="buttons">${buttons}</div>`
-    : `<p class="lead">Спасибо за ваш визит!<br>Ссылки для отзывов скоро появятся.</p>`;
+    : `<p class="lead">Ссылки для отзывов скоро появятся.</p>`;
 
   return renderPage({
     status: 200,
     title: `Отзыв — ${business.name}`,
-    color,
+    accent,
     body: `
       ${logo}
-      <h1>${escapeHtml(business.name)}</h1>
+      <h1 class="${nameClass}">${escapeHtml(business.name)}</h1>
+      ${tagline}
+      <div class="divider"></div>
+      <h2 class="thanks">Спасибо за ваш визит!</h2>
       ${actions}`
   });
 }
@@ -137,77 +195,184 @@ function notFoundPage() {
   return renderPage({
     status: 404,
     title: "Страница не найдена",
-    color: DEFAULT_COLOR,
+    accent: DEFAULT_ACCENT,
     body: `
-      <h1>Страница не найдена</h1>
+      <h2 class="thanks">Страница не найдена</h2>
       <p class="lead">Проверьте ссылку или отсканируйте карту ещё раз.</p>`
   });
 }
 
-function renderPage({ status, title, color, body }) {
-  const textOnColor = isLightColor(color) ? "#111827" : "#ffffff";
-
+function renderPage({ status, title, accent, body }) {
   const html = `<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#f4f6fa">
   <title>${escapeHtml(title)}</title>
   <style>
-    :root { --brand: ${color}; --on-brand: ${textOnColor}; }
+    :root {
+      --accent: ${accent};
+      --text: #141a2b;
+      --muted: #6b7280;
+      --bg: #f4f6fa;
+      --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Noto Serif", "Times New Roman", serif;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
     * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
     body {
       margin: 0;
       min-height: 100vh;
+      min-height: 100dvh;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 24px 16px;
-      background: #f6f7f9;
-      color: #111827;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      padding: 28px 16px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      overflow-x: hidden;
+      position: relative;
     }
+    /* Мягкие круги на фоне */
+    body::before, body::after {
+      content: "";
+      position: fixed;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #e8ecf5, #eef1f7);
+      z-index: 0;
+      pointer-events: none;
+    }
+    body::before { width: 520px; height: 520px; top: -300px; left: -260px; }
+    body::after { width: 620px; height: 620px; bottom: -380px; right: -300px; }
+
     .card {
+      position: relative;
+      z-index: 1;
       width: 100%;
-      max-width: 420px;
-      background: #ffffff;
-      border: 1px solid #e5e7eb;
-      border-radius: 16px;
-      padding: 32px 24px;
+      max-width: 440px;
+      background: #fff;
+      border-radius: 22px;
+      padding: 32px 26px 28px;
       text-align: center;
-      box-shadow: 0 4px 16px rgba(17, 24, 39, 0.06);
+      box-shadow: 0 1px 2px rgba(20, 26, 43, 0.04), 0 12px 40px rgba(20, 26, 43, 0.08);
     }
     .logo {
       display: block;
-      max-width: 120px;
-      max-height: 80px;
-      margin: 0 auto 16px;
+      max-width: 140px;
+      max-height: 72px;
+      margin: 0 auto 14px;
       object-fit: contain;
     }
-    h1 { margin: 0 0 12px; font-size: 24px; line-height: 1.25; }
-    .lead { margin: 0 0 24px; color: #4b5563; line-height: 1.5; }
-    .buttons { display: flex; flex-direction: column; gap: 12px; }
-    .button {
-      display: block;
-      padding: 16px;
-      border-radius: 12px;
-      background: var(--brand);
-      color: var(--on-brand);
-      font-size: 17px;
-      font-weight: 600;
-      text-decoration: none;
+    .name {
+      margin: 0;
+      font-family: var(--serif);
+      font-weight: 500;
+      font-size: 46px;
+      line-height: 1.1;
+      letter-spacing: -0.01em;
+      overflow-wrap: anywhere;
     }
-    .button:active { opacity: 0.85; }
-    .footer { margin-top: 20px; font-size: 12px; color: #9ca3af; }
+    .name-mid { font-size: 36px; }
+    .name-long { font-size: 28px; }
+    .tagline {
+      margin: 10px 0 0;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--muted);
+      /* letter-spacing добавляет отступ справа — компенсируем, чтобы текст стоял по центру */
+      padding-left: 0.32em;
+    }
+    .divider {
+      width: 44px;
+      height: 2px;
+      margin: 18px auto 22px;
+      border-radius: 2px;
+      background: var(--accent);
+      opacity: 0.8;
+    }
+    .thanks {
+      margin: 0 0 8px;
+      font-size: 24px;
+      font-weight: 500;
+      line-height: 1.25;
+    }
+    .lead {
+      margin: 0 auto;
+      max-width: 320px;
+      font-size: 16px;
+      line-height: 1.5;
+      color: var(--muted);
+    }
+    .stars {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      margin: 16px 0 22px;
+    }
+    .stars svg { width: 30px; height: 30px; fill: #f0b43c; }
+
+    .buttons { display: flex; flex-direction: column; gap: 14px; }
+    .button {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 20px 14px 16px;
+      border-radius: 999px;
+      border: 1px solid;
+      color: var(--text);
+      text-decoration: none;
+      text-align: left;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .button:hover { box-shadow: 0 6px 18px rgba(20, 26, 43, 0.08); }
+    .button:active { transform: scale(0.98); }
+    .button:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+    .button-yandex { background: #fff3f2; border-color: #fbd9d5; }
+    .button-google { background: #f2f6fe; border-color: #d9e4fb; }
+    .button-twogis { background: #f2f9ef; border-color: #d8eccf; }
+    .icon { flex: none; width: 40px; height: 40px; }
+    .icon svg { display: block; width: 100%; height: 100%; }
+    .label { flex: 1; font-size: 16px; line-height: 1.35; }
+    .arrow { flex: none; width: 22px; height: 22px; color: #3a4152; }
+
+    .footer {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 22px;
+      font-size: 14px;
+      color: #8a90a0;
+    }
+    .footer svg { width: 18px; height: 18px; }
+
+    @media (max-width: 360px) {
+      .card { padding: 26px 18px 22px; }
+      .name { font-size: 38px; }
+      .name-mid { font-size: 30px; }
+      .name-long { font-size: 24px; }
+      .tagline { letter-spacing: 0.22em; padding-left: 0.22em; }
+      .button { gap: 12px; padding: 12px 16px 12px 12px; }
+      .label { font-size: 15px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .button { transition: none; }
+    }
   </style>
 </head>
 <body>
   <main class="card">
     ${body}
   </main>
-  <div class="footer">TapReview</div>
+  <div class="footer">${HEART}TapReview</div>
 </body>
 </html>`;
 
@@ -231,14 +396,6 @@ function isHttpsUrl(value) {
   } catch {
     return false;
   }
-}
-
-// Светлый ли цвет — чтобы выбрать чёрный или белый текст на кнопке
-function isLightColor(hex) {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return (r * 299 + g * 587 + b * 114) / 1000 > 160;
 }
 
 function escapeHtml(value) {

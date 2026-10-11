@@ -15,7 +15,7 @@ import { db } from "./supabase.js";
 const CATEGORIES = ["restaurant", "beauty", "shop", "hotel", "auto", "other"];
 
 const ADMIN_COLUMNS =
-  "id,slug,name,category,address,logo_url,brand_color," +
+  "id,slug,name,tagline,category,address,logo_url,brand_color," +
   "google_url,yandex_url,twogis_url,is_active,created_at,updated_at";
 
 // Без похожих символов (0/O, 1/l/I), чтобы ссылку можно было продиктовать
@@ -196,6 +196,7 @@ function validateBusiness(input) {
 
   return {
     name,
+    tagline: cleanText(input.tagline, 80, "Подпись") || null,
     category,
     address: cleanText(input.address, 300, "Адрес") || null,
     logo_url: cleanUrl(input.logo_url, "логотипа"),
