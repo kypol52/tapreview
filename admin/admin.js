@@ -356,6 +356,7 @@ function openEditor(business) {
   $("delete-button").hidden = !business;
 
   $("f-name").value = business ? business.name : "";
+  $("f-tagline").value = business ? business.tagline || "" : "";
   $("f-category").value = business ? business.category || "" : "";
   $("f-address").value = business ? business.address || "" : "";
   $("f-google").value = business ? business.google_url || "" : "";
@@ -479,6 +480,7 @@ function closeEditor() {
 function readForm() {
   return {
     name: $("f-name").value,
+    tagline: $("f-tagline").value,
     category: $("f-category").value || null,
     address: $("f-address").value,
     google_url: $("f-google").value,
