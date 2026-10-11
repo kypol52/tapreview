@@ -211,13 +211,30 @@ function renderPage({ status, title, accent, body }) {
   <meta name="robots" content="noindex">
   <meta name="theme-color" content="#f4f6fa">
   <title>${escapeHtml(title)}</title>
+  <link rel="preload" href="/fonts/playfair-display-600-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
   <style>
+    /* Фирменный шрифт названия (Playfair Display, лицензия OFL — fonts/OFL.txt).
+       Лежит на нашем сайте; браузер скачивает только нужную часть: кириллицу и/или латиницу */
+    @font-face {
+      font-family: "Playfair Display";
+      font-weight: 600;
+      font-display: swap;
+      src: url(/fonts/playfair-display-600-cyrillic.woff2) format("woff2");
+      unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+    }
+    @font-face {
+      font-family: "Playfair Display";
+      font-weight: 600;
+      font-display: swap;
+      src: url(/fonts/playfair-display-600-latin.woff2) format("woff2");
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+    }
     :root {
       --accent: ${accent};
       --text: #141a2b;
       --muted: #6b7280;
       --bg: #f4f6fa;
-      --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Noto Serif", "Times New Roman", serif;
+      --serif: "Playfair Display", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Noto Serif", "Times New Roman", serif;
       --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     }
     * { box-sizing: border-box; }
@@ -384,7 +401,7 @@ function renderPage({ status, title, accent, body }) {
       "X-Content-Type-Options": "nosniff",
       "Referrer-Policy": "strict-origin-when-cross-origin",
       "Content-Security-Policy":
-        "default-src 'none'; img-src https:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+        "default-src 'none'; img-src https:; font-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
     }
   });
 }
