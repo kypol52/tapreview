@@ -60,6 +60,10 @@ const STAR = `<svg viewBox="0 0 24 24"><path d="M12 2.6l2.9 6 6.6.8-4.9 4.6 1.3 
 
 const HEART = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7a4.3 4.3 0 0 1 7.5 2.8C19.5 15.4 12 20 12 20z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
 
+const EXTERNAL = `<svg class="ext" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 16 16 8M9.5 8H16v6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+const TELEGRAM_URL = "https://t.me/tapreviewru";
+
 export async function handleBusinessPage(request, env, ctx, slug) {
   const result = await loadBusiness(env, slug);
   if (result.response) return result.response;
@@ -366,10 +370,21 @@ function renderPage({ status, title, accent, body }) {
       align-items: center;
       gap: 6px;
       margin-top: 22px;
+      padding: 7px 14px 7px 12px;
+      border: 1px solid #dfe3ec;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.7);
       font-size: 14px;
-      color: #8a90a0;
+      color: #5d6475;
+      text-decoration: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
     }
     .footer svg { width: 18px; height: 18px; }
+    .footer .ext { width: 13px; height: 13px; opacity: 0.75; }
+    .footer-text { text-decoration: underline; text-decoration-color: #c4c9d6; text-underline-offset: 3px; }
+    .footer:hover, .footer:focus-visible { color: #1f2433; border-color: #c4c9d6; background: #fff; }
+    .footer:focus-visible { outline: 2px solid #9aa3b8; outline-offset: 2px; }
 
     @media (max-width: 360px) {
       .card { padding: 26px 18px 22px; }
@@ -382,6 +397,7 @@ function renderPage({ status, title, accent, body }) {
     }
     @media (prefers-reduced-motion: reduce) {
       .button { transition: none; }
+      .footer { transition: none; }
     }
   </style>
 </head>
@@ -389,7 +405,7 @@ function renderPage({ status, title, accent, body }) {
   <main class="card">
     ${body}
   </main>
-  <div class="footer">${HEART}TapReview</div>
+  <a class="footer" href="${TELEGRAM_URL}" target="_blank" rel="noopener">${HEART}<span class="footer-text">TapReview</span>${EXTERNAL}</a>
 </body>
 </html>`;
 
