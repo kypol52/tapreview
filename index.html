@@ -1,93 +1,302 @@
-```html
 <!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Оставьте отзыв</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TapReview — отзывы в одно касание</title>
+  <meta name="description" content="NFC и QR-карты для сбора отзывов на Яндекс Картах, 2ГИС и Google. Гость прикладывает телефон — и оставляет отзыв за минуту.">
+  <meta name="theme-color" content="#0a2a5c">
+  <link rel="canonical" href="https://tapreview.ru/">
+  <link rel="icon" type="image/png" href="/assets/favicon.png">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://tapreview.ru/">
+  <meta property="og:title" content="TapReview — отзывы в одно касание">
+  <meta property="og:description" content="NFC и QR-карты для сбора отзывов на Яндекс Картах, 2ГИС и Google.">
+  <meta property="og:image" content="https://tapreview.ru/assets/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preload" href="/fonts/montserrat-var-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
 
   <style>
-    * {
-      box-sizing: border-box;
+    /* Montserrat (OFL, см. fonts/OFL-Montserrat.txt) — один вариативный файл на алфавит */
+    @font-face {
+      font-family: "Montserrat";
+      src: url("/fonts/montserrat-var-cyrillic.woff2") format("woff2");
+      font-weight: 500 700;
+      font-display: swap;
+      unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+    }
+    @font-face {
+      font-family: "Montserrat";
+      src: url("/fonts/montserrat-var-latin.woff2") format("woff2");
+      font-weight: 500 700;
+      font-display: swap;
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
     }
 
+    :root {
+      --navy: #0a2a5c;
+      --navy-deep: #071e44;
+      --gold: #e5aa0c;
+      --ink: #1b2236;
+      --muted: #5d6475;
+      --line: #e3e6ee;
+      --soft: #f4f6fa;
+      --radius: 22px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
     body {
       margin: 0;
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-family: Arial, sans-serif;
-      background: #f5f5f5;
-      color: #222;
-    }
-
-    .card {
-      width: min(90%, 420px);
-      background: white;
-      padding: 40px 25px;
-      border-radius: 20px;
-      text-align: center;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-    }
-
-    h1 {
-      margin: 0 0 15px;
-      font-size: 28px;
-    }
-
-    p {
-      color: #666;
-      margin-bottom: 30px;
+      background: #fff;
+      color: var(--ink);
+      font-family: "Montserrat", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      font-weight: 500;
       line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
     }
+    a { color: inherit; }
+    .wrap { width: min(1120px, 100%); margin: 0 auto; padding: 0 20px; }
 
-    .button {
-      display: block;
-      width: 100%;
-      padding: 15px;
-      margin: 12px 0;
-      border-radius: 12px;
-      text-decoration: none;
-      color: white;
-      background: #222;
-      font-size: 17px;
+    /* ---------- header ---------- */
+    .header { position: sticky; top: 0; z-index: 10; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid transparent; }
+    .header .wrap { display: flex; align-items: center; justify-content: space-between; height: 68px; }
+    .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 700; font-size: 20px; color: var(--navy); }
+    .logo-mark { position: relative; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: var(--navy); color: #fff; font-size: 14px; font-weight: 700; letter-spacing: 0.02em; }
+    .logo-mark svg { position: absolute; top: 5px; right: 4px; width: 11px; height: 11px; }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 26px; border-radius: 999px; font: inherit; font-weight: 600; font-size: 16px; text-decoration: none; transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease; -webkit-tap-highlight-color: transparent; }
+    .btn svg { width: 20px; height: 20px; flex: none; }
+    .btn-primary { background: var(--navy); color: #fff; box-shadow: 0 10px 24px rgba(10, 42, 92, 0.22); }
+    .btn-primary:hover { background: #0d3574; transform: translateY(-1px); }
+    .btn-ghost { border: 1.5px solid var(--line); color: var(--navy); background: #fff; }
+    .btn-ghost:hover { border-color: #c5cbd8; transform: translateY(-1px); }
+    .btn-gold { background: var(--gold); color: var(--navy-deep); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18); }
+    .btn-gold:hover { background: #f0b519; transform: translateY(-1px); }
+    .btn:focus-visible { outline: 3px solid #9fb3d9; outline-offset: 3px; }
+    .header .btn { min-height: 42px; padding: 0 18px; font-size: 14px; }
+
+    /* ---------- hero ---------- */
+    .hero { padding: 40px 0 72px; overflow: hidden; }
+    .hero .wrap { display: grid; gap: 44px; align-items: center; }
+    .eyebrow { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 18px; padding: 6px 14px; border-radius: 999px; background: var(--soft); color: var(--navy); font-size: 13px; font-weight: 600; }
+    .stars { display: inline-flex; gap: 2px; color: var(--gold); }
+    .stars svg { width: 14px; height: 14px; }
+    h1 { margin: 0; font-size: clamp(36px, 8vw, 60px); line-height: 1.08; font-weight: 700; color: var(--navy); letter-spacing: -0.015em; }
+    h1 em { font-style: normal; color: var(--gold); }
+    .lead { margin: 20px 0 30px; max-width: 520px; font-size: 18px; color: var(--muted); }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; }
+    .platforms { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 30px; color: var(--muted); font-size: 14px; }
+    .platforms b { color: var(--ink); font-weight: 600; }
+    .platforms i { width: 4px; height: 4px; border-radius: 50%; background: var(--gold); }
+
+    .visual { position: relative; display: grid; place-items: center; min-height: 420px; }
+    .visual::before { content: ""; position: absolute; width: 380px; height: 380px; border-radius: 50%; background: radial-gradient(circle, #e9eef8 0%, rgba(233, 238, 248, 0) 70%); }
+    .card-img { position: relative; width: min(270px, 70vw); height: auto; border-radius: 20px; transform: rotate(6deg); box-shadow: 0 30px 60px rgba(10, 42, 92, 0.22), 0 6px 16px rgba(10, 42, 92, 0.12); }
+    .visual { padding-bottom: 64px; }
+    .phone-tap { position: absolute; left: 50%; bottom: 0; translate: -50% 0; white-space: nowrap; display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 16px; background: #fff; box-shadow: 0 14px 34px rgba(10, 42, 92, 0.16); font-size: 14px; font-weight: 600; color: var(--navy); transform: rotate(-3deg); }
+    .phone-tap span { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--navy); color: var(--gold); }
+    .phone-tap svg { width: 18px; height: 18px; }
+
+    /* ---------- sections ---------- */
+    section { padding: 76px 0; }
+    .section-soft { background: var(--soft); }
+    .kicker { margin: 0 0 10px; color: var(--gold); font-size: 13px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; }
+    h2 { margin: 0 0 40px; max-width: 640px; font-size: clamp(28px, 5vw, 40px); line-height: 1.15; font-weight: 700; color: var(--navy); letter-spacing: -0.01em; }
+
+    .steps { display: grid; gap: 18px; margin: 0; padding: 0; list-style: none; counter-reset: step; }
+    .step { position: relative; padding: 28px 26px; border-radius: var(--radius); background: #fff; border: 1px solid var(--line); }
+    .step-num { display: grid; place-items: center; width: 46px; height: 46px; margin-bottom: 18px; border-radius: 50%; background: var(--navy); color: #fff; font-weight: 700; font-size: 18px; box-shadow: 0 0 0 4px #fff, 0 0 0 5.5px var(--gold); }
+    .step h3, .feature h3 { margin: 0 0 8px; font-size: 19px; font-weight: 700; color: var(--navy); }
+    .step p, .feature p { margin: 0; color: var(--muted); font-size: 15.5px; }
+
+    .features { display: grid; gap: 18px; }
+    .feature { padding: 28px 26px; border-radius: var(--radius); background: #fff; border: 1px solid var(--line); }
+    .feature-icon { display: grid; place-items: center; width: 50px; height: 50px; margin-bottom: 18px; border-radius: 14px; background: #fdf6e3; color: #b98400; }
+    .feature-icon svg { width: 26px; height: 26px; }
+
+    .who { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; list-style: none; }
+    .who li { padding: 12px 20px; border-radius: 999px; background: #fff; border: 1px solid var(--line); font-weight: 600; color: var(--navy); }
+
+    /* ---------- CTA ---------- */
+    .cta { position: relative; overflow: hidden; padding: 64px 28px; border-radius: 28px; background: linear-gradient(135deg, var(--navy), var(--navy-deep)); color: #fff; text-align: center; }
+    .cta::after { content: ""; position: absolute; left: -10%; right: -10%; bottom: -150px; height: 220px; border-top: 3px solid rgba(229, 170, 12, 0.75); border-radius: 50%; }
+    .cta h2 { margin: 0 auto 14px; color: #fff; }
+    .cta p { position: relative; margin: 0 auto 30px; max-width: 520px; color: #c5d0e6; font-size: 17px; }
+    .cta .btn { position: relative; z-index: 1; }
+
+    /* ---------- footer ---------- */
+    .footer { padding: 36px 0 44px; color: var(--muted); font-size: 14px; }
+    .footer .wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; }
+    .footer a { color: var(--navy); font-weight: 600; text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
+
+    @media (min-width: 760px) {
+      .steps { grid-template-columns: repeat(3, 1fr); }
+      .features { grid-template-columns: repeat(2, 1fr); }
     }
-
-    .button.disabled {
-      background: #ccc;
-      pointer-events: none;
+    @media (min-width: 960px) {
+      .hero { padding: 64px 0 96px; }
+      .hero .wrap { grid-template-columns: 1.1fr 0.9fr; }
+      .visual { min-height: 520px; }
+      .visual::before { width: 480px; height: 480px; }
+      .card-img { width: 300px; }
+      .features { grid-template-columns: repeat(4, 1fr); }
+      section { padding: 96px 0; }
+    }
+    @media (max-width: 420px) {
+      .header .btn span { display: none; }
+      .header .btn { padding: 0 13px; }
+      .actions .btn { width: 100%; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .btn { transition: none; }
     }
   </style>
 </head>
-
 <body>
 
-  <div class="card">
+  <header class="header">
+    <div class="wrap">
+      <a class="logo" href="/" aria-label="TapReview — на главную">
+        <span class="logo-mark">TR<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 5.2a4 4 0 0 1 4 4M2 1.6a7.6 7.6 0 0 1 7.6 7.6" fill="none" stroke="#e5aa0c" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+        TapReview
+      </a>
+      <a class="btn btn-primary" href="https://t.me/tapreviewru" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 4.2 2.9 11.4c-1 .4-1 1.4 0 1.7l4.6 1.4 1.8 5.4c.2.6.9.8 1.4.4l2.6-2.1 4.8 3.5c.6.4 1.4.1 1.6-.6l3.2-15.3c.2-.9-.6-1.6-1.4-1.6zM9.6 14.3l8.6-7.6-6.7 8.6-.3 3-1.6-4z" fill="currentColor"/></svg>
+        <span>Связаться</span>
+      </a>
+    </div>
+  </header>
 
-    <h1 id="businessName">Мой бизнес</h1>
+  <main>
+    <!-- ---------- первый экран ---------- -->
+    <div class="hero">
+      <div class="wrap">
+        <div>
+          <p class="eyebrow">
+            <span class="stars" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="m12 2.5 2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z" fill="currentColor"/></svg><svg viewBox="0 0 24 24"><path d="m12 2.5 2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z" fill="currentColor"/></svg><svg viewBox="0 0 24 24"><path d="m12 2.5 2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z" fill="currentColor"/></svg><svg viewBox="0 0 24 24"><path d="m12 2.5 2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z" fill="currentColor"/></svg><svg viewBox="0 0 24 24"><path d="m12 2.5 2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z" fill="currentColor"/></svg>
+            </span>
+            NFC + QR-карты для отзывов
+          </p>
+          <h1>Отзывы <em>в одно</em> касание</h1>
+          <p class="lead">Карта на столе или кассе: гость прикладывает телефон или сканирует QR-код — и сразу попадает на страницу отзыва в Яндекс Картах, 2ГИС или Google.</p>
+          <div class="actions">
+            <a class="btn btn-primary" href="https://t.me/tapreviewru" target="_blank" rel="noopener">Заказать карту</a>
+            <a class="btn btn-ghost" href="/b/yarik">Посмотреть пример</a>
+          </div>
+          <div class="platforms" aria-label="Площадки">
+            <b>Яндекс Карты</b><i></i><b>2ГИС</b><i></i><b>Google</b>
+          </div>
+        </div>
 
-    <p>
-      Спасибо за ваш визит!<br>
-      Поделитесь впечатлением:
-    </p>
+        <div class="visual">
+          <img class="card-img" src="/assets/card-front.png" width="640" height="1015" alt="Карта TapReview: «Оставьте отзыв о нашей компании», QR-код и подсказка приложить телефон">
+          <div class="phone-tap" aria-hidden="true">
+            <span><svg viewBox="0 0 24 24"><path d="M8 9.5a4 4 0 0 1 0 5M11 7a7.5 7.5 0 0 1 0 10M14 4.5a11 11 0 0 1 0 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+            Одно касание — и отзыв
+          </div>
+        </div>
+      </div>
+    </div>
 
-    <a id="google" class="button disabled" href="#">
-      ⭐ Оставить отзыв в Google
-    </a>
+    <!-- ---------- как это работает ---------- -->
+    <section class="section-soft" id="how">
+      <div class="wrap">
+        <p class="kicker">Как это работает</p>
+        <h2>Гостю не нужно ничего искать и скачивать</h2>
+        <ol class="steps">
+          <li class="step">
+            <div class="step-num">1</div>
+            <h3>Прикладывает телефон</h3>
+            <p>Или наводит камеру на QR-код — подходит любой современный смартфон, без приложений.</p>
+          </li>
+          <li class="step">
+            <div class="step-num">2</div>
+            <h3>Видит страницу заведения</h3>
+            <p>Название, пара тёплых слов и кнопки площадок, где вы хотите получать отзывы.</p>
+          </li>
+          <li class="step">
+            <div class="step-num">3</div>
+            <h3>Оставляет отзыв</h3>
+            <p>Одно нажатие — и он сразу в форме отзыва на Яндекс Картах, в 2ГИС или Google.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
 
-    <a id="yandex" class="button disabled" href="#">
-      ⭐ Оставить отзыв в Яндекс
-    </a>
+    <!-- ---------- преимущества ---------- -->
+    <section id="features">
+      <div class="wrap">
+        <p class="kicker">Что вы получаете</p>
+        <h2>Больше отзывов — без уговоров и инструкций</h2>
+        <div class="features">
+          <div class="feature">
+            <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM10 18h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <h3>NFC и QR на одной карте</h3>
+            <p>Кто-то приложит телефон, кто-то отсканирует код — сработает у всех.</p>
+          </div>
+          <div class="feature">
+            <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></div>
+            <h3>Три площадки</h3>
+            <p>Яндекс Карты, 2ГИС и Google — показываем только те, что нужны вам.</p>
+          </div>
+          <div class="feature">
+            <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+            <h3>Статистика</h3>
+            <p>Сколько людей открыли страницу и на какую площадку перешли — отдельно по NFC и по QR.</p>
+          </div>
+          <div class="feature">
+            <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <h3>Без перепечатки</h3>
+            <p>Изменилась ссылка на Яндекс, 2ГИС или Google? Карта продолжает работать — меняем ссылку у себя.</p>
+          </div>
+        </div>
+      </div>
+    </section>
 
-    <a id="twogis" class="button disabled" href="#">
-      ⭐ Оставить отзыв в 2ГИС
-    </a>
+    <!-- ---------- для кого ---------- -->
+    <section class="section-soft" id="who">
+      <div class="wrap">
+        <p class="kicker">Для кого</p>
+        <h2>Для любого бизнеса, где важны отзывы на картах</h2>
+        <ul class="who">
+          <li>Кафе и рестораны</li>
+          <li>Кофейни</li>
+          <li>Салоны красоты</li>
+          <li>Барбершопы</li>
+          <li>Магазины</li>
+          <li>Автосервисы</li>
+          <li>Отели</li>
+          <li>Клиники</li>
+        </ul>
+      </div>
+    </section>
 
-  </div>
+    <!-- ---------- призыв ---------- -->
+    <section id="contact">
+      <div class="wrap">
+        <div class="cta">
+          <h2>Хотите карту для своего заведения?</h2>
+          <p>Напишите нам в Telegram — расскажем, как всё устроено, и подготовим карту под ваш бизнес.</p>
+          <a class="btn btn-gold" href="https://t.me/tapreviewru" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 4.2 2.9 11.4c-1 .4-1 1.4 0 1.7l4.6 1.4 1.8 5.4c.2.6.9.8 1.4.4l2.6-2.1 4.8 3.5c.6.4 1.4.1 1.6-.6l3.2-15.3c.2-.9-.6-1.6-1.4-1.6zM9.6 14.3l8.6-7.6-6.7 8.6-.3 3-1.6-4z" fill="currentColor"/></svg>
+            Написать в Telegram
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
 
-  <script src="script.js"></script>
-  
+  <footer class="footer">
+    <div class="wrap">
+      <span>© 2026 TapReview · Отзывы в одно касание</span>
+      <a href="https://t.me/tapreviewru" target="_blank" rel="noopener">Telegram-канал ↗</a>
+    </div>
+  </footer>
+
 </body>
 </html>
-```
