@@ -44,6 +44,12 @@
     </header>
 
     <main class="container">
+      <nav class="tabs" aria-label="Разделы">
+        <button id="tab-businesses" class="tab active" type="button">Бизнесы</button>
+        <button id="tab-groups" class="tab" type="button">Группы заведений</button>
+      </nav>
+
+      <section id="businesses-section">
       <div class="page-head">
         <div>
           <h1>Бизнесы</h1>
@@ -74,6 +80,38 @@
       </div>
 
       <p id="empty" class="empty" hidden>Пока нет ни одного бизнеса. Нажмите «+ Новый бизнес».</p>
+      </section>
+
+      <!-- Группы: один QR / NFC → страница со списком заведений -->
+      <section id="groups-section" hidden>
+        <div class="page-head">
+          <div>
+            <h1>Группы заведений</h1>
+            <p class="muted">Один QR / NFC на несколько заведений: гость выбирает заведение из списка.</p>
+          </div>
+          <button id="g-new-button" class="btn btn-primary" type="button">+ Новая группа</button>
+        </div>
+
+        <p id="g-list-error" class="error" hidden></p>
+        <p id="g-loading" class="muted" hidden>Загрузка…</p>
+
+        <div class="table-wrap">
+          <table id="g-table" class="table" hidden>
+            <thead>
+              <tr>
+                <th>Название</th>
+                <th>Заведения</th>
+                <th>Статус</th>
+                <th>Ссылка</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="g-rows"></tbody>
+          </table>
+        </div>
+
+        <p id="g-empty" class="empty" hidden>Пока нет ни одной группы. Нажмите «+ Новая группа».</p>
+      </section>
     </main>
   </div>
 
@@ -239,6 +277,82 @@
         <div class="spacer"></div>
         <button id="cancel-button" class="btn btn-ghost" type="button">Отмена</button>
         <button id="save-button" class="btn btn-primary" type="submit">Сохранить</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ===== Форма группы ===== -->
+  <dialog id="group-editor" class="editor">
+    <form id="group-form" method="dialog">
+      <div class="editor-head">
+        <h2 id="g-editor-title">Новая группа</h2>
+        <button id="g-editor-close" class="btn btn-ghost" type="button" aria-label="Закрыть">✕</button>
+      </div>
+
+      <div id="g-link-box" class="link-box" hidden>
+        <div class="link-label">Ссылка для записи в NFC-карту</div>
+        <div class="link-row">
+          <input id="g-link-url" type="text" readonly>
+          <button id="g-link-copy" class="btn btn-secondary" type="button">Копировать</button>
+          <a id="g-link-open" class="btn btn-secondary" target="_blank" rel="noopener">Открыть</a>
+        </div>
+
+        <div class="qr-row">
+          <img id="g-qr-preview" class="qr-preview" alt="QR-код">
+          <div class="qr-info">
+            <div class="link-label">QR-код группы</div>
+            <p class="muted qr-text">
+              Ведёт на страницу со списком заведений. Состав группы можно менять —
+              QR-код остаётся прежним. Статистика считается у каждого заведения отдельно.
+            </p>
+            <div class="qr-buttons">
+              <button id="g-qr-png" class="btn btn-secondary" type="button">Скачать PNG</button>
+              <button id="g-qr-svg" class="btn btn-secondary" type="button">Скачать SVG (для печати)</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <label class="field">
+        <span>Название *</span>
+        <input id="g-name" type="text" maxlength="200" required placeholder="Например: ТЦ «Галерея»">
+      </label>
+
+      <label class="field">
+        <span>Подпись под названием</span>
+        <input id="g-tagline" type="text" maxlength="80" placeholder="Сеть салонов • Москва">
+      </label>
+
+      <label class="field">
+        <span>Ссылка на логотип (необязательно)</span>
+        <input id="g-logo" type="url" placeholder="https://…/logo.png">
+      </label>
+
+      <div class="field">
+        <span>Заведения в группе (в этом порядке они будут на странице)</span>
+        <ol id="g-items" class="group-items"></ol>
+        <p id="g-items-empty" class="muted group-empty">Пока пусто — добавьте заведения ниже.</p>
+        <div class="add-row">
+          <select id="g-add-select"></select>
+          <button id="g-add-button" class="btn btn-secondary" type="button">Добавить</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <span>Статус</span>
+        <label class="check">
+          <input id="g-active" type="checkbox" checked>
+          Активна (страница открывается)
+        </label>
+      </div>
+
+      <p id="g-editor-error" class="error" hidden></p>
+
+      <div class="editor-actions">
+        <button id="g-delete-button" class="btn btn-danger" type="button" hidden>Удалить</button>
+        <div class="spacer"></div>
+        <button id="g-cancel-button" class="btn btn-ghost" type="button">Отмена</button>
+        <button id="g-save-button" class="btn btn-primary" type="submit">Сохранить</button>
       </div>
     </form>
   </dialog>

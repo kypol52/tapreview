@@ -18,7 +18,11 @@ const state = {
   session: null,
   businesses: [],
   summary: {}, // id бизнеса → { page_views, clicks } за 30 дней
-  editing: null // бизнес, который сейчас открыт в форме (null = новый)
+  editing: null, // бизнес, который сейчас открыт в форме (null = новый)
+  groups: [],
+  groupsLoaded: false,
+  editingGroup: null, // группа, открытая в форме группы (null = новая)
+  groupItems: [] // id заведений в форме группы, по порядку
 };
 
 const $ = (id) => document.getElementById(id);
@@ -57,10 +61,35 @@ function bindEvents() {
   $("cancel-button").addEventListener("click", closeEditor);
   $("delete-button").addEventListener("click", onDelete);
   $("link-copy").addEventListener("click", () => copyText($("link-url").value));
-  $("qr-png").addEventListener("click", downloadQrPng);
-  $("qr-svg").addEventListener("click", downloadQrSvg);
+  $("qr-png").addEventListener("click", () => {
+    if (state.editing) downloadQrPng(sourceUrl(state.editing, "qr"), `tapreview-qr-${state.editing.slug}`);
+  });
+  $("qr-svg").addEventListener("click", () => {
+    if (state.editing) downloadQrSvg(sourceUrl(state.editing, "qr"), `tapreview-qr-${state.editing.slug}`);
+  });
   $("f-color-on").addEventListener("change", () => {
     $("f-color").disabled = !$("f-color-on").checked;
+  });
+
+  // Разделы
+  $("tab-businesses").addEventListener("click", () => showTab("businesses"));
+  $("tab-groups").addEventListener("click", () => showTab("groups"));
+
+  // Группы
+  $("g-new-button").addEventListener("click", () => openGroupEditor(null));
+  $("group-form").addEventListener("submit", onSaveGroup);
+  $("g-editor-close").addEventListener("click", closeGroupEditor);
+  $("g-cancel-button").addEventListener("click", closeGroupEditor);
+  $("g-delete-button").addEventListener("click", onDeleteGroup);
+  $("g-add-button").addEventListener("click", addGroupItem);
+  $("g-link-copy").addEventListener("click", () => copyText($("g-link-url").value));
+  $("g-qr-png").addEventListener("click", () => {
+    const g = state.editingGroup;
+    if (g) downloadQrPng(groupSourceUrl(g, "qr"), `tapreview-qr-group-${g.slug}`);
+  });
+  $("g-qr-svg").addEventListener("click", () => {
+    const g = state.editingGroup;
+    if (g) downloadQrSvg(groupSourceUrl(g, "qr"), `tapreview-qr-group-${g.slug}`);
   });
 }
 
@@ -231,6 +260,7 @@ function showLogin(message) {
   $("app-view").hidden = true;
   $("login-view").hidden = false;
   if ($("editor").open) $("editor").close();
+  if ($("group-editor").open) $("group-editor").close();
   if (message) {
     showError("login-error", message);
   } else {
@@ -243,7 +273,18 @@ function showApp() {
   $("login-view").hidden = true;
   $("app-view").hidden = false;
   $("user-email").textContent = state.session.email || "";
+  state.groupsLoaded = false;
+  showTab("businesses");
   loadBusinesses();
+}
+
+function showTab(name) {
+  const groups = name === "groups";
+  $("businesses-section").hidden = groups;
+  $("groups-section").hidden = !groups;
+  $("tab-businesses").classList.toggle("active", !groups);
+  $("tab-groups").classList.toggle("active", groups);
+  if (groups && !state.groupsLoaded) loadGroups();
 }
 
 // ================= Список бизнесов =================
@@ -264,6 +305,8 @@ async function loadBusinesses() {
       state.summary[row.business_id] = row;
     }
     renderList();
+    // Названия заведений в списке групп берутся отсюда
+    if (state.groupsLoaded) renderGroups();
   } catch (error) {
     if (!$("app-view").hidden) {
       showError("list-error", error.message);
@@ -559,6 +602,254 @@ function upsertBusiness(saved) {
   }
 }
 
+// ================= Группы заведений =================
+// Группа = одна ссылка /g/... (QR / NFC), на странице — список заведений.
+// Сами заведения — обычные бизнесы из первой вкладки, они не меняются.
+
+async function loadGroups() {
+  $("g-loading").hidden = false;
+  hideError("g-list-error");
+
+  try {
+    state.groups = await api("/api/admin/groups");
+    state.groupsLoaded = true;
+    renderGroups();
+  } catch (error) {
+    if (!$("app-view").hidden) {
+      showError("g-list-error", error.message);
+    }
+  } finally {
+    $("g-loading").hidden = true;
+  }
+}
+
+function businessById(id) {
+  return state.businesses.find((b) => b.id === id);
+}
+
+function renderGroups() {
+  $("g-rows").replaceChildren(...state.groups.map(renderGroupRow));
+  $("g-table").hidden = state.groups.length === 0;
+  $("g-empty").hidden = state.groups.length !== 0;
+}
+
+function renderGroupRow(group) {
+  const tr = document.createElement("tr");
+
+  const nameCell = document.createElement("td");
+  nameCell.append(el("div", "cell-name", group.name));
+  if (group.tagline) nameCell.append(el("div", "cell-sub", group.tagline));
+
+  const names = (group.business_ids || [])
+    .map(businessById)
+    .filter(Boolean)
+    .map((b) => b.name);
+  const venuesCell = el("td", "cell-sub", names.length ? names.join(", ") : "—");
+
+  const statusCell = document.createElement("td");
+  statusCell.append(
+    group.is_active
+      ? el("span", "badge badge-on", "Активна")
+      : el("span", "badge badge-off", "Выключена")
+  );
+
+  const linkCell = document.createElement("td");
+  const linkWrap = el("div", "slug-cell");
+  const copyButton = el("button", "btn btn-secondary btn-small", "Копировать");
+  copyButton.type = "button";
+  copyButton.addEventListener("click", () => copyText(groupUrl(group)));
+  linkWrap.append(el("span", "slug", `/g/${group.slug}`), copyButton);
+  linkCell.append(linkWrap);
+
+  const actionsCell = el("td", "cell-actions");
+  const openLink = el("a", "btn btn-ghost btn-small", "Открыть ↗");
+  openLink.href = groupUrl(group);
+  openLink.target = "_blank";
+  openLink.rel = "noopener";
+  const editButton = el("button", "btn btn-secondary btn-small", "Изменить");
+  editButton.type = "button";
+  editButton.addEventListener("click", () => openGroupEditor(group));
+  actionsCell.append(openLink, editButton);
+
+  tr.append(nameCell, venuesCell, statusCell, linkCell, actionsCell);
+  return tr;
+}
+
+function openGroupEditor(group) {
+  // Без списка бизнесов нельзя показать состав группы (и при сохранении он бы потерялся)
+  if (!state.businesses.length && (!group || group.business_ids.length)) {
+    toast("Список заведений ещё загружается — попробуйте через секунду");
+    return;
+  }
+  state.editingGroup = group;
+  hideError("g-editor-error");
+
+  $("g-editor-title").textContent = group ? "Редактирование группы" : "Новая группа";
+  $("g-delete-button").hidden = !group;
+
+  $("g-name").value = group ? group.name : "";
+  $("g-tagline").value = group ? group.tagline || "" : "";
+  $("g-logo").value = group ? group.logo_url || "" : "";
+  $("g-active").checked = group ? group.is_active : true;
+
+  // Удалённые бизнесы из группы просто пропускаем
+  state.groupItems = group ? (group.business_ids || []).filter((id) => businessById(id)) : [];
+  renderGroupItems();
+
+  $("g-link-box").hidden = !group;
+  if (group) {
+    $("g-link-url").value = groupSourceUrl(group, "nfc");
+    $("g-link-open").href = groupUrl(group);
+    $("g-qr-preview").src =
+      `data:image/svg+xml;charset=utf-8,${encodeURIComponent(qrSvg(groupSourceUrl(group, "qr")))}`;
+  }
+
+  if (!$("group-editor").open) $("group-editor").showModal();
+  $("g-name").focus();
+}
+
+function closeGroupEditor() {
+  $("group-editor").close();
+  state.editingGroup = null;
+}
+
+function renderGroupItems() {
+  const items = state.groupItems.map((id, index) => {
+    const business = businessById(id);
+    const li = el("li", "group-item");
+
+    const text = el("div", "group-item-text");
+    text.append(el("div", "cell-name", business.name));
+    if (!business.is_active) {
+      text.append(el("div", "cell-sub", "Выключен — на странице группы не показывается"));
+    }
+
+    const buttons = el("div", "group-item-buttons");
+    buttons.append(
+      smallButton("↑", "Выше", index === 0, () => moveGroupItem(index, -1)),
+      smallButton("↓", "Ниже", index === state.groupItems.length - 1, () => moveGroupItem(index, 1)),
+      smallButton("✕", "Убрать из группы", false, () => {
+        state.groupItems.splice(index, 1);
+        renderGroupItems();
+      })
+    );
+
+    li.append(text, buttons);
+    return li;
+  });
+  $("g-items").replaceChildren(...items);
+  $("g-items-empty").hidden = items.length !== 0;
+
+  // В списке «Добавить» — только те, кого ещё нет в группе
+  const select = $("g-add-select");
+  const available = state.businesses
+    .filter((b) => !state.groupItems.includes(b.id))
+    .sort((a, b) => a.name.localeCompare(b.name, "ru"));
+  const placeholder = el(
+    "option",
+    "",
+    available.length ? "— выберите заведение —" : "Все заведения уже в группе"
+  );
+  placeholder.value = "";
+  select.replaceChildren(
+    placeholder,
+    ...available.map((b) => {
+      const option = el("option", "", b.is_active ? b.name : `${b.name} (выключен)`);
+      option.value = String(b.id);
+      return option;
+    })
+  );
+  select.disabled = available.length === 0;
+  $("g-add-button").disabled = available.length === 0;
+}
+
+function smallButton(label, title, disabled, onClick) {
+  const button = el("button", "btn btn-ghost btn-small", label);
+  button.type = "button";
+  button.title = title;
+  button.setAttribute("aria-label", title);
+  button.disabled = disabled;
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+function addGroupItem() {
+  const id = Number($("g-add-select").value);
+  if (!id) return;
+  state.groupItems.push(id);
+  renderGroupItems();
+}
+
+function moveGroupItem(index, step) {
+  const items = state.groupItems;
+  [items[index], items[index + step]] = [items[index + step], items[index]];
+  renderGroupItems();
+}
+
+async function onSaveGroup(event) {
+  event.preventDefault();
+  hideError("g-editor-error");
+
+  const button = $("g-save-button");
+  button.disabled = true;
+  button.textContent = "Сохраняем…";
+
+  const body = {
+    name: $("g-name").value,
+    tagline: $("g-tagline").value,
+    logo_url: $("g-logo").value,
+    business_ids: state.groupItems,
+    is_active: $("g-active").checked
+  };
+
+  try {
+    const isNew = !state.editingGroup;
+    const saved = isNew
+      ? await api("/api/admin/groups", { method: "POST", body })
+      : await api(`/api/admin/groups/${state.editingGroup.id}`, { method: "PATCH", body });
+
+    const index = state.groups.findIndex((g) => g.id === saved.id);
+    if (index === -1) state.groups.unshift(saved);
+    else state.groups[index] = saved;
+    renderGroups();
+
+    if (isNew) {
+      openGroupEditor(saved);
+      toast("Группа создана. Ссылка готова.");
+    } else {
+      closeGroupEditor();
+      toast("Сохранено");
+    }
+  } catch (error) {
+    showError("g-editor-error", error.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Сохранить";
+  }
+}
+
+async function onDeleteGroup() {
+  const group = state.editingGroup;
+  if (!group) return;
+
+  const ok = confirm(
+    `Удалить группу «${group.name}»?\n\n` +
+      "Страница группы и её QR перестанут работать.\n" +
+      "Сами заведения и их страницы останутся."
+  );
+  if (!ok) return;
+
+  try {
+    await api(`/api/admin/groups/${group.id}`, { method: "DELETE" });
+    state.groups = state.groups.filter((g) => g.id !== group.id);
+    renderGroups();
+    closeGroupEditor();
+    toast("Группа удалена");
+  } catch (error) {
+    showError("g-editor-error", error.message);
+  }
+}
+
 // ================= QR-коды =================
 // Библиотека qrcode-generator (MIT) только рассчитывает узор,
 // а картинки PNG и SVG рисуем сами — так их качество под нашим контролем.
@@ -629,18 +920,14 @@ function qrPngBlob(text) {
   return new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
 }
 
-async function downloadQrPng() {
-  const business = state.editing;
-  if (!business) return;
-  const blob = await qrPngBlob(sourceUrl(business, "qr"));
-  downloadBlob(blob, `tapreview-qr-${business.slug}.png`);
+async function downloadQrPng(url, baseName) {
+  const blob = await qrPngBlob(url);
+  downloadBlob(blob, `${baseName}.png`);
 }
 
-function downloadQrSvg() {
-  const business = state.editing;
-  if (!business) return;
-  const blob = new Blob([qrSvg(sourceUrl(business, "qr"))], { type: "image/svg+xml" });
-  downloadBlob(blob, `tapreview-qr-${business.slug}.svg`);
+function downloadQrSvg(url, baseName) {
+  const blob = new Blob([qrSvg(url)], { type: "image/svg+xml" });
+  downloadBlob(blob, `${baseName}.svg`);
 }
 
 function downloadBlob(blob, fileName) {
@@ -665,10 +952,21 @@ function sourceUrl(business, source) {
   return `${publicUrl(business)}?s=${source}`;
 }
 
+function groupUrl(group) {
+  const base = (state.config && state.config.publicBaseUrl) || window.location.origin;
+  return `${base.replace(/\/+$/, "")}/g/${group.slug}`;
+}
+
+function groupSourceUrl(group, source) {
+  return `${groupUrl(group)}?s=${source}`;
+}
+
 // Пока открыто окно формы, остальная страница «заморожена»,
 // поэтому временные элементы добавляем внутрь окна
 function overlayHost() {
-  return $("editor").open ? $("editor") : document.body;
+  if ($("editor").open) return $("editor");
+  if ($("group-editor").open) return $("group-editor");
+  return document.body;
 }
 
 async function copyText(text) {

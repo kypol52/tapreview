@@ -276,6 +276,62 @@ input[type="color"]:disabled { opacity: 0.4; }
 .stats-note { font-size: 12px; margin-top: 10px; }
 .cell-stats { font-size: 13px; color: var(--muted); white-space: nowrap; }
 
+/* ---------- Разделы ---------- */
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 22px;
+  border-bottom: 1px solid var(--border);
+}
+.tab {
+  padding: 10px 14px;
+  margin-bottom: -1px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--text); border-bottom-color: var(--primary); }
+
+/* ---------- Состав группы ---------- */
+
+.group-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: item;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.group-items:empty { display: none; }
+.group-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 12px;
+  border-bottom: 1px solid var(--border);
+  counter-increment: item;
+}
+.group-item:last-child { border-bottom: none; }
+.group-item::before {
+  content: counter(item);
+  width: 20px;
+  font-size: 13px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.group-item-text { flex: 1; min-width: 0; }
+.group-item-buttons { display: flex; gap: 2px; }
+.group-item-buttons .btn { min-width: 32px; }
+.group-empty { font-size: 13px; }
+.add-row { display: flex; gap: 8px; margin-top: 4px; }
+.add-row select { flex: 1; min-width: 0; }
+
 /* ---------- Уведомление ---------- */
 
 .toast {
