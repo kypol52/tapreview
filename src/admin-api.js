@@ -6,6 +6,10 @@
 //   DELETE /api/admin/businesses/:id     — удалить бизнес
 //   GET    /api/admin/businesses/:id/stats?days=30&tz=Europe/Moscow — статистика по дням
 //   GET    /api/admin/stats-summary?days=30 — итоги по всем бизнесам (для списка)
+//   GET    /api/admin/groups             — список групп (один QR → несколько заведений)
+//   POST   /api/admin/groups             — создать группу
+//   PATCH  /api/admin/groups/:id         — изменить группу
+//   DELETE /api/admin/groups/:id         — удалить группу (сами заведения остаются)
 //
 // Каждый запрос к /api/admin/ проверяет токен входа Supabase и email из ADMIN_EMAILS.
 // С базой работаем секретным ключом SUPABASE_SECRET_KEY — он есть только на сервере.
@@ -17,6 +21,9 @@ const CATEGORIES = ["restaurant", "beauty", "shop", "hotel", "auto", "other"];
 const ADMIN_COLUMNS =
   "id,slug,name,tagline,category,address,logo_url,brand_color," +
   "google_url,yandex_url,twogis_url,is_active,created_at,updated_at";
+
+const GROUP_COLUMNS = "id,slug,name,tagline,logo_url,business_ids,is_active,created_at,updated_at";
+const MAX_GROUP_SIZE = 50;
 
 // Без похожих символов (0/O, 1/l/I), чтобы ссылку можно было продиктовать
 const SLUG_ALPHABET = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -68,6 +75,17 @@ export async function handleApi(request, env, url) {
 
       if (path === "/api/admin/stats-summary" && method === "GET") {
         return await statsSummary(env, url);
+      }
+
+      if (path === "/api/admin/groups") {
+        if (method === "GET") return await listGroups(env);
+        if (method === "POST") return await createGroup(request, env);
+      }
+
+      const groupMatch = path.match(/^\/api\/admin\/groups\/(\d{1,18})$/);
+      if (groupMatch) {
+        if (method === "PATCH") return await updateGroup(request, env, groupMatch[1]);
+        if (method === "DELETE") return await deleteGroup(env, groupMatch[1]);
       }
     }
 
@@ -174,6 +192,89 @@ async function deleteBusiness(env, id) {
     throw new HttpError(404, "Бизнес не найден");
   }
   return json({ deleted: true });
+}
+
+// ---------- Группы заведений (один QR → список заведений) ----------
+
+async function listGroups(env) {
+  const rows = await db(
+    env,
+    `business_groups?select=${GROUP_COLUMNS}&order=created_at.desc&limit=1000`
+  );
+  return json(rows);
+}
+
+async function createGroup(request, env) {
+  const data = await validateGroup(await readJson(request), env);
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      const rows = await db(env, `business_groups?select=${GROUP_COLUMNS}`, {
+        method: "POST",
+        body: { ...data, slug: generateSlug() },
+        prefer: "return=representation"
+      });
+      return json(rows[0], 201);
+    } catch (error) {
+      if (error.code === "23505" && /slug/.test(error.message)) continue;
+      throw error;
+    }
+  }
+  throw new Error("Не удалось подобрать свободный slug за 5 попыток");
+}
+
+async function updateGroup(request, env, id) {
+  const data = await validateGroup(await readJson(request), env);
+  const rows = await db(env, `business_groups?id=eq.${id}&select=${GROUP_COLUMNS}`, {
+    method: "PATCH",
+    body: data,
+    prefer: "return=representation"
+  });
+  if (!rows.length) {
+    throw new HttpError(404, "Группа не найдена");
+  }
+  return json(rows[0]);
+}
+
+async function deleteGroup(env, id) {
+  const rows = await db(env, `business_groups?id=eq.${id}&select=id`, {
+    method: "DELETE",
+    prefer: "return=representation"
+  });
+  if (!rows.length) {
+    throw new HttpError(404, "Группа не найдена");
+  }
+  return json({ deleted: true });
+}
+
+async function validateGroup(input, env) {
+  const name = cleanText(input.name, 200, "Название");
+  if (!name) {
+    throw new HttpError(400, "Укажите название");
+  }
+
+  const rawIds = Array.isArray(input.business_ids) ? input.business_ids : [];
+  const ids = [...new Set(rawIds.map(Number))];
+  if (ids.some((id) => !Number.isSafeInteger(id) || id <= 0)) {
+    throw new HttpError(400, "Неверный список заведений");
+  }
+  if (ids.length > MAX_GROUP_SIZE) {
+    throw new HttpError(400, `В группе может быть не больше ${MAX_GROUP_SIZE} заведений`);
+  }
+  if (ids.length) {
+    const found = await db(env, `businesses?id=in.(${ids.join(",")})&select=id`);
+    if (found.length !== ids.length) {
+      throw new HttpError(400, "Некоторые заведения не найдены — обновите страницу");
+    }
+  }
+
+  return {
+    name,
+    tagline: cleanText(input.tagline, 80, "Подпись") || null,
+    logo_url: cleanUrl(input.logo_url, "логотипа"),
+    business_ids: ids,
+    is_active: input.is_active !== false
+  };
 }
 
 // ---------- Проверка данных формы ----------

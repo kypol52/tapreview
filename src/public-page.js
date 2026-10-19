@@ -1,4 +1,5 @@
-// Публичная страница бизнеса /b/:slug и переходы на площадки /go/:slug/:platform.
+// Публичная страница бизнеса /b/:slug, страница группы заведений /g/:slug
+// и переходы на площадки /go/:slug/:platform.
 // Страница собирается на сервере: посетитель получает готовый HTML за один запрос,
 // ключи не попадают в браузер.
 // Кнопки ведут не прямо на Google/Яндекс/2ГИС, а через /go/... — так мы считаем клики,
@@ -105,6 +106,98 @@ export async function handleGo(request, env, ctx, slug, platformKey) {
   return redirect(target);
 }
 
+// Страница группы /g/:slug: один QR / NFC на несколько заведений.
+// Посетитель выбирает заведение и попадает на его обычную страницу /b/:slug,
+// где просмотр и клики считаются как обычно (с тем же источником NFC / QR).
+export async function handleGroupPage(request, env, slug) {
+  if (!SLUG_RE.test(slug)) return notFoundPage();
+
+  let group;
+  let venues = [];
+  try {
+    const groups = await db(
+      env,
+      `business_groups?slug=eq.${encodeURIComponent(slug)}&is_active=eq.true` +
+        `&select=name,tagline,logo_url,business_ids&limit=1`
+    );
+    if (!groups.length) return notFoundPage();
+    group = groups[0];
+
+    const ids = (group.business_ids || []).filter((id) => Number.isSafeInteger(id));
+    if (ids.length) {
+      const rows = await db(
+        env,
+        `businesses?id=in.(${ids.join(",")})&is_active=eq.true` +
+          `&select=id,slug,name,tagline,category`
+      );
+      // Порядок — как задан в админке
+      venues = ids.map((id) => rows.find((b) => b.id === id)).filter(Boolean);
+    }
+  } catch (error) {
+    console.error(`Ошибка загрузки группы: ${error.message}\n${error.stack}`);
+    return errorPage();
+  }
+
+  const source = sourceFrom(new URL(request.url));
+  return groupPage(group, venues, source);
+}
+
+function groupPage(group, venues, source) {
+  const sourceQuery = source === "direct" ? "" : `?s=${source}`;
+
+  const buttons = venues
+    .map((venue) => {
+      const subText = venue.tagline || CATEGORY_TAGLINES[venue.category] || "";
+      const sub = subText ? `<span class="venue-sub">${escapeHtml(subText)}</span>` : "";
+      const letter = [...venue.name.trim()][0] || "•";
+      return `
+        <a class="button venue" href="/b/${escapeHtml(venue.slug)}${sourceQuery}">
+          <span class="venue-mark" aria-hidden="true">${escapeHtml(letter.toUpperCase())}</span>
+          <span class="label"><span class="venue-name">${escapeHtml(venue.name)}</span>${sub}</span>
+          ${ARROW}
+        </a>`;
+    })
+    .join("");
+
+  const logo = isHttpsUrl(group.logo_url)
+    ? `<img class="logo" src="${escapeHtml(group.logo_url)}" alt="" referrerpolicy="no-referrer">`
+    : "";
+  const tagline = group.tagline ? `<p class="tagline">${escapeHtml(group.tagline)}</p>` : "";
+
+  const nameLength = [...group.name].length;
+  const nameClass = nameLength > 22 ? "name name-long" : nameLength > 12 ? "name name-mid" : "name";
+
+  const actions = buttons
+    ? `<p class="lead">Выберите заведение, где хотите оставить отзыв.</p>
+       <div class="stars" role="img" aria-label="Пять звёзд">${STAR.repeat(5)}</div>
+       <div class="buttons">${buttons}</div>`
+    : `<p class="lead">Список заведений скоро появится.</p>`;
+
+  return renderPage({
+    status: 200,
+    title: `Отзыв — ${group.name}`,
+    accent: DEFAULT_ACCENT,
+    body: `
+      ${logo}
+      <h1 class="${nameClass}">${escapeHtml(group.name)}</h1>
+      ${tagline}
+      <div class="divider"></div>
+      <h2 class="thanks">Спасибо, что вы с нами!</h2>
+      ${actions}`
+  });
+}
+
+function errorPage() {
+  return renderPage({
+    status: 500,
+    title: "Не удалось загрузить",
+    accent: DEFAULT_ACCENT,
+    body: `
+      <h2 class="thanks">Не удалось загрузить страницу</h2>
+      <p class="lead">Попробуйте обновить страницу через минуту.</p>`
+  });
+}
+
 // Возвращает { business } или { response } с готовой страницей ошибки
 async function loadBusiness(env, slug) {
   if (!SLUG_RE.test(slug)) {
@@ -120,16 +213,7 @@ async function loadBusiness(env, slug) {
     return rows.length ? { business: rows[0] } : { response: notFoundPage() };
   } catch (error) {
     console.error(`Ошибка загрузки бизнеса: ${error.message}\n${error.stack}`);
-    return {
-      response: renderPage({
-        status: 500,
-        title: "Не удалось загрузить",
-        accent: DEFAULT_ACCENT,
-        body: `
-        <h2 class="thanks">Не удалось загрузить страницу</h2>
-        <p class="lead">Попробуйте обновить страницу через минуту.</p>`
-      })
-    };
+    return { response: errorPage() };
   }
 }
 
@@ -362,6 +446,26 @@ function renderPage({ status, title, accent, body }) {
     .icon svg { display: block; width: 100%; height: 100%; }
     .label { flex: 1; font-size: 16px; line-height: 1.35; }
     .arrow { flex: none; width: 22px; height: 22px; color: #3a4152; }
+
+    /* Кнопки заведений на странице группы /g/... */
+    .venue { background: #fff; border-color: #e1e5ee; padding: 10px 20px 10px 10px; }
+    .venue:hover { border-color: #cdd3e0; }
+    .venue-mark {
+      flex: none;
+      display: grid;
+      place-items: center;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: #f4f6fa;
+      border: 1px solid var(--accent);
+      font-family: var(--serif);
+      font-weight: 600;
+      font-size: 20px;
+      color: var(--text);
+    }
+    .venue-name { display: block; font-size: 17px; font-weight: 600; overflow-wrap: anywhere; }
+    .venue-sub { display: block; margin-top: 2px; font-size: 13px; color: var(--muted); }
 
     .footer {
       position: relative;
