@@ -20,7 +20,7 @@ const CATEGORIES = ["restaurant", "beauty", "shop", "hotel", "auto", "other"];
 
 const ADMIN_COLUMNS =
   "id,slug,name,tagline,category,address,logo_url,brand_color," +
-  "google_url,yandex_url,twogis_url,is_active,created_at,updated_at";
+  "google_url,yandex_url,twogis_url,discount_code,discount_text,is_active,created_at,updated_at";
 
 const GROUP_COLUMNS = "id,slug,name,tagline,logo_url,business_ids,is_active,created_at,updated_at";
 const MAX_GROUP_SIZE = 50;
@@ -305,6 +305,8 @@ function validateBusiness(input) {
     google_url: cleanUrl(input.google_url, "Google"),
     yandex_url: cleanUrl(input.yandex_url, "Яндекс"),
     twogis_url: cleanUrl(input.twogis_url, "2ГИС"),
+    discount_code: cleanText(input.discount_code, 40, "Кодовое слово") || null,
+    discount_text: cleanText(input.discount_text, 120, "Описание скидки") || null,
     is_active: input.is_active !== false
   };
 }

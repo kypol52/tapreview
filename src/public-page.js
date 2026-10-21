@@ -63,7 +63,9 @@ const HEART = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7.5-
 
 const EXTERNAL = `<svg class="ext" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 16 16 8M9.5 8H16v6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
-const TELEGRAM_URL = "https://t.me/tapreviewru";
+const GIFT = `<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="20" fill="#f0b43c"/><g fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"><rect x="11" y="17" width="18" height="12" rx="1.5"/><path d="M10 13.5h20v3.5H10zM20 13.5V29"/><path d="M20 13.5c-1.5-3.5-6-4-6-1.2 0 1.5 2.5 1.2 6 1.2zM20 13.5c1.5-3.5 6-4 6-1.2 0 1.5-2.5 1.2-6 1.2z" stroke-linecap="round"/></g></svg>`;
+
+const TELEGRAM_URL ="https://t.me/tapreviewru";
 
 export async function handleBusinessPage(request, env, ctx, slug) {
   const result = await loadBusiness(env, slug);
@@ -208,7 +210,8 @@ async function loadBusiness(env, slug) {
     const rows = await db(
       env,
       `businesses?slug=eq.${encodeURIComponent(slug)}&is_active=eq.true` +
-        `&select=id,slug,name,tagline,category,logo_url,brand_color,google_url,yandex_url,twogis_url&limit=1`
+        `&select=id,slug,name,tagline,category,logo_url,brand_color,google_url,yandex_url,twogis_url,` +
+        `discount_code,discount_text&limit=1`
     );
     return rows.length ? { business: rows[0] } : { response: notFoundPage() };
   } catch (error) {
@@ -265,6 +268,24 @@ function businessPage(business, source) {
        <div class="buttons">${buttons}</div>`
     : `<p class="lead">Ссылки для отзывов скоро появятся.</p>`;
 
+  // Кнопка «Получить скидку»: раскрывает кодовое слово программы лояльности.
+  // Работает без JavaScript (<details>), поэтому на странице по-прежнему нет скриптов.
+  const discountCode = (business.discount_code || "").trim();
+  const discount = discountCode
+    ? `<details class="discount">
+         <summary class="button discount-button">
+           <span class="icon discount-icon">${GIFT}</span>
+           <span class="label">Получить скидку</span>
+           <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+         </summary>
+         <div class="discount-panel">
+           ${business.discount_text ? `<p class="discount-text">${escapeHtml(business.discount_text)}</p>` : ""}
+           <p class="discount-hint">Назовите или покажите кодовое слово:</p>
+           <p class="discount-code">${escapeHtml(discountCode)}</p>
+         </div>
+       </details>`
+    : "";
+
   return renderPage({
     status: 200,
     title: `Отзыв — ${business.name}`,
@@ -275,7 +296,8 @@ function businessPage(business, source) {
       ${tagline}
       <div class="divider"></div>
       <h2 class="thanks">Спасибо за ваш визит!</h2>
-      ${actions}`
+      ${actions}
+      ${discount}`
   });
 }
 
@@ -447,6 +469,36 @@ function renderPage({ status, title, accent, body }) {
     .label { flex: 1; font-size: 16px; line-height: 1.35; }
     .arrow { flex: none; width: 22px; height: 22px; color: #3a4152; }
 
+    /* «Получить скидку» */
+    .discount { margin-top: 14px; }
+    .discount-button {
+      list-style: none;
+      cursor: pointer;
+      background: #fff8e8;
+      border-color: #f3dfa9;
+    }
+    .discount-button::-webkit-details-marker { display: none; }
+    .discount-button .label { font-weight: 600; }
+    .chevron { flex: none; width: 22px; height: 22px; color: #3a4152; transition: transform 0.2s ease; }
+    .discount[open] .chevron { transform: rotate(180deg); }
+    .discount-panel {
+      margin-top: 10px;
+      padding: 16px 18px 18px;
+      border: 1px dashed #e2c46e;
+      border-radius: 16px;
+      background: #fffdf6;
+    }
+    .discount-text { margin: 0 0 10px; font-size: 16px; font-weight: 600; line-height: 1.35; }
+    .discount-hint { margin: 0; font-size: 14px; color: var(--muted); }
+    .discount-code {
+      margin: 6px 0 0;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      overflow-wrap: anywhere;
+      user-select: all;
+    }
+
     /* Кнопки заведений на странице группы /g/... */
     .venue { background: #fff; border-color: #e1e5ee; padding: 10px 20px 10px 10px; }
     .venue:hover { border-color: #cdd3e0; }
@@ -500,7 +552,7 @@ function renderPage({ status, title, accent, body }) {
       .label { font-size: 15px; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .button { transition: none; }
+      .button, .chevron { transition: none; }
       .footer { transition: none; }
     }
   </style>
