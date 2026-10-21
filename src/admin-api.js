@@ -10,6 +10,11 @@
 //   POST   /api/admin/groups             — создать группу
 //   PATCH  /api/admin/groups/:id         — изменить группу
 //   DELETE /api/admin/groups/:id         — удалить группу (сами заведения остаются)
+//   GET    /api/admin/cards              — список шаблонных карт
+//   POST   /api/admin/cards              — выпустить партию карт { count }
+//   PATCH  /api/admin/cards/:id          — привязать / перепривязать / отключить карту
+//   DELETE /api/admin/cards/:id          — удалить карту
+//   GET    /api/admin/card-stats?days=30 — открытия и клики по каждой карте
 //
 // Каждый запрос к /api/admin/ проверяет токен входа Supabase и email из ADMIN_EMAILS.
 // С базой работаем секретным ключом SUPABASE_SECRET_KEY — он есть только на сервере.
@@ -24,6 +29,12 @@ const ADMIN_COLUMNS =
 
 const GROUP_COLUMNS = "id,slug,name,tagline,logo_url,business_ids,is_active,created_at,updated_at";
 const MAX_GROUP_SIZE = 50;
+
+const CARD_COLUMNS = "id,code,business_id,label,is_active,assigned_at,created_at";
+// Код карты печатается на карте — только заглавные буквы и цифры без похожих (0/O, 1/I/L)
+const CARD_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+const CARD_CODE_LENGTH = 6;
+const MAX_CARDS_PER_BATCH = 200;
 
 // Без похожих символов (0/O, 1/l/I), чтобы ссылку можно было продиктовать
 const SLUG_ALPHABET = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -86,6 +97,21 @@ export async function handleApi(request, env, url) {
       if (groupMatch) {
         if (method === "PATCH") return await updateGroup(request, env, groupMatch[1]);
         if (method === "DELETE") return await deleteGroup(env, groupMatch[1]);
+      }
+
+      if (path === "/api/admin/cards") {
+        if (method === "GET") return await listCards(env);
+        if (method === "POST") return await issueCards(request, env);
+      }
+
+      const cardMatch = path.match(/^\/api\/admin\/cards\/(\d{1,18})$/);
+      if (cardMatch) {
+        if (method === "PATCH") return await updateCard(request, env, cardMatch[1]);
+        if (method === "DELETE") return await deleteCard(env, cardMatch[1]);
+      }
+
+      if (path === "/api/admin/card-stats" && method === "GET") {
+        return await cardStats(env, url);
       }
     }
 
@@ -275,6 +301,120 @@ async function validateGroup(input, env) {
     business_ids: ids,
     is_active: input.is_active !== false
   };
+}
+
+// ---------- Шаблонные карты (у каждой свой код и QR: /c/КОД) ----------
+
+async function listCards(env) {
+  const rows = await db(
+    env,
+    `cards?select=${CARD_COLUMNS}&order=created_at.asc,id.asc&limit=5000`
+  );
+  return json(rows);
+}
+
+// Выпуск партии: создаём N новых свободных карт со случайными кодами
+async function issueCards(request, env) {
+  const input = await readJson(request);
+  const count = Number(input.count);
+  if (!Number.isInteger(count) || count < 1 || count > MAX_CARDS_PER_BATCH) {
+    throw new HttpError(400, `Количество карт: от 1 до ${MAX_CARDS_PER_BATCH}`);
+  }
+
+  const codes = new Set();
+  while (codes.size < count) codes.add(generateCardCode());
+
+  // Повтор с уже существующим кодом почти невероятен; если случится — пробуем ещё раз
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      const rows = await db(env, `cards?select=${CARD_COLUMNS}`, {
+        method: "POST",
+        body: [...codes].map((code) => ({ code })),
+        prefer: "return=representation"
+      });
+      return json(rows, 201);
+    } catch (error) {
+      if (error.code === "23505") {
+        codes.clear();
+        while (codes.size < count) codes.add(generateCardCode());
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw new Error("Не удалось подобрать свободные коды за 5 попыток");
+}
+
+async function updateCard(request, env, id) {
+  const input = await readJson(request);
+
+  let businessId = null;
+  if (input.business_id !== null && input.business_id !== undefined && input.business_id !== "") {
+    businessId = Number(input.business_id);
+    if (!Number.isSafeInteger(businessId) || businessId <= 0) {
+      throw new HttpError(400, "Неверное заведение");
+    }
+    const found = await db(env, `businesses?id=eq.${businessId}&select=id`);
+    if (!found.length) {
+      throw new HttpError(400, "Заведение не найдено — обновите страницу");
+    }
+  }
+
+  const current = await db(env, `cards?id=eq.${id}&select=business_id`);
+  if (!current.length) {
+    throw new HttpError(404, "Карта не найдена");
+  }
+
+  const data = {
+    business_id: businessId,
+    label: cleanText(input.label, 60, "Место") || null,
+    is_active: input.is_active !== false
+  };
+  // Время привязки меняем, только когда карту привязали к другому заведению
+  if (current[0].business_id !== businessId) {
+    data.assigned_at = businessId ? new Date().toISOString() : null;
+  }
+
+  const rows = await db(env, `cards?id=eq.${id}&select=${CARD_COLUMNS}`, {
+    method: "PATCH",
+    body: data,
+    prefer: "return=representation"
+  });
+  return json(rows[0]);
+}
+
+async function deleteCard(env, id) {
+  const rows = await db(env, `cards?id=eq.${id}&select=id`, {
+    method: "DELETE",
+    prefer: "return=representation"
+  });
+  if (!rows.length) {
+    throw new HttpError(404, "Карта не найдена");
+  }
+  return json({ deleted: true });
+}
+
+async function cardStats(env, url) {
+  const { days } = statsParams(url);
+  const rows = await db(env, "rpc/card_stats_summary", {
+    method: "POST",
+    body: { p_days: days }
+  });
+  return json({ days, rows });
+}
+
+function generateCardCode() {
+  const limit = Math.floor(256 / CARD_ALPHABET.length) * CARD_ALPHABET.length;
+  let code = "";
+  while (code.length < CARD_CODE_LENGTH) {
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    for (const byte of bytes) {
+      if (byte < limit && code.length < CARD_CODE_LENGTH) {
+        code += CARD_ALPHABET[byte % CARD_ALPHABET.length];
+      }
+    }
+  }
+  return code;
 }
 
 // ---------- Проверка данных формы ----------

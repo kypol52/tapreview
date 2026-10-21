@@ -29,7 +29,7 @@ export function isBot(request) {
 }
 
 // Записывает событие. Ошибки только логируются — посетитель их не увидит.
-export async function logEvent(request, env, { businessId, eventType, destination, source }) {
+export async function logEvent(request, env, { businessId, eventType, destination, source, cardId }) {
   try {
     if (isBot(request)) return;
 
@@ -46,16 +46,20 @@ export async function logEvent(request, env, { businessId, eventType, destinatio
       `${businessId}|${eventType}|${destination || ""}|${visitorHash}|${windowNumber}`
     );
 
+    const body = {
+      business_id: businessId,
+      event_type: eventType,
+      destination: destination || null,
+      source,
+      visitor_hash: visitorHash,
+      dedupe_key: dedupeKey
+    };
+    // Переход с шаблонной карты /c/... — запоминаем, с какой именно
+    if (cardId) body.card_id = cardId;
+
     await db(env, "click_events?on_conflict=dedupe_key", {
       method: "POST",
-      body: {
-        business_id: businessId,
-        event_type: eventType,
-        destination: destination || null,
-        source,
-        visitor_hash: visitorHash,
-        dedupe_key: dedupeKey
-      },
+      body,
       prefer: "resolution=ignore-duplicates,return=minimal"
     });
   } catch (error) {

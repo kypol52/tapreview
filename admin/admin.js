@@ -22,7 +22,13 @@ const state = {
   groups: [],
   groupsLoaded: false,
   editingGroup: null, // группа, открытая в форме группы (null = новая)
-  groupItems: [] // id заведений в форме группы, по порядку
+  groupItems: [], // id заведений в форме группы, по порядку
+  cards: [],
+  cardsLoaded: false,
+  cardStats: {}, // id карты → { page_views, clicks } за 30 дней
+  cardFilter: "all",
+  editingCard: null,
+  pendingCardCode: null // карта, которую нужно открыть после загрузки (?card=КОД)
 };
 
 const $ = (id) => document.getElementById(id);
@@ -90,6 +96,38 @@ function bindEvents() {
   $("g-qr-svg").addEventListener("click", () => {
     const g = state.editingGroup;
     if (g) downloadQrSvg(groupSourceUrl(g, "qr"), `tapreview-qr-group-${g.slug}`);
+  });
+
+  // Карты
+  $("tab-cards").addEventListener("click", () => showTab("cards"));
+  $("c-issue-button").addEventListener("click", openIssueDialog);
+  $("issue-form").addEventListener("submit", onIssueCards);
+  $("issue-close").addEventListener("click", () => $("issue-dialog").close());
+  $("issue-cancel").addEventListener("click", () => $("issue-dialog").close());
+  $("c-csv-button").addEventListener("click", downloadCardsCsv);
+  $("c-search").addEventListener("input", renderCards);
+  $("c-search").addEventListener("keydown", onCardSearchEnter);
+  for (const chip of document.querySelectorAll("#cards-section .chip")) {
+    chip.addEventListener("click", () => {
+      state.cardFilter = chip.dataset.filter;
+      for (const other of document.querySelectorAll("#cards-section .chip")) {
+        other.classList.toggle("active", other === chip);
+      }
+      renderCards();
+    });
+  }
+  $("card-form").addEventListener("submit", onSaveCard);
+  $("c-editor-close").addEventListener("click", closeCardEditor);
+  $("c-cancel-button").addEventListener("click", closeCardEditor);
+  $("c-delete-button").addEventListener("click", onDeleteCard);
+  $("c-link-copy").addEventListener("click", () => copyText($("c-link-url").value));
+  $("c-qr-png").addEventListener("click", () => {
+    const c = state.editingCard;
+    if (c) downloadQrPng(cardUrl(c, "qr"), `tapreview-card-${formatCardCode(c.code)}`);
+  });
+  $("c-qr-svg").addEventListener("click", () => {
+    const c = state.editingCard;
+    if (c) downloadQrSvg(cardUrl(c, "qr"), `tapreview-card-${formatCardCode(c.code)}`);
   });
 }
 
@@ -260,7 +298,9 @@ function showLogin(message) {
   $("app-view").hidden = true;
   $("login-view").hidden = false;
   if ($("editor").open) $("editor").close();
-  if ($("group-editor").open) $("group-editor").close();
+  for (const id of ["group-editor", "card-editor", "issue-dialog"]) {
+    if ($(id).open) $(id).close();
+  }
   if (message) {
     showError("login-error", message);
   } else {
@@ -274,17 +314,28 @@ function showApp() {
   $("app-view").hidden = false;
   $("user-email").textContent = state.session.email || "";
   state.groupsLoaded = false;
-  showTab("businesses");
+  state.cardsLoaded = false;
+
+  // Ссылка «Я владелец — активировать карту» со страницы карты: /admin/?card=КОД
+  const cardParam = normalizeCardCode(new URLSearchParams(location.search).get("card"));
+  if (cardParam) {
+    state.pendingCardCode = cardParam;
+    history.replaceState(null, "", location.pathname);
+  }
+
+  showTab(state.pendingCardCode ? "cards" : "businesses");
   loadBusinesses();
 }
 
+const TABS = ["businesses", "groups", "cards"];
+
 function showTab(name) {
-  const groups = name === "groups";
-  $("businesses-section").hidden = groups;
-  $("groups-section").hidden = !groups;
-  $("tab-businesses").classList.toggle("active", !groups);
-  $("tab-groups").classList.toggle("active", groups);
-  if (groups && !state.groupsLoaded) loadGroups();
+  for (const tab of TABS) {
+    $(`${tab}-section`).hidden = tab !== name;
+    $(`tab-${tab}`).classList.toggle("active", tab === name);
+  }
+  if (name === "groups" && !state.groupsLoaded) loadGroups();
+  if (name === "cards" && !state.cardsLoaded) loadCards();
 }
 
 // ================= Список бизнесов =================
@@ -300,13 +351,16 @@ async function loadBusinesses() {
       api("/api/admin/stats-summary?days=30").catch(() => ({ rows: [] }))
     ]);
     state.businesses = businesses;
+    state.businessesLoaded = true;
     state.summary = {};
     for (const row of summary.rows) {
       state.summary[row.business_id] = row;
     }
     renderList();
-    // Названия заведений в списке групп берутся отсюда
+    // Названия заведений в списках групп и карт берутся отсюда
     if (state.groupsLoaded) renderGroups();
+    if (state.cardsLoaded) renderCards();
+    openPendingCard();
   } catch (error) {
     if (!$("app-view").hidden) {
       showError("list-error", error.message);
@@ -362,7 +416,7 @@ function renderRow(business) {
   const statsCell = el(
     "td",
     "cell-stats",
-    stats ? `${stats.page_views} откр. · ${stats.clicks} кликов` : "—"
+    stats ? statsText(stats) : "—"
   );
 
   // Ссылка
@@ -854,6 +908,342 @@ async function onDeleteGroup() {
   }
 }
 
+// ================= Шаблонные карты =================
+// У каждой напечатанной карты свой код и QR: /c/КОД. Карта привязывается к бизнесу
+// здесь, и её можно в любой момент перепривязать — без перепечатки.
+
+async function loadCards() {
+  $("c-loading").hidden = false;
+  hideError("c-list-error");
+
+  try {
+    const [cards, stats] = await Promise.all([
+      api("/api/admin/cards"),
+      api("/api/admin/card-stats?days=30").catch(() => ({ rows: [] }))
+    ]);
+    state.cards = cards;
+    state.cardStats = {};
+    for (const row of stats.rows) {
+      state.cardStats[row.card_id] = row;
+    }
+    state.cardsLoaded = true;
+    renderCards();
+    openPendingCard();
+  } catch (error) {
+    if (!$("app-view").hidden) {
+      showError("c-list-error", error.message);
+    }
+  } finally {
+    $("c-loading").hidden = true;
+  }
+}
+
+// Открыть карту из ссылки ?card=КОД — когда загружены и карты, и бизнесы
+function openPendingCard() {
+  const code = state.pendingCardCode;
+  if (!code || !state.cardsLoaded || !state.businessesLoaded) return;
+  state.pendingCardCode = null;
+
+  const card = state.cards.find((c) => c.code === code);
+  if (card) {
+    openCardEditor(card);
+  } else {
+    toast(`Карта ${formatCardCode(code)} не найдена`);
+  }
+}
+
+function cardStatus(card) {
+  if (!card.is_active) return "off";
+  return card.business_id ? "assigned" : "free";
+}
+
+function filteredCards() {
+  const query = $("c-search").value.trim().toLowerCase();
+  const codeQuery = normalizeCardCode(query, true);
+
+  return state.cards.filter((card) => {
+    if (state.cardFilter !== "all" && cardStatus(card) !== state.cardFilter) return false;
+    if (!query) return true;
+    const business = businessById(card.business_id);
+    return (
+      (codeQuery && card.code.includes(codeQuery)) ||
+      (business && business.name.toLowerCase().includes(query)) ||
+      (card.label && card.label.toLowerCase().includes(query))
+    );
+  });
+}
+
+function renderCards() {
+  const items = filteredCards();
+
+  const total = state.cards.length;
+  const free = state.cards.filter((c) => cardStatus(c) === "free").length;
+  const assigned = state.cards.filter((c) => cardStatus(c) === "assigned").length;
+  $("c-count").textContent = total
+    ? `Всего: ${total} · привязано: ${assigned} · свободно: ${free}`
+    : "Шаблонные карты с уникальным QR. Привяжите карту к заведению — и она заработает.";
+
+  $("c-rows").replaceChildren(...items.map(renderCardRow));
+  $("c-table").hidden = items.length === 0;
+  $("c-empty").hidden = total !== 0;
+  $("c-nothing").hidden = total === 0 || items.length !== 0;
+}
+
+function renderCardRow(card) {
+  const tr = document.createElement("tr");
+  tr.className = "clickable";
+  tr.addEventListener("click", (event) => {
+    if (!event.target.closest("button, a")) openCardEditor(card);
+  });
+
+  const codeCell = document.createElement("td");
+  codeCell.append(el("span", "slug card-code", formatCardCode(card.code)));
+
+  const business = businessById(card.business_id);
+  const businessCell = document.createElement("td");
+  if (business) {
+    businessCell.append(el("div", "cell-name", business.name));
+    if (!business.is_active) businessCell.append(el("div", "cell-sub", "Заведение выключено"));
+  } else {
+    businessCell.append(el("span", "muted", "—"));
+  }
+
+  const labelCell = el("td", "cell-sub", card.label || "—");
+
+  const status = cardStatus(card);
+  const statusCell = document.createElement("td");
+  statusCell.append(
+    status === "assigned"
+      ? el("span", "badge badge-on", "Работает")
+      : status === "free"
+        ? el("span", "badge badge-free", "Свободна")
+        : el("span", "badge badge-off", "Отключена")
+  );
+
+  const stats = state.cardStats[card.id];
+  const statsCell = el(
+    "td",
+    "cell-stats",
+    stats ? statsText(stats) : "—"
+  );
+
+  const actionsCell = el("td", "cell-actions");
+  const editButton = el(
+    "button",
+    status === "free" ? "btn btn-primary btn-small" : "btn btn-secondary btn-small",
+    status === "free" ? "Привязать" : "Изменить"
+  );
+  editButton.type = "button";
+  editButton.addEventListener("click", () => openCardEditor(card));
+  actionsCell.append(editButton);
+
+  tr.append(codeCell, businessCell, labelCell, statusCell, statsCell, actionsCell);
+  return tr;
+}
+
+// Enter в поиске: если введён точный номер карты — сразу открываем её
+function onCardSearchEnter(event) {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  const code = normalizeCardCode($("c-search").value);
+  const card = code && state.cards.find((c) => c.code === code);
+  if (card) {
+    openCardEditor(card);
+  } else if (filteredCards().length === 1) {
+    openCardEditor(filteredCards()[0]);
+  }
+}
+
+function openCardEditor(card) {
+  state.editingCard = card;
+  hideError("c-editor-error");
+
+  $("c-editor-title").textContent = `Карта ${formatCardCode(card.code)}`;
+  $("c-link-url").value = cardUrl(card, "nfc");
+  $("c-link-open").href = cardUrl(card);
+  $("c-qr-preview").src =
+    `data:image/svg+xml;charset=utf-8,${encodeURIComponent(qrSvg(cardUrl(card, "qr")))}`;
+
+  // Список заведений: сначала «не привязана», затем все по алфавиту
+  const select = $("c-business");
+  const none = el("option", "", "— не привязана —");
+  none.value = "";
+  const options = [...state.businesses]
+    .sort((a, b) => a.name.localeCompare(b.name, "ru"))
+    .map((b) => {
+      const option = el("option", "", b.is_active ? b.name : `${b.name} (выключен)`);
+      option.value = String(b.id);
+      return option;
+    });
+  select.replaceChildren(none, ...options);
+  select.value = card.business_id ? String(card.business_id) : "";
+
+  $("c-label").value = card.label || "";
+  $("c-active").checked = card.is_active;
+
+  const stats = state.cardStats[card.id];
+  const assigned = card.assigned_at
+    ? `Привязана ${new Date(card.assigned_at).toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}. `
+    : "";
+  $("c-stats").textContent =
+    assigned +
+    (stats
+      ? `За 30 дней с этой карты: ${stats.page_views} ${plural(stats.page_views, "открытие", "открытия", "открытий")}, ` +
+        `${stats.clicks} ${plural(stats.clicks, "переход", "перехода", "переходов")} к отзывам.`
+      : "За 30 дней с этой карты переходов не было.");
+
+  if (!$("card-editor").open) $("card-editor").showModal();
+  select.focus();
+}
+
+function closeCardEditor() {
+  $("card-editor").close();
+  state.editingCard = null;
+}
+
+async function onSaveCard(event) {
+  event.preventDefault();
+  hideError("c-editor-error");
+  const card = state.editingCard;
+  if (!card) return;
+
+  const button = $("c-save-button");
+  button.disabled = true;
+  button.textContent = "Сохраняем…";
+
+  try {
+    const saved = await api(`/api/admin/cards/${card.id}`, {
+      method: "PATCH",
+      body: {
+        business_id: $("c-business").value || null,
+        label: $("c-label").value,
+        is_active: $("c-active").checked
+      }
+    });
+
+    const index = state.cards.findIndex((c) => c.id === saved.id);
+    if (index !== -1) state.cards[index] = saved;
+    renderCards();
+    closeCardEditor();
+
+    const business = businessById(saved.business_id);
+    toast(
+      business && saved.is_active
+        ? `Карта ${formatCardCode(saved.code)} → ${business.name}`
+        : "Сохранено"
+    );
+  } catch (error) {
+    showError("c-editor-error", error.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Сохранить";
+  }
+}
+
+async function onDeleteCard() {
+  const card = state.editingCard;
+  if (!card) return;
+
+  const ok = confirm(
+    `Удалить карту ${formatCardCode(card.code)} навсегда?\n\n` +
+      "Если карта напечатана, её QR перестанет работать.\n" +
+      "Чтобы временно выключить карту — лучше снимите галочку «Карта работает»."
+  );
+  if (!ok) return;
+
+  try {
+    await api(`/api/admin/cards/${card.id}`, { method: "DELETE" });
+    state.cards = state.cards.filter((c) => c.id !== card.id);
+    renderCards();
+    closeCardEditor();
+    toast("Карта удалена");
+  } catch (error) {
+    showError("c-editor-error", error.message);
+  }
+}
+
+function openIssueDialog() {
+  hideError("issue-error");
+  $("issue-count").value = "10";
+  $("issue-dialog").showModal();
+  $("issue-count").select();
+}
+
+async function onIssueCards(event) {
+  event.preventDefault();
+  hideError("issue-error");
+
+  const button = $("issue-save");
+  button.disabled = true;
+  button.textContent = "Выпускаем…";
+
+  try {
+    const created = await api("/api/admin/cards", {
+      method: "POST",
+      body: { count: Number($("issue-count").value) }
+    });
+    state.cards.push(...created);
+    renderCards();
+    $("issue-dialog").close();
+    toast(`Выпущено карт: ${created.length}`);
+  } catch (error) {
+    showError("issue-error", error.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Выпустить";
+  }
+}
+
+// CSV для типографии (и для себя): номер, ссылка для QR, ссылка для NFC, привязка.
+// Выгружаются карты, которые сейчас видны в списке (с учётом фильтра и поиска).
+function downloadCardsCsv() {
+  const cards = filteredCards();
+  if (!cards.length) {
+    toast("Список пуст");
+    return;
+  }
+
+  const rows = [["Номер", "Ссылка для QR", "Ссылка для NFC", "Заведение", "Место", "Статус"]];
+  for (const card of cards) {
+    const business = businessById(card.business_id);
+    const status = { assigned: "Работает", free: "Свободна", off: "Отключена" }[cardStatus(card)];
+    rows.push([
+      formatCardCode(card.code),
+      cardUrl(card, "qr"),
+      cardUrl(card, "nfc"),
+      business ? business.name : "",
+      card.label || "",
+      status
+    ]);
+  }
+
+  // Точка с запятой и BOM — чтобы Excel сразу открыл файл с русскими буквами по колонкам
+  const csv = rows
+    .map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(";"))
+    .join("\r\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+  downloadBlob(blob, `tapreview-cards-${new Date().toISOString().slice(0, 10)}.csv`);
+}
+
+// Код карты: латинские буквы и цифры, регистр и дефисы не важны (k7p-3qx = K7P3QX).
+// partial = true — для поиска по части номера.
+function normalizeCardCode(value, partial = false) {
+  const code = String(value || "").replace(/[\s-]/g, "").toUpperCase();
+  if (partial) return /^[A-Z0-9]{1,12}$/.test(code) ? code : null;
+  return /^[A-Z0-9]{4,12}$/.test(code) ? code : null;
+}
+
+// K7P3QX → K7P-3QX (так номер напечатан на карте)
+function formatCardCode(code) {
+  return code.length === 6 ? `${code.slice(0, 3)}-${code.slice(3)}` : code;
+}
+
+function cardUrl(card, source) {
+  const base = (state.config && state.config.publicBaseUrl) || window.location.origin;
+  const url = `${base.replace(/\/+$/, "")}/c/${card.code}`;
+  return source ? `${url}?s=${source}` : url;
+}
+
 // ================= QR-коды =================
 // Библиотека qrcode-generator (MIT) только рассчитывает узор,
 // а картинки PNG и SVG рисуем сами — так их качество под нашим контролем.
@@ -969,7 +1359,9 @@ function groupSourceUrl(group, source) {
 // поэтому временные элементы добавляем внутрь окна
 function overlayHost() {
   if ($("editor").open) return $("editor");
-  if ($("group-editor").open) return $("group-editor");
+  for (const id of ["group-editor", "card-editor", "issue-dialog"]) {
+    if ($(id).open) return $(id);
+  }
   return document.body;
 }
 
@@ -998,6 +1390,18 @@ function toast(message) {
   toastTimer = setTimeout(() => {
     box.hidden = true;
   }, 2200);
+}
+
+function statsText(stats) {
+  return `${stats.page_views} откр. · ${stats.clicks} ${plural(stats.clicks, "клик", "клика", "кликов")}`;
+}
+
+function plural(n, one, few, many) {
+  const n10 = n % 10;
+  const n100 = n % 100;
+  if (n10 === 1 && n100 !== 11) return one;
+  if (n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14)) return few;
+  return many;
 }
 
 function el(tag, className, text) {

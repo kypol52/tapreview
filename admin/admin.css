@@ -334,6 +334,50 @@ input[type="color"]:disabled { opacity: 0.4; }
 .add-row { display: flex; gap: 8px; margin-top: 4px; }
 .add-row select { flex: 1; min-width: 0; }
 
+/* ---------- Карты ---------- */
+
+.head-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.toolbar .search { margin-bottom: 0; }
+.filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.chip:hover { color: var(--text); }
+.chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+.badge-free { background: #fef3c7; color: #92400e; }
+.card-code { font-weight: 600; letter-spacing: 0.04em; }
+.table tr.clickable { cursor: pointer; }
+.table tr.clickable:hover td { background: #fafbfc; }
+.card-stats { font-size: 13px; margin-bottom: 14px; }
+
+.editor-small { width: min(440px, calc(100% - 32px)); }
+input[type="number"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
 /* ---------- Уведомление ---------- */
 
 .toast {
@@ -355,7 +399,10 @@ input[type="color"]:disabled { opacity: 0.4; }
   .topbar { padding: 12px 16px; }
   #user-email { display: none; }
   .container { padding: 20px 16px 40px; }
-  .page-head { align-items: center; }
+  .page-head { align-items: center; flex-wrap: wrap; }
+  .toolbar .search { flex-basis: 100%; }
+  .tabs { overflow-x: auto; }
+  .tab { white-space: nowrap; }
   .search { max-width: none; }
   .grid-2 { grid-template-columns: 1fr; }
   .editor form { padding: 16px; }

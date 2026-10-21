@@ -47,6 +47,7 @@
       <nav class="tabs" aria-label="Разделы">
         <button id="tab-businesses" class="tab active" type="button">Бизнесы</button>
         <button id="tab-groups" class="tab" type="button">Группы заведений</button>
+        <button id="tab-cards" class="tab" type="button">Карты</button>
       </nav>
 
       <section id="businesses-section">
@@ -111,6 +112,52 @@
         </div>
 
         <p id="g-empty" class="empty" hidden>Пока нет ни одной группы. Нажмите «+ Новая группа».</p>
+      </section>
+
+      <!-- Шаблонные карты: у каждой свой QR /c/КОД, привязка к заведению здесь -->
+      <section id="cards-section" hidden>
+        <div class="page-head">
+          <div>
+            <h1>Карты</h1>
+            <p id="c-count" class="muted">Шаблонные карты с уникальным QR. Привяжите карту к заведению — и она заработает.</p>
+          </div>
+          <div class="head-buttons">
+            <button id="c-csv-button" class="btn btn-secondary" type="button">Скачать список (CSV)</button>
+            <button id="c-issue-button" class="btn btn-primary" type="button">+ Выпустить карты</button>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <input id="c-search" class="search" type="search" placeholder="Номер карты или заведение" autocomplete="off">
+          <div class="filters" role="group" aria-label="Фильтр">
+            <button class="chip active" type="button" data-filter="all">Все</button>
+            <button class="chip" type="button" data-filter="free">Свободные</button>
+            <button class="chip" type="button" data-filter="assigned">Привязанные</button>
+            <button class="chip" type="button" data-filter="off">Отключённые</button>
+          </div>
+        </div>
+
+        <p id="c-list-error" class="error" hidden></p>
+        <p id="c-loading" class="muted" hidden>Загрузка…</p>
+
+        <div class="table-wrap">
+          <table id="c-table" class="table" hidden>
+            <thead>
+              <tr>
+                <th>Номер</th>
+                <th>Заведение</th>
+                <th>Место</th>
+                <th>Статус</th>
+                <th>За 30 дней</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="c-rows"></tbody>
+          </table>
+        </div>
+
+        <p id="c-empty" class="empty" hidden>Пока нет ни одной карты. Нажмите «+ Выпустить карты».</p>
+        <p id="c-nothing" class="empty" hidden>Ничего не найдено.</p>
       </section>
     </main>
   </div>
@@ -369,6 +416,96 @@
         <div class="spacer"></div>
         <button id="g-cancel-button" class="btn btn-ghost" type="button">Отмена</button>
         <button id="g-save-button" class="btn btn-primary" type="submit">Сохранить</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ===== Карта ===== -->
+  <dialog id="card-editor" class="editor">
+    <form id="card-form" method="dialog">
+      <div class="editor-head">
+        <h2 id="c-editor-title">Карта</h2>
+        <button id="c-editor-close" class="btn btn-ghost" type="button" aria-label="Закрыть">✕</button>
+      </div>
+
+      <div class="link-box">
+        <div class="link-label">Ссылка для записи в NFC-чип этой карты</div>
+        <div class="link-row">
+          <input id="c-link-url" type="text" readonly>
+          <button id="c-link-copy" class="btn btn-secondary" type="button">Копировать</button>
+          <a id="c-link-open" class="btn btn-secondary" target="_blank" rel="noopener">Открыть</a>
+        </div>
+
+        <div class="qr-row">
+          <img id="c-qr-preview" class="qr-preview" alt="QR-код карты">
+          <div class="qr-info">
+            <div class="link-label">QR-код карты</div>
+            <p class="muted qr-text">
+              Этот QR напечатан на карте. Он не меняется: можно привязать карту
+              к другому заведению — перепечатывать и перезаписывать NFC не нужно.
+            </p>
+            <div class="qr-buttons">
+              <button id="c-qr-png" class="btn btn-secondary" type="button">Скачать PNG</button>
+              <button id="c-qr-svg" class="btn btn-secondary" type="button">Скачать SVG</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <label class="field">
+        <span>Заведение</span>
+        <select id="c-business"></select>
+      </label>
+
+      <label class="field">
+        <span>Где стоит карта (необязательно)</span>
+        <input id="c-label" type="text" maxlength="60" placeholder="Касса, столик 3, ресепшен…">
+      </label>
+
+      <div class="field">
+        <span>Статус</span>
+        <label class="check">
+          <input id="c-active" type="checkbox" checked>
+          Карта работает (снимите, если карту потеряли или украли)
+        </label>
+      </div>
+
+      <p id="c-stats" class="muted card-stats"></p>
+
+      <p id="c-editor-error" class="error" hidden></p>
+
+      <div class="editor-actions">
+        <button id="c-delete-button" class="btn btn-danger" type="button">Удалить</button>
+        <div class="spacer"></div>
+        <button id="c-cancel-button" class="btn btn-ghost" type="button">Отмена</button>
+        <button id="c-save-button" class="btn btn-primary" type="submit">Сохранить</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ===== Выпуск карт ===== -->
+  <dialog id="issue-dialog" class="editor editor-small">
+    <form id="issue-form" method="dialog">
+      <div class="editor-head">
+        <h2>Выпустить карты</h2>
+        <button id="issue-close" class="btn btn-ghost" type="button" aria-label="Закрыть">✕</button>
+      </div>
+
+      <label class="field">
+        <span>Сколько карт</span>
+        <input id="issue-count" type="number" min="1" max="200" value="10" required>
+      </label>
+      <p class="muted field-hint">
+        Будут созданы свободные карты с новыми номерами. Затем нажмите «Скачать список (CSV)» —
+        это файл для типографии: номер и ссылка для QR каждой карты.
+      </p>
+
+      <p id="issue-error" class="error" hidden></p>
+
+      <div class="editor-actions">
+        <div class="spacer"></div>
+        <button id="issue-cancel" class="btn btn-ghost" type="button">Отмена</button>
+        <button id="issue-save" class="btn btn-primary" type="submit">Выпустить</button>
       </div>
     </form>
   </dialog>

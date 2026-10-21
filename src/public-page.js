@@ -1,5 +1,5 @@
-// Публичная страница бизнеса /b/:slug, страница группы заведений /g/:slug
-// и переходы на площадки /go/:slug/:platform.
+// Публичная страница бизнеса /b/:slug, шаблонная карта /c/:code,
+// страница группы заведений /g/:slug и переходы на площадки /go/:slug/:platform.
 // Страница собирается на сервере: посетитель получает готовый HTML за один запрос,
 // ключи не попадают в браузер.
 // Кнопки ведут не прямо на Google/Яндекс/2ГИС, а через /go/... — так мы считаем клики,
@@ -65,6 +65,10 @@ const EXTERNAL = `<svg class="ext" viewBox="0 0 24 24" aria-hidden="true"><path 
 
 const GIFT = `<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="20" fill="#f0b43c"/><g fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"><rect x="11" y="17" width="18" height="12" rx="1.5"/><path d="M10 13.5h20v3.5H10zM20 13.5V29"/><path d="M20 13.5c-1.5-3.5-6-4-6-1.2 0 1.5 2.5 1.2 6 1.2zM20 13.5c1.5-3.5 6-4 6-1.2 0 1.5-2.5 1.2-6 1.2z" stroke-linecap="round"/></g></svg>`;
 
+const BUSINESS_COLUMNS =
+  "id,slug,name,tagline,category,logo_url,brand_color,google_url,yandex_url,twogis_url," +
+  "discount_code,discount_text";
+
 const TELEGRAM_URL ="https://t.me/tapreviewru";
 
 export async function handleBusinessPage(request, env, ctx, slug) {
@@ -96,16 +100,131 @@ export async function handleGo(request, env, ctx, slug, platformKey) {
     return redirect(`/b/${business.slug}`);
   }
 
+  // Клик со страницы шаблонной карты: ?c=КОД. Карту засчитываем, только если она
+  // действительно привязана к этому бизнесу (подделанный код просто игнорируется).
+  const url = new URL(request.url);
+  const cardCode = normalizeCardCode(url.searchParams.get("c"));
+
   ctx.waitUntil(
-    logEvent(request, env, {
-      businessId: business.id,
-      eventType: "click",
-      destination: platform.key,
-      source: sourceFrom(new URL(request.url))
-    })
+    (async () => {
+      let cardId = null;
+      if (cardCode) {
+        try {
+          const cards = await db(
+            env,
+            `cards?code=eq.${cardCode}&business_id=eq.${business.id}&select=id&limit=1`
+          );
+          cardId = cards.length ? cards[0].id : null;
+        } catch (error) {
+          console.error(`Не удалось найти карту для клика: ${error.message}`);
+        }
+      }
+      await logEvent(request, env, {
+        businessId: business.id,
+        eventType: "click",
+        destination: platform.key,
+        source: sourceFrom(url),
+        cardId
+      });
+    })()
   );
 
   return redirect(target);
+}
+
+// Шаблонная карта /c/:code. У каждой напечатанной карты свой код.
+// Карта привязана к бизнесу → сразу показываем страницу отзывов этого бизнеса
+// (адрес не меняется, редиректа нет). Не привязана → «Карта ещё не активирована».
+export async function handleCardPage(request, env, ctx, rawCode) {
+  const code = normalizeCardCode(rawCode);
+  if (!code) return notFoundPage();
+
+  let card;
+  let business = null;
+  try {
+    const cards = await db(
+      env,
+      `cards?code=eq.${code}&select=id,code,business_id,is_active&limit=1`
+    );
+    if (!cards.length) return notFoundPage();
+    card = cards[0];
+
+    if (card.is_active && card.business_id) {
+      const rows = await db(
+        env,
+        `businesses?id=eq.${card.business_id}&is_active=eq.true&select=${BUSINESS_COLUMNS}&limit=1`
+      );
+      business = rows[0] || null;
+    }
+  } catch (error) {
+    console.error(`Ошибка загрузки карты: ${error.message}\n${error.stack}`);
+    return errorPage();
+  }
+
+  if (!card.is_active) {
+    return cardInfoPage(
+      card.code,
+      "Карта отключена",
+      "Эта карта больше не используется. Обратитесь, пожалуйста, к персоналу заведения.",
+      false
+    );
+  }
+  if (!card.business_id) {
+    return cardInfoPage(
+      card.code,
+      "Карта ещё не активирована",
+      "Совсем скоро здесь появится страница заведения. Загляните чуть позже!",
+      true
+    );
+  }
+  if (!business) {
+    return cardInfoPage(
+      card.code,
+      "Страница временно недоступна",
+      "Попробуйте, пожалуйста, ещё раз немного позже.",
+      false
+    );
+  }
+
+  const source = sourceFrom(new URL(request.url));
+  ctx.waitUntil(
+    logEvent(request, env, {
+      businessId: business.id,
+      eventType: "page_view",
+      source,
+      cardId: card.id
+    })
+  );
+
+  return businessPage(business, source, card.code);
+}
+
+// Код карты: только латинские буквы и цифры, регистр и дефисы не важны (K7P-3QX = k7p3qx)
+function normalizeCardCode(value) {
+  const code = String(value || "").replace(/[\s-]/g, "").toUpperCase();
+  return /^[A-Z0-9]{4,12}$/.test(code) ? code : null;
+}
+
+// K7P3QX → K7P-3QX (так номер напечатан на карте)
+function formatCardCode(code) {
+  return code.length === 6 ? `${code.slice(0, 3)}-${code.slice(3)}` : code;
+}
+
+function cardInfoPage(code, heading, text, showOwnerLink) {
+  const ownerLink = showOwnerLink
+    ? `<a class="owner-link" href="/admin/?card=${escapeHtml(code)}">Я владелец — активировать карту</a>`
+    : "";
+  return renderPage({
+    status: 200,
+    title: heading,
+    accent: DEFAULT_ACCENT,
+    body: `
+      <div class="card-mark" aria-hidden="true">TR</div>
+      <h2 class="thanks">${escapeHtml(heading)}</h2>
+      <p class="lead">${escapeHtml(text)}</p>
+      <p class="card-code">Карта № ${escapeHtml(formatCardCode(code))}</p>
+      ${ownerLink}`
+  });
 }
 
 // Страница группы /g/:slug: один QR / NFC на несколько заведений.
@@ -210,8 +329,7 @@ async function loadBusiness(env, slug) {
     const rows = await db(
       env,
       `businesses?slug=eq.${encodeURIComponent(slug)}&is_active=eq.true` +
-        `&select=id,slug,name,tagline,category,logo_url,brand_color,google_url,yandex_url,twogis_url,` +
-        `discount_code,discount_text&limit=1`
+        `&select=${BUSINESS_COLUMNS}&limit=1`
     );
     return rows.length ? { business: rows[0] } : { response: notFoundPage() };
   } catch (error) {
@@ -231,13 +349,18 @@ function redirect(location) {
   });
 }
 
-function businessPage(business, source) {
+function businessPage(business, source, cardCode = null) {
   const accent = COLOR_RE.test(business.brand_color || "")
     ? business.brand_color
     : DEFAULT_ACCENT;
 
-  // Источник (NFC / QR) передаём дальше, чтобы клик тоже знал, откуда пришёл посетитель
-  const sourceQuery = source === "direct" ? "" : `?s=${source}`;
+  // Источник (NFC / QR) и код карты передаём дальше, чтобы клик тоже знал,
+  // откуда пришёл посетитель
+  const params = new URLSearchParams();
+  if (source !== "direct") params.set("s", source);
+  if (cardCode) params.set("c", cardCode);
+  const query = params.toString();
+  const sourceQuery = query ? `?${query.replace(/&/g, "&amp;")}` : "";
 
   const buttons = PLATFORMS
     .filter((p) => isHttpsUrl(business[p.field]))
@@ -468,6 +591,36 @@ function renderPage({ status, title, accent, body }) {
     .icon svg { display: block; width: 100%; height: 100%; }
     .label { flex: 1; font-size: 16px; line-height: 1.35; }
     .arrow { flex: none; width: 22px; height: 22px; color: #3a4152; }
+
+    /* Страница шаблонной карты, которая ещё не привязана */
+    .card-mark {
+      display: grid;
+      place-items: center;
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 18px;
+      border-radius: 50%;
+      background: #0a2a5c;
+      color: #fff;
+      font-weight: 700;
+      font-size: 22px;
+      letter-spacing: 0.02em;
+      box-shadow: 0 0 0 4px #fff, 0 0 0 5px #e5aa0c;
+    }
+    .card-code {
+      margin: 18px 0 0;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 14px;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+    }
+    .owner-link {
+      display: inline-block;
+      margin-top: 14px;
+      font-size: 14px;
+      color: #0a2a5c;
+      text-underline-offset: 3px;
+    }
 
     /* «Получить скидку» */
     .discount { margin-top: 14px; }

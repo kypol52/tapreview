@@ -1,11 +1,12 @@
 // TapReview — серверная часть (Cloudflare Worker).
 //   /b/:slug             — публичная страница бизнеса (public-page.js)
-//   /g/:slug             — страница группы: список заведений, ведёт на их /b/:slug (public-page.js)
+//   /c/:code             — шаблонная карта: страница привязанного бизнеса или «не активирована»
+//   /g/:slug           — страница группы: список заведений, ведёт на их /b/:slug (public-page.js)
 //   /go/:slug/:platform — учёт клика и переход на Google / Яндекс / 2ГИС (public-page.js)
 //   /api/...             — API админ-панели (admin-api.js)
 // Все остальные адреса отдаются как обычные файлы (index.html, admin/, 404.html и т.д.).
 
-import { handleBusinessPage, handleGroupPage, handleGo } from "./public-page.js";
+import { handleBusinessPage, handleCardPage, handleGroupPage, handleGo } from "./public-page.js";
 import { handleApi } from "./admin-api.js";
 import { db } from "./supabase.js";
 
@@ -17,6 +18,11 @@ export default {
     const pageMatch = url.pathname.match(/^\/b\/([^/]+)\/?$/);
     if (pageMatch && isRead) {
       return handleBusinessPage(request, env, ctx, pageMatch[1]);
+    }
+
+    const cardMatch = url.pathname.match(/^\/c\/([^/]+)\/?$/);
+    if (cardMatch && isRead) {
+      return handleCardPage(request, env, ctx, cardMatch[1]);
     }
 
     const groupMatch = url.pathname.match(/^\/g\/([^/]+)\/?$/);
