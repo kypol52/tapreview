@@ -406,6 +406,8 @@ function openEditor(business) {
   $("f-yandex").value = business ? business.yandex_url || "" : "";
   $("f-twogis").value = business ? business.twogis_url || "" : "";
   $("f-logo").value = business ? business.logo_url || "" : "";
+  $("f-discount-code").value = business ? business.discount_code || "" : "";
+  $("f-discount-text").value = business ? business.discount_text || "" : "";
   $("f-active").checked = business ? business.is_active : true;
 
   const hasColor = Boolean(business && business.brand_color);
@@ -530,6 +532,8 @@ function readForm() {
     yandex_url: $("f-yandex").value,
     twogis_url: $("f-twogis").value,
     logo_url: $("f-logo").value,
+    discount_code: $("f-discount-code").value,
+    discount_text: $("f-discount-text").value,
     brand_color: $("f-color-on").checked ? $("f-color").value : null,
     is_active: $("f-active").checked
   };
