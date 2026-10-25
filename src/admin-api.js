@@ -15,11 +15,17 @@
 //   PATCH  /api/admin/cards/:id          — привязать / перепривязать / отключить карту
 //   DELETE /api/admin/cards/:id          — удалить карту
 //   GET    /api/admin/card-stats?days=30 — открытия и клики по каждой карте
+//   GET    /api/admin/telegram/status    — настроен ли Telegram-бот
+//   POST   /api/admin/telegram/setup     — включить бота (адрес для сообщений и список команд)
+//   POST   /api/admin/businesses/:id/telegram-invite — одноразовая ссылка для владельца
+//   GET    /api/admin/businesses/:id/telegram        — чаты, подключённые к бизнесу
+//   DELETE /api/admin/telegram/subscribers/:id       — отключить чат
 //
 // Каждый запрос к /api/admin/ проверяет токен входа Supabase и email из ADMIN_EMAILS.
 // С базой работаем секретным ключом SUPABASE_SECRET_KEY — он есть только на сервере.
 
 import { db } from "./supabase.js";
+import { tg, BOT_COMMANDS } from "./telegram.js";
 
 const CATEGORIES = ["restaurant", "beauty", "shop", "hotel", "auto", "other"];
 
@@ -112,6 +118,28 @@ export async function handleApi(request, env, url) {
 
       if (path === "/api/admin/card-stats" && method === "GET") {
         return await cardStats(env, url);
+      }
+
+      if (path === "/api/admin/telegram/status" && method === "GET") {
+        return json(await telegramStatus(env));
+      }
+      if (path === "/api/admin/telegram/setup" && method === "POST") {
+        return await telegramSetup(env);
+      }
+
+      const tgInviteMatch = path.match(/^\/api\/admin\/businesses\/(\d{1,18})\/telegram-invite$/);
+      if (tgInviteMatch && method === "POST") {
+        return await createTelegramInvite(env, tgInviteMatch[1]);
+      }
+
+      const tgListMatch = path.match(/^\/api\/admin\/businesses\/(\d{1,18})\/telegram$/);
+      if (tgListMatch && method === "GET") {
+        return await listTelegramSubscribers(env, tgListMatch[1]);
+      }
+
+      const tgSubMatch = path.match(/^\/api\/admin\/telegram\/subscribers\/(\d{1,18})$/);
+      if (tgSubMatch && method === "DELETE") {
+        return await deleteTelegramSubscriber(env, tgSubMatch[1]);
       }
     }
 
@@ -518,6 +546,96 @@ async function statsSummary(env, url) {
     body: { p_days: days }
   });
   return json({ days, rows });
+}
+
+// ---------- Telegram-бот для владельцев ----------
+
+const TG_INVITE_LENGTH = 20;
+
+function webhookUrl(env) {
+  return `${String(env.PUBLIC_BASE_URL || "").replace(/\/+$/, "")}/tg/webhook`;
+}
+
+async function telegramStatus(env) {
+  if (!env.TG_BOT_TOKEN) {
+    return { configured: false, has_secret: Boolean(env.TG_WEBHOOK_SECRET) };
+  }
+  const [me, hook] = await Promise.all([tg(env, "getMe"), tg(env, "getWebhookInfo")]);
+  return {
+    configured: true,
+    has_secret: Boolean(env.TG_WEBHOOK_SECRET),
+    username: me.username,
+    webhook_ok: hook.url === webhookUrl(env),
+    last_error: hook.last_error_message || null
+  };
+}
+
+async function telegramSetup(env) {
+  if (!env.TG_BOT_TOKEN || !env.TG_WEBHOOK_SECRET) {
+    throw new HttpError(400, "Сначала добавьте в Cloudflare секреты TG_BOT_TOKEN и TG_WEBHOOK_SECRET");
+  }
+  if (!/^[A-Za-z0-9_-]{16,256}$/.test(env.TG_WEBHOOK_SECRET)) {
+    throw new HttpError(400, "TG_WEBHOOK_SECRET: от 16 символов, только латинские буквы, цифры, _ и -");
+  }
+  await tg(env, "setWebhook", {
+    url: webhookUrl(env),
+    secret_token: env.TG_WEBHOOK_SECRET,
+    allowed_updates: ["message"],
+    drop_pending_updates: true
+  });
+  await tg(env, "setMyCommands", { commands: BOT_COMMANDS });
+  await tg(env, "setMyDescription", {
+    description:
+      "Статистика TapReview для владельцев заведений: сколько раз открыли страницу отзывов " +
+      "и сколько человек перешли оставить отзыв. Подключение — по ссылке от TapReview."
+  });
+  return json(await telegramStatus(env));
+}
+
+async function createTelegramInvite(env, businessId) {
+  const found = await db(env, `businesses?id=eq.${businessId}&select=id`);
+  if (!found.length) {
+    throw new HttpError(404, "Бизнес не найден");
+  }
+  const me = await tg(env, "getMe");
+  const code = randomString(SLUG_ALPHABET, TG_INVITE_LENGTH);
+  const rows = await db(env, "tg_invites?select=code,expires_at", {
+    method: "POST",
+    body: { code, business_id: Number(businessId) },
+    prefer: "return=representation"
+  });
+  return json({ link: `https://t.me/${me.username}?start=${code}`, expires_at: rows[0].expires_at }, 201);
+}
+
+async function listTelegramSubscribers(env, businessId) {
+  const rows = await db(
+    env,
+    `tg_subscribers?business_id=eq.${businessId}&select=id,chat_id,chat_title,weekly_report,created_at&order=created_at.asc`
+  );
+  return json(rows);
+}
+
+async function deleteTelegramSubscriber(env, id) {
+  const rows = await db(env, `tg_subscribers?id=eq.${id}&select=id`, {
+    method: "DELETE",
+    prefer: "return=representation"
+  });
+  if (!rows.length) {
+    throw new HttpError(404, "Чат не найден");
+  }
+  return json({ deleted: true });
+}
+
+function randomString(alphabet, length) {
+  const limit = Math.floor(256 / alphabet.length) * alphabet.length;
+  let out = "";
+  while (out.length < length) {
+    const bytes = crypto.getRandomValues(new Uint8Array(32));
+    for (const byte of bytes) {
+      if (byte < limit && out.length < length) out += alphabet[byte % alphabet.length];
+    }
+  }
+  return out;
 }
 
 // ---------- Вспомогательные функции ----------

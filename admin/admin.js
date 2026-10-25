@@ -28,7 +28,8 @@ const state = {
   cardStats: {}, // id карты → { page_views, clicks } за 30 дней
   cardFilter: "all",
   editingCard: null,
-  pendingCardCode: null // карта, которую нужно открыть после загрузки (?card=КОД)
+  pendingCardCode: null, // карта, которую нужно открыть после загрузки (?card=КОД)
+  tg: null // состояние Telegram-бота (загружается один раз)
 };
 
 const $ = (id) => document.getElementById(id);
@@ -76,6 +77,9 @@ function bindEvents() {
   $("f-color-on").addEventListener("change", () => {
     $("f-color").disabled = !$("f-color-on").checked;
   });
+  $("tg-setup").addEventListener("click", onTelegramSetup);
+  $("tg-invite").addEventListener("click", onTelegramInvite);
+  $("tg-link-copy").addEventListener("click", () => copyText($("tg-link").value));
 
   // Разделы
   $("tab-businesses").addEventListener("click", () => showTab("businesses"));
@@ -471,6 +475,7 @@ function openEditor(business) {
 
   showLinkBox(business);
   loadStats(business);
+  loadTelegram(business);
 
   if (!$("editor").open) $("editor").showModal();
   $("f-name").focus();
@@ -564,6 +569,122 @@ function formatDay(isoDate) {
     month: "short",
     weekday: "short"
   });
+}
+
+// ================= Telegram-бот для владельца =================
+
+async function loadTelegram(business) {
+  $("tg-box").hidden = !business;
+  if (!business) return;
+
+  hideError("tg-error");
+  $("tg-setup").hidden = true;
+  $("tg-area").hidden = true;
+  $("tg-link-box").hidden = true;
+  $("tg-status").textContent = "Загрузка…";
+
+  try {
+    if (!state.tg) state.tg = await api("/api/admin/telegram/status");
+    if (state.editing !== business) return;
+    renderTelegramStatus();
+    if (state.tg.configured && state.tg.webhook_ok) await loadTelegramSubscribers(business);
+  } catch (error) {
+    if (state.editing !== business) return;
+    $("tg-status").textContent = "";
+    showError("tg-error", error.message);
+  }
+}
+
+function renderTelegramStatus() {
+  const s = state.tg;
+  $("tg-setup").hidden = true;
+  $("tg-area").hidden = true;
+
+  if (!s.configured) {
+    $("tg-status").textContent =
+      "Бот ещё не подключён: добавьте в Cloudflare секреты TG_BOT_TOKEN и TG_WEBHOOK_SECRET, затем обновите страницу.";
+    return;
+  }
+  if (!s.webhook_ok) {
+    $("tg-status").textContent = s.has_secret
+      ? `Бот @${s.username} найден. Нажмите «Включить бота», чтобы он начал отвечать.`
+      : `Бот @${s.username} найден, но нет секрета TG_WEBHOOK_SECRET — добавьте его в Cloudflare.`;
+    $("tg-setup").hidden = !s.has_secret;
+    return;
+  }
+  $("tg-status").textContent =
+    `Бот: @${s.username}` + (s.last_error ? ` · последняя ошибка Telegram: ${s.last_error}` : "");
+  $("tg-area").hidden = false;
+}
+
+async function onTelegramSetup() {
+  const business = state.editing;
+  hideError("tg-error");
+  $("tg-setup").disabled = true;
+  try {
+    state.tg = await api("/api/admin/telegram/setup", { method: "POST", body: {} });
+    if (state.editing !== business) return;
+    renderTelegramStatus();
+    if (state.tg.webhook_ok) await loadTelegramSubscribers(business);
+  } catch (error) {
+    showError("tg-error", error.message);
+  } finally {
+    $("tg-setup").disabled = false;
+  }
+}
+
+async function onTelegramInvite() {
+  const business = state.editing;
+  if (!business) return;
+  hideError("tg-error");
+  $("tg-invite").disabled = true;
+  try {
+    const data = await api(`/api/admin/businesses/${business.id}/telegram-invite`, { method: "POST", body: {} });
+    if (state.editing !== business) return;
+    $("tg-link").value = data.link;
+    $("tg-qr").src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(qrSvg(data.link))}`;
+    $("tg-link-box").hidden = false;
+  } catch (error) {
+    showError("tg-error", error.message);
+  } finally {
+    $("tg-invite").disabled = false;
+  }
+}
+
+async function loadTelegramSubscribers(business) {
+  const rows = await api(`/api/admin/businesses/${business.id}/telegram`);
+  if (state.editing !== business) return;
+
+  $("tg-subs").replaceChildren(
+    ...rows.map((sub) => {
+      const li = document.createElement("li");
+      const since = new Date(sub.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+      const name = el(
+        "span",
+        "tg-sub-name",
+        `${sub.chat_title || sub.chat_id} · с ${since}` + (sub.weekly_report ? "" : " · без отчёта по понедельникам")
+      );
+      const remove = el("button", "btn btn-danger btn-small", "Отключить");
+      remove.type = "button";
+      remove.addEventListener("click", () => onTelegramUnsubscribe(business, sub, remove));
+      li.append(name, remove);
+      return li;
+    })
+  );
+  $("tg-subs-empty").hidden = rows.length !== 0;
+}
+
+async function onTelegramUnsubscribe(business, sub, button) {
+  if (!confirm(`Отключить «${sub.chat_title || sub.chat_id}»? Статистика перестанет приходить в этот чат.`)) return;
+  hideError("tg-error");
+  button.disabled = true;
+  try {
+    await api(`/api/admin/telegram/subscribers/${sub.id}`, { method: "DELETE" });
+    await loadTelegramSubscribers(business);
+  } catch (error) {
+    showError("tg-error", error.message);
+    button.disabled = false;
+  }
 }
 
 function isTemporaryDomain(url) {

@@ -4,11 +4,16 @@
 //   /g/:slug           — страница группы: список заведений, ведёт на их /b/:slug (public-page.js)
 //   /go/:slug/:platform — учёт клика и переход на Google / Яндекс / 2ГИС (public-page.js)
 //   /api/...             — API админ-панели (admin-api.js)
+//   /tg/webhook          — сообщения Telegram-боту для владельцев (telegram.js)
 // Все остальные адреса отдаются как обычные файлы (index.html, admin/, 404.html и т.д.).
 
 import { handleBusinessPage, handleCardPage, handleGroupPage, handleGo } from "./public-page.js";
 import { handleApi } from "./admin-api.js";
+import { handleTelegramWebhook, weeklyReports } from "./telegram.js";
 import { db } from "./supabase.js";
+
+// Должно совпадать с расписанием в wrangler.jsonc ("crons")
+const WEEKLY_REPORT_CRON = "0 6 * * 1";
 
 export default {
   async fetch(request, env, ctx) {
@@ -39,12 +44,23 @@ export default {
       return handleApi(request, env, url);
     }
 
+    if (url.pathname === "/tg/webhook" && request.method === "POST") {
+      return handleTelegramWebhook(request, env);
+    }
+
     return env.ASSETS.fetch(request);
   },
 
-  // Раз в сутки (расписание — в wrangler.jsonc, "crons") делаем маленький запрос к базе,
-  // чтобы бесплатный проект Supabase не приостановился из-за неактивности.
+  // Расписание — в wrangler.jsonc ("crons"):
+  //  - по понедельникам в 09:00 МСК — отчёт за неделю владельцам в Telegram;
+  //  - каждый день — маленький запрос к базе, чтобы бесплатный Supabase не приостановился.
   async scheduled(controller, env, ctx) {
+    if (controller.cron === WEEKLY_REPORT_CRON) {
+      ctx.waitUntil(
+        weeklyReports(env).catch((error) => console.error(`Weekly reports failed: ${error.message}\n${error.stack}`))
+      );
+      return;
+    }
     ctx.waitUntil(keepDatabaseAwake(env));
   }
 };

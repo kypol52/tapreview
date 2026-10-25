@@ -246,6 +246,37 @@
         </div>
       </div>
 
+      <div id="tg-box" class="stats-box" hidden>
+        <div class="link-label">Статистика владельцу в Telegram</div>
+        <p id="tg-status" class="muted">Загрузка…</p>
+        <p id="tg-error" class="error" hidden></p>
+        <button id="tg-setup" class="btn btn-secondary tg-gap" type="button" hidden>Включить бота</button>
+
+        <div id="tg-area" hidden>
+          <p class="muted qr-text tg-gap">
+            Создайте ссылку и отправьте её владельцу. Он откроет её в Telegram и нажмёт «Запустить» —
+            после этого бот будет присылать ему статистику. Ссылка одноразовая и действует 7 дней;
+            для второго человека (например, управляющего) создайте ещё одну.
+          </p>
+          <button id="tg-invite" class="btn btn-secondary" type="button">Создать ссылку для владельца</button>
+
+          <div id="tg-link-box" hidden>
+            <div class="link-row tg-gap">
+              <input id="tg-link" type="text" readonly>
+              <button id="tg-link-copy" class="btn btn-secondary" type="button">Копировать</button>
+            </div>
+            <div class="qr-row">
+              <img id="tg-qr" class="qr-preview" alt="QR-код ссылки на бота">
+              <p class="muted qr-text">Можно навести камеру телефона на этот QR — откроется бот.</p>
+            </div>
+          </div>
+
+          <div class="link-label tg-subs-title">Подключены</div>
+          <ul id="tg-subs" class="tg-subs"></ul>
+          <p id="tg-subs-empty" class="muted">Пока никто не подключён.</p>
+        </div>
+      </div>
+
       <label class="field">
         <span>Название *</span>
         <input id="f-name" type="text" maxlength="200" required>

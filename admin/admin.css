@@ -259,6 +259,22 @@ input[type="color"]:disabled { opacity: 0.4; }
 .qr-text { font-size: 13px; margin-bottom: 10px; }
 .qr-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
 
+/* ---------- Telegram-бот ---------- */
+
+.tg-gap { margin-top: 10px; margin-bottom: 10px; }
+.tg-subs-title { margin-top: 16px; }
+.tg-subs { list-style: none; margin: 0; padding: 0; }
+.tg-subs li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+}
+.tg-subs li:first-child { border-top: 0; }
+.tg-subs .tg-sub-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
 /* ---------- Статистика ---------- */
 
 .stats-box {
