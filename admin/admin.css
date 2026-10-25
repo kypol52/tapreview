@@ -275,6 +275,11 @@ input[type="color"]:disabled { opacity: 0.4; }
 .tg-subs li:first-child { border-top: 0; }
 .tg-subs .tg-sub-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 
+.sl-list { margin-top: 12px; }
+.sl-list li { flex-wrap: wrap; }
+.sl-list .link-row { flex: 1 1 100%; }
+.sl-list .sl-meta { flex: 1; font-size: 13px; color: var(--muted); }
+
 /* ---------- Статистика ---------- */
 
 .stats-box {

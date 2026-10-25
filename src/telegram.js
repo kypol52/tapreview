@@ -10,23 +10,10 @@
 //   TG_WEBHOOK_SECRET — любая длинная случайная строка из латинских букв и цифр
 
 import { db } from "./supabase.js";
+import { PERIODS, PLATFORMS, loadReports, formatDateRange } from "./report.js";
 
-const DAY = 24 * 60 * 60 * 1000;
-const MSK_OFFSET = 3 * 60 * 60 * 1000; // Москва, без перехода на летнее время
 const MAX_BUSINESSES_PER_CHAT = 10;
 const INVITE_RE = /^[A-Za-z0-9]{16,32}$/;
-
-const PERIODS = {
-  today: { title: "Сегодня", compare: "со вчерашним днём к этому же времени" },
-  week: { title: "За 7 дней", compare: "с предыдущими 7 днями" },
-  month: { title: "За 30 дней", compare: "с предыдущими 30 днями" }
-};
-
-const PLATFORMS = [
-  { key: "yandex", label: "Яндекс" },
-  { key: "google", label: "Google" },
-  { key: "twogis", label: "2ГИС" }
-];
 
 // Кнопки под полем ввода в личном чате
 const KEYBOARD = {
@@ -291,82 +278,22 @@ export async function weeklyReports(env) {
   console.log(`Weekly reports sent: ${sent}`);
 }
 
-// ---------- Подсчёт и текст отчёта ----------
-
-function periodRange(period, now) {
-  if (period === "today") {
-    const dayStart = Math.floor((now + MSK_OFFSET) / DAY) * DAY - MSK_OFFSET;
-    return { from: dayStart, to: now, prevFrom: dayStart - DAY, prevTo: now - DAY };
-  }
-  const days = period === "month" ? 30 : 7;
-  return { from: now - days * DAY, to: now, prevFrom: now - 2 * days * DAY, prevTo: now - days * DAY };
-}
-
-function emptyTotals() {
-  return { views: 0, nfc: 0, qr: 0, direct: 0, clicks: 0, yandex: 0, google: 0, twogis: 0 };
-}
+// ---------- Текст отчёта (цифры считает report.js) ----------
 
 // Возвращает Map: id заведения → готовый текст сообщения
 async function buildReports(env, ids, period, now) {
-  const range = periodRange(period, now);
-  const iso = (ms) => new Date(ms).toISOString();
-  const idList = ids.join(",");
-
-  const [rows, businesses, cards] = await Promise.all([
-    db(env, "rpc/business_report", {
-      method: "POST",
-      body: {
-        p_business_ids: ids,
-        p_from: iso(range.from),
-        p_to: iso(range.to),
-        p_prev_from: iso(range.prevFrom),
-        p_prev_to: iso(range.prevTo)
-      }
-    }),
-    db(env, `businesses?id=in.(${idList})&select=id,name`),
-    db(env, `cards?business_id=in.(${idList})&select=id,code,label`)
-  ]);
-
-  const stats = new Map();
-  for (const id of ids) stats.set(id, { cur: emptyTotals(), prev: emptyTotals(), cards: new Map() });
-
-  for (const row of rows) {
-    const s = stats.get(row.business_id);
-    if (!s) continue;
-    const n = Number(row.events);
-    const t = row.is_current ? s.cur : s.prev;
-
-    if (row.event_type === "page_view") {
-      t.views += n;
-      if (row.source in t) t[row.source] += n;
-    } else if (row.event_type === "click") {
-      t.clicks += n;
-      if (row.destination in t) t[row.destination] += n;
-    }
-
-    if (row.is_current && row.card_id) {
-      const c = s.cards.get(row.card_id) || { views: 0, clicks: 0 };
-      if (row.event_type === "page_view") c.views += n;
-      if (row.event_type === "click") c.clicks += n;
-      s.cards.set(row.card_id, c);
-    }
-  }
-
-  const cardNames = new Map(cards.map((c) => [c.id, c.label || formatCardCode(c.code)]));
+  const reports = await loadReports(env, ids, period, now);
   const result = new Map();
-  for (const b of businesses) {
-    result.set(b.id, reportText(b.name, period, range, stats.get(b.id), cardNames));
-  }
+  for (const [id, report] of reports) result.set(id, reportText(report));
   return result;
 }
 
-function reportText(name, period, range, s, cardNames) {
-  const { cur, prev } = s;
+function reportText({ name, period, range, cur, prev, cards }) {
   const p = PERIODS[period];
   const lines = [];
 
   lines.push(`📊 <b>${esc(name)}</b>`);
-  lines.push(`${p.title} · ${dateRange(period, range)}`);
+  lines.push(`${p.title} · ${formatDateRange(period, range)}`);
   lines.push("");
 
   lines.push(`👀 Открыли страницу: <b>${cur.views}</b>${delta(cur.views, prev.views)}`);
@@ -376,21 +303,17 @@ function reportText(name, period, range, s, cardNames) {
 
   lines.push(`⭐ Перешли к отзыву: <b>${cur.clicks}</b>${delta(cur.clicks, prev.clicks)}`);
   if (cur.clicks) {
-    lines.push("      " + PLATFORMS.map((pl) => `${pl.label} ${cur[pl.key]}`).join(" · "));
+    lines.push("      " + PLATFORMS.map((pl) => `${pl.short} ${cur[pl.key]}`).join(" · "));
   }
   if (cur.views && cur.clicks) {
     lines.push(`      Это ${Math.round((cur.clicks / cur.views) * 100)}% от открытий страницы`);
   }
 
-  const cardRows = [...s.cards.entries()]
-    .filter(([id]) => cardNames.has(id))
-    .sort((a, b) => b[1].views - a[1].views || b[1].clicks - a[1].clicks)
-    .slice(0, 5);
-  if (cardRows.length > 1) {
+  if (cards.length > 1) {
     lines.push("");
     lines.push("🏷 По картам:");
-    for (const [id, c] of cardRows) {
-      lines.push(`      ${esc(cardNames.get(id))} — ${c.views} откр., ${c.clicks} к отзыву`);
+    for (const c of cards.slice(0, 5)) {
+      lines.push(`      ${esc(c.name)} — ${c.views} откр., ${c.clicks} к отзыву`);
     }
   }
 
@@ -410,20 +333,6 @@ function delta(cur, prev) {
   if (diff > 0) return `  ▲ +${diff}`;
   if (diff < 0) return `  ▼ −${-diff}`;
   return "  = столько же";
-}
-
-function dateRange(period, range) {
-  const fmt = (ms) =>
-    new Date(ms).toLocaleDateString("ru-RU", { day: "numeric", month: "long", timeZone: "Europe/Moscow" });
-  if (period === "today") return fmt(range.to);
-  const from = fmt(range.from).split(" ");
-  const to = fmt(range.to).split(" ");
-  // «18 – 25 октября», а если месяцы разные — «28 сентября – 5 октября»
-  return from[1] === to[1] ? `${from[0]} – ${to.join(" ")}` : `${from.join(" ")} – ${to.join(" ")}`;
-}
-
-function formatCardCode(code) {
-  return code.length === 6 ? `${code.slice(0, 3)}-${code.slice(3)}` : code;
 }
 
 function esc(text) {

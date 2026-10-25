@@ -246,6 +246,18 @@
         </div>
       </div>
 
+      <div id="sl-box" class="stats-box" hidden>
+        <div class="link-label">Статистика владельцу по ссылке</div>
+        <p class="muted qr-text">
+          Страница со статистикой заведения: открывается в любом браузере, без Telegram, VPN и входа.
+          Отправьте ссылку владельцу — пусть сохранит её в закладки. Если ссылка попала не к тому человеку,
+          отключите её и создайте новую.
+        </p>
+        <p id="sl-error" class="error" hidden></p>
+        <button id="sl-create" class="btn btn-secondary" type="button">Создать ссылку</button>
+        <ul id="sl-list" class="tg-subs sl-list"></ul>
+      </div>
+
       <div id="tg-box" class="stats-box" hidden>
         <div class="link-label">Статистика владельцу в Telegram</div>
         <p id="tg-status" class="muted">Загрузка…</p>

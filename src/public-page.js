@@ -30,7 +30,7 @@ const PLATFORMS = [
 ];
 
 // Значки площадок — рисуем сами (inline SVG), без загрузки картинок со сторонних сайтов
-const ICONS = {
+export const ICONS = {
   yandex: `<svg viewBox="0 0 40 40" aria-hidden="true">
     <circle cx="20" cy="20" r="20" fill="#fc3f1d"/>
     <path fill="#fff" d="M22.4 31h3.9V9h-5.7c-5.7 0-8.7 2.9-8.7 7.2 0 3.4 1.6 5.5 4.6 7.6L11.3 31h4.2l5.7-8.5-2-1.3c-2.4-1.6-3.6-2.9-3.6-5.6 0-2.4 1.7-4 4.9-4h1.9V31z"/>

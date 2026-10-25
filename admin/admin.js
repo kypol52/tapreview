@@ -77,6 +77,7 @@ function bindEvents() {
   $("f-color-on").addEventListener("change", () => {
     $("f-color").disabled = !$("f-color-on").checked;
   });
+  $("sl-create").addEventListener("click", onCreateStatsLink);
   $("tg-setup").addEventListener("click", onTelegramSetup);
   $("tg-invite").addEventListener("click", onTelegramInvite);
   $("tg-link-copy").addEventListener("click", () => copyText($("tg-link").value));
@@ -475,6 +476,7 @@ function openEditor(business) {
 
   showLinkBox(business);
   loadStats(business);
+  loadStatsLinks(business);
   loadTelegram(business);
 
   if (!$("editor").open) $("editor").showModal();
@@ -569,6 +571,85 @@ function formatDay(isoDate) {
     month: "short",
     weekday: "short"
   });
+}
+
+// ================= Статистика владельцу по ссылке (/s/...) =================
+
+async function loadStatsLinks(business) {
+  $("sl-box").hidden = !business;
+  if (!business) return;
+  hideError("sl-error");
+  $("sl-list").replaceChildren();
+  try {
+    const rows = await api(`/api/admin/businesses/${business.id}/stats-links`);
+    if (state.editing === business) renderStatsLinks(business, rows);
+  } catch (error) {
+    if (state.editing === business) showError("sl-error", error.message);
+  }
+}
+
+function renderStatsLinks(business, rows) {
+  const shortDate = (iso) => new Date(iso).toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+  $("sl-list").replaceChildren(
+    ...rows.map((link) => {
+      const li = document.createElement("li");
+
+      const row = el("div", "link-row");
+      const input = el("input");
+      input.type = "text";
+      input.readOnly = true;
+      input.value = link.url;
+      const copy = el("button", "btn btn-secondary", "Копировать");
+      copy.type = "button";
+      copy.addEventListener("click", () => copyText(link.url));
+      const open = el("a", "btn btn-secondary", "Открыть");
+      open.href = link.url;
+      open.target = "_blank";
+      open.rel = "noopener noreferrer";
+      row.append(input, copy, open);
+
+      const meta = el(
+        "span",
+        "sl-meta",
+        `Создана ${shortDate(link.created_at)} · ` +
+          (link.last_opened_at ? `последний раз открывали ${shortDate(link.last_opened_at)}` : "ещё не открывали")
+      );
+      const remove = el("button", "btn btn-danger btn-small", "Отключить");
+      remove.type = "button";
+      remove.addEventListener("click", () => onDeleteStatsLink(business, link, remove));
+
+      li.append(row, meta, remove);
+      return li;
+    })
+  );
+}
+
+async function onCreateStatsLink() {
+  const business = state.editing;
+  if (!business) return;
+  hideError("sl-error");
+  $("sl-create").disabled = true;
+  try {
+    await api(`/api/admin/businesses/${business.id}/stats-links`, { method: "POST", body: {} });
+    await loadStatsLinks(business);
+  } catch (error) {
+    showError("sl-error", error.message);
+  } finally {
+    $("sl-create").disabled = false;
+  }
+}
+
+async function onDeleteStatsLink(business, link, button) {
+  if (!confirm("Отключить эту ссылку? Владелец больше не сможет открыть по ней статистику.")) return;
+  hideError("sl-error");
+  button.disabled = true;
+  try {
+    await api(`/api/admin/stats-links/${link.token}`, { method: "DELETE" });
+    await loadStatsLinks(business);
+  } catch (error) {
+    showError("sl-error", error.message);
+    button.disabled = false;
+  }
 }
 
 // ================= Telegram-бот для владельца =================

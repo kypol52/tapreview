@@ -5,11 +5,13 @@
 //   /go/:slug/:platform — учёт клика и переход на Google / Яндекс / 2ГИС (public-page.js)
 //   /api/...             — API админ-панели (admin-api.js)
 //   /tg/webhook          — сообщения Telegram-боту для владельцев (telegram.js)
+//   /s/:token            — статистика для владельца по личной ссылке (stats-page.js)
 // Все остальные адреса отдаются как обычные файлы (index.html, admin/, 404.html и т.д.).
 
 import { handleBusinessPage, handleCardPage, handleGroupPage, handleGo } from "./public-page.js";
 import { handleApi } from "./admin-api.js";
 import { handleTelegramWebhook, weeklyReports } from "./telegram.js";
+import { handleStatsPage } from "./stats-page.js";
 import { db } from "./supabase.js";
 
 // Должно совпадать с расписанием в wrangler.jsonc ("crons")
@@ -42,6 +44,11 @@ export default {
 
     if (url.pathname.startsWith("/api/")) {
       return handleApi(request, env, url);
+    }
+
+    const statsMatch = url.pathname.match(/^\/s\/([^/]+)\/?$/);
+    if (statsMatch && isRead) {
+      return handleStatsPage(request, env, ctx, statsMatch[1]);
     }
 
     if (url.pathname === "/tg/webhook" && request.method === "POST") {

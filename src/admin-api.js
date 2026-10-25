@@ -20,6 +20,9 @@
 //   POST   /api/admin/businesses/:id/telegram-invite — одноразовая ссылка для владельца
 //   GET    /api/admin/businesses/:id/telegram        — чаты, подключённые к бизнесу
 //   DELETE /api/admin/telegram/subscribers/:id       — отключить чат
+//   GET    /api/admin/businesses/:id/stats-links     — ссылки на страницу статистики (/s/...)
+//   POST   /api/admin/businesses/:id/stats-links     — создать ссылку
+//   DELETE /api/admin/stats-links/:token             — отключить ссылку
 //
 // Каждый запрос к /api/admin/ проверяет токен входа Supabase и email из ADMIN_EMAILS.
 // С базой работаем секретным ключом SUPABASE_SECRET_KEY — он есть только на сервере.
@@ -140,6 +143,17 @@ export async function handleApi(request, env, url) {
       const tgSubMatch = path.match(/^\/api\/admin\/telegram\/subscribers\/(\d{1,18})$/);
       if (tgSubMatch && method === "DELETE") {
         return await deleteTelegramSubscriber(env, tgSubMatch[1]);
+      }
+
+      const statsLinksMatch = path.match(/^\/api\/admin\/businesses\/(\d{1,18})\/stats-links$/);
+      if (statsLinksMatch) {
+        if (method === "GET") return await listStatsLinks(env, statsLinksMatch[1]);
+        if (method === "POST") return await createStatsLink(env, statsLinksMatch[1]);
+      }
+
+      const statsLinkMatch = path.match(/^\/api\/admin\/stats-links\/([A-Za-z0-9]{24})$/);
+      if (statsLinkMatch && method === "DELETE") {
+        return await deleteStatsLink(env, statsLinkMatch[1]);
       }
     }
 
@@ -622,6 +636,52 @@ async function deleteTelegramSubscriber(env, id) {
   });
   if (!rows.length) {
     throw new HttpError(404, "Чат не найден");
+  }
+  return json({ deleted: true });
+}
+
+// ---------- Страница статистики по ссылке (/s/...) ----------
+
+const STATS_TOKEN_ALPHABET = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const STATS_TOKEN_LENGTH = 24;
+const MAX_STATS_LINKS = 20;
+
+function statsLinkUrl(env, token) {
+  return `${String(env.PUBLIC_BASE_URL || "").replace(/\/+$/, "")}/s/${token}`;
+}
+
+async function listStatsLinks(env, businessId) {
+  const rows = await db(
+    env,
+    `stats_links?business_id=eq.${businessId}&select=token,created_at,last_opened_at&order=created_at.asc`
+  );
+  return json(rows.map((row) => ({ ...row, url: statsLinkUrl(env, row.token) })));
+}
+
+async function createStatsLink(env, businessId) {
+  const found = await db(env, `businesses?id=eq.${businessId}&select=id`);
+  if (!found.length) {
+    throw new HttpError(404, "Бизнес не найден");
+  }
+  const existing = await db(env, `stats_links?business_id=eq.${businessId}&select=token`);
+  if (existing.length >= MAX_STATS_LINKS) {
+    throw new HttpError(400, `У заведения уже ${MAX_STATS_LINKS} ссылок — отключите ненужные`);
+  }
+  const rows = await db(env, "stats_links?select=token,created_at,last_opened_at", {
+    method: "POST",
+    body: { token: randomString(STATS_TOKEN_ALPHABET, STATS_TOKEN_LENGTH), business_id: Number(businessId) },
+    prefer: "return=representation"
+  });
+  return json({ ...rows[0], url: statsLinkUrl(env, rows[0].token) }, 201);
+}
+
+async function deleteStatsLink(env, token) {
+  const rows = await db(env, `stats_links?token=eq.${token}&select=token`, {
+    method: "DELETE",
+    prefer: "return=representation"
+  });
+  if (!rows.length) {
+    throw new HttpError(404, "Ссылка не найдена");
   }
   return json({ deleted: true });
 }
