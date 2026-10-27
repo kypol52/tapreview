@@ -3,7 +3,7 @@
 // Страница собирается целиком на сервере, скриптов в браузере нет.
 
 import { db } from "./supabase.js";
-import { PERIODS, PLATFORMS, loadReports, loadDaily, formatDateRange } from "./report.js";
+import { PERIODS, PLATFORMS, loadReports, loadDaily, sumTotals, formatDateRange, formatCardCode } from "./report.js";
 import { ICONS } from "./public-page.js";
 
 const TOKEN_RE = /^[A-Za-z0-9]{24}$/;
@@ -34,23 +34,35 @@ export async function handleStatsPage(request, env, ctx, token) {
   }
 }
 
+// Одна ссылка может показывать несколько заведений. Внутри три вида страницы:
+//   без параметров — сводка по всем заведениям ссылки (если заведение одно — сразу оно)
+//   ?b=ID          — одно заведение
+//   ?c=КОД         — одна карта (только карта, привязанная к заведению этой ссылки)
 async function statsPage(request, env, ctx, token) {
   if (!TOKEN_RE.test(token)) return notFound();
 
-  const links = await db(env, `stats_links?token=eq.${token}&select=business_id`);
+  const links = await db(env, `stats_links?token=eq.${token}&select=business_id,business_ids`);
   if (!links.length) return notFound();
-  const businessId = links[0].business_id;
+  const link = links[0];
+  const linkIds = [...new Set(link.business_ids && link.business_ids.length ? link.business_ids : [link.business_id])];
 
   const url = new URL(request.url);
   const period = PERIODS[url.searchParams.get("p")] ? url.searchParams.get("p") : "week";
   const now = Date.now();
 
-  const [reports, daily] = await Promise.all([
-    loadReports(env, [businessId], period, now),
-    period === "today" ? Promise.resolve(null) : loadDaily(env, businessId, period, now)
-  ]);
-  const report = reports.get(businessId);
-  if (!report) return notFound();
+  const reports = await loadReports(env, linkIds, period, now);
+  // Удалённые заведения просто пропускаем, порядок — как в ссылке
+  const venues = linkIds.map((id) => reports.get(id)).filter(Boolean);
+  if (!venues.length) return notFound();
+  const multi = venues.length > 1;
+
+  const view = pickView(url, venues, multi);
+  if (!view) return notFound();
+
+  const daily =
+    period === "today"
+      ? null
+      : await loadDaily(env, view.dailyIds, period, now, view.card ? view.card.id : null);
 
   // Запоминаем, когда владелец смотрел статистику (видно в админ-панели)
   ctx.waitUntil(
@@ -61,19 +73,79 @@ async function statsPage(request, env, ctx, token) {
     }).catch((error) => console.error(`stats_links last_opened_at: ${error.message}`))
   );
 
-  return html(200, `Статистика · ${report.name}`, renderBody(report, daily, token, now));
+  const page = { token, period, range: venues[0].range, now, multi };
+  return html(200, `Статистика · ${view.title}`, renderBody(view, daily, page));
+}
+
+function pickView(url, venues, multi) {
+  const params = url.searchParams;
+
+  if (params.has("c")) {
+    const code = String(params.get("c")).toUpperCase().replace(/[^A-Z0-9]/g, "");
+    for (const venue of venues) {
+      const card = venue.allCards.find((c) => c.code === code);
+      if (!card) continue;
+      const pretty = formatCardCode(card.code);
+      const labeled = card.name !== pretty;
+      return {
+        kind: "card",
+        title: labeled ? card.name : `Карта ${pretty}`,
+        sub: labeled ? `Карта ${pretty} · ${venue.name}` : venue.name,
+        back: { query: multi ? `&b=${venue.id}` : "", label: venue.name },
+        query: `&c=${card.code}`,
+        cur: card.cur,
+        prev: card.prev,
+        dailyIds: [venue.id],
+        card
+      };
+    }
+    return null;
+  }
+
+  if (params.has("b") || !multi) {
+    const id = multi ? Number(params.get("b")) : venues[0].id;
+    const venue = venues.find((v) => v.id === id);
+    if (!venue) return null;
+    return {
+      kind: "venue",
+      title: venue.name,
+      back: multi ? { query: "", label: "Все заведения" } : null,
+      query: multi ? `&b=${venue.id}` : "",
+      cur: venue.cur,
+      prev: venue.prev,
+      cards: venue.allCards.map((c) => ({ ...c, sub: c.name !== formatCardCode(c.code) ? formatCardCode(c.code) : "" })),
+      dailyIds: [venue.id]
+    };
+  }
+
+  const { cur, prev } = sumTotals(venues);
+  return {
+    kind: "all",
+    title: "Все заведения",
+    sub: `${venues.length} ${plural(venues.length, "заведение", "заведения", "заведений")}`,
+    query: "",
+    cur,
+    prev,
+    venues,
+    cards: venues.flatMap((v) => v.allCards.map((c) => ({ ...c, sub: v.name }))).sort(
+      (x, y) => y.cur.views - x.cur.views || y.cur.clicks - x.cur.clicks
+    ),
+    dailyIds: venues.map((v) => v.id)
+  };
 }
 
 // ---------- Разметка ----------
 
-function renderBody(report, daily, token, now) {
-  const { name, period, range, cur, prev, cards } = report;
+function renderBody(view, daily, page) {
+  const { token, period, range, now, multi } = page;
+  const { cur, prev } = view;
   const p = PERIODS[period];
   const empty = !cur.views && !cur.clicks;
+  const href = (query) => `/s/${token}?p=${period}${query}`;
 
   const tabs = TABS.map(
     (t) =>
-      `<a class="tab" href="/s/${token}?p=${t.key}"${t.key === period ? ' aria-current="page"' : ""}>${t.label}</a>`
+      `<a class="tab" href="/s/${token}?p=${t.key}${view.query}"${t.key === period ? ' aria-current="page"' : ""}>${t.label}</a>`
   ).join("");
 
   const conversion =
@@ -81,6 +153,26 @@ function renderBody(report, daily, token, now) {
 
   let sections = "";
   if (daily) sections += chartSection(daily, period);
+  if (view.venues) {
+    sections += listSection(
+      "Заведения",
+      "Заведение",
+      view.venues.map((v) => ({ href: href(`&b=${v.id}`), name: v.name, cur: v.cur }))
+    );
+  }
+  if (view.cards && view.cards.length) {
+    sections += listSection(
+      "Карты",
+      "Карта",
+      view.cards.slice(0, 100).map((c) => ({
+        href: href(`&c=${c.code}`),
+        name: c.name,
+        sub: c.isActive ? c.sub : [c.sub, "отключена"].filter(Boolean).join(" · "),
+        cur: c.cur
+      })),
+      "Нажмите на карту, чтобы увидеть её статистику отдельно."
+    );
+  }
   if (!empty) {
     sections += barsSection(
       "Откуда открыли страницу",
@@ -94,7 +186,6 @@ function renderBody(report, daily, token, now) {
       cur.clicks,
       "bar-gold"
     );
-    if (cards.length > 1) sections += cardsSection(cards);
   } else {
     sections += `<section class="panel"><p class="empty">За этот период переходов не было.</p></section>`;
   }
@@ -111,7 +202,9 @@ function renderBody(report, daily, token, now) {
   <header class="top">
     <div class="top-inner">
       <div class="brand">TapReview <span>· статистика</span></div>
-      <h1 class="name">${esc(name)}</h1>
+      ${view.back ? `<a class="back" href="${href(view.back.query)}">← ${esc(view.back.label)}</a>` : ""}
+      <h1 class="name">${esc(view.title)}</h1>
+      ${view.sub ? `<p class="sub">${esc(view.sub)}</p>` : ""}
       <p class="range">${p.title} · ${formatDateRange(period, range)}</p>
       <nav class="tabs" aria-label="Период">${tabs}</nav>
     </div>
@@ -137,12 +230,13 @@ function renderBody(report, daily, token, now) {
         Один и тот же человек считается не чаще раза в 30 минут, роботы не считаются.</p>
       <p><b>Перешли к отзыву</b> — сколько раз нажали кнопку Яндекс Карт, Google или 2ГИС.
         Сам отзыв человек пишет уже на площадке, поэтому опубликованные отзывы здесь не считаются.</p>
+      ${view.kind === "card" ? "<p>На этой странице — только переходы с этой карты.</p>" : ""}
       <p>Сравнение — ${p.compare}.</p>
     </section>
   </main>
   <footer class="foot">
     <p>Обновлено ${esc(updated)} (МСК). Чтобы увидеть свежие цифры, обновите страницу.</p>
-    <p>Сохраните ссылку в закладки или на главный экран телефона. Не пересылайте её посторонним — по ней видна статистика вашего заведения.</p>
+    <p>Сохраните ссылку в закладки или на главный экран телефона. Не пересылайте её посторонним — по ней видна статистика ${multi ? "ваших заведений" : "вашего заведения"}.</p>
   </footer>`;
 }
 
@@ -193,16 +287,23 @@ function barsSection(title, rows, total, barClass) {
   return `<section class="panel"><h2>${esc(title)}</h2><ul class="rows">${items}</ul></section>`;
 }
 
-function cardsSection(cards) {
-  const items = cards
-    .slice(0, 20)
+// Список заведений или карт — каждая строка ведёт на свою страницу
+function listSection(title, column, items, hint) {
+  const rows = items
     .map(
-      (c) => `<tr><td>${esc(c.name)}</td><td>${num(c.views)}</td><td>${num(c.clicks)}</td></tr>`
+      (it) => `<li><a class="item" href="${it.href}">
+          <span class="item-main"><span class="item-name">${esc(it.name)}</span>${it.sub ? `<span class="item-sub">${esc(it.sub)}</span>` : ""}</span>
+          <span class="item-num${it.cur.views ? "" : " zero"}">${num(it.cur.views)}</span>
+          <span class="item-num${it.cur.clicks ? "" : " zero"}">${num(it.cur.clicks)}</span>
+          <span class="item-go" aria-hidden="true">›</span>
+        </a></li>`
     )
     .join("");
   return `<section class="panel">
-      <h2>По картам</h2>
-      <table class="cards"><thead><tr><th>Карта</th><th>Открыли</th><th>К отзыву</th></tr></thead><tbody>${items}</tbody></table>
+      <h2>${esc(title)}</h2>
+      ${hint ? `<p class="hint">${esc(hint)}</p>` : ""}
+      <div class="item item-head" aria-hidden="true"><span>${esc(column)}</span><span>Открыли</span><span>К отзыву</span><span></span></div>
+      <ul class="items">${rows}</ul>
     </section>`;
 }
 
@@ -356,10 +457,26 @@ const CSS = `
   .row-bar span { display: block; height: 100%; border-radius: 3px; }
   .bar-navy { background: var(--navy); }
   .bar-gold { background: var(--gold); }
-  .cards { width: 100%; border-collapse: collapse; font-size: 14px; }
-  .cards th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 0 0 8px; }
-  .cards td { padding: 9px 0; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
-  .cards th + th, .cards td + td { text-align: right; padding-left: 12px; }
+  .back { display: inline-block; margin-top: 10px; padding: 4px 0; color: var(--gold-soft); font-size: 14px;
+    font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
+  .back:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .back + .name { margin-top: 4px; }
+  .sub { margin: 0 0 4px; font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.9); overflow-wrap: anywhere; }
+  .hint { margin: -6px 0 10px; font-size: 12px; color: var(--muted); }
+  .items { list-style: none; margin: 0; padding: 0; }
+  .item { display: grid; grid-template-columns: 1fr 64px 64px 14px; align-items: center; column-gap: 8px;
+    padding: 10px 0; color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; }
+  .items .item { border-top: 1px solid var(--line); }
+  .item-head { padding: 0 0 8px; font-size: 12px; font-weight: 600; color: var(--muted); }
+  .item-head span + span { text-align: right; }
+  .item:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; border-radius: 6px; }
+  .item-main { min-width: 0; display: flex; flex-direction: column; }
+  .item-name { font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
+  .item-sub { margin-top: 2px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+  .item-num { font-size: 15px; font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; }
+  .item-num.zero { font-weight: 600; color: #b3b9c6; }
+  .item-go { font-size: 20px; line-height: 1; color: #b3b9c6; text-align: right; }
+  @media (hover: hover) { .item:hover .item-name { color: var(--navy-2); text-decoration: underline; } }
   .note { margin-top: 16px; padding: 4px 4px 0; font-size: 13px; line-height: 1.55; color: var(--muted); }
   .note p { margin: 0 0 8px; }
   .note b { color: var(--text); }

@@ -34,7 +34,9 @@ function emptyTotals() {
   return { views: 0, nfc: 0, qr: 0, direct: 0, clicks: 0, yandex: 0, google: 0, twogis: 0 };
 }
 
-// Возвращает Map: id заведения → { id, name, period, range, cur, prev, cards: [{ name, views, clicks }] }
+// Возвращает Map: id заведения → { id, name, period, range, cur, prev, cards, allCards }
+//   cards    — карты, по которым были переходы: [{ name, views, clicks }] (для бота)
+//   allCards — все карты заведения, включая нулевые: [{ id, code, name, businessId, cur, prev }]
 export async function loadReports(env, ids, period, now) {
   const range = periodRange(period, now);
   const iso = (ms) => new Date(ms).toISOString();
@@ -52,7 +54,7 @@ export async function loadReports(env, ids, period, now) {
       }
     }),
     db(env, `businesses?id=in.(${idList})&select=id,name`),
-    db(env, `cards?business_id=in.(${idList})&select=id,code,label`)
+    db(env, `cards?business_id=in.(${idList})&select=id,code,label,business_id,is_active&order=code.asc`)
   ]);
 
   const stats = new Map();
@@ -62,46 +64,81 @@ export async function loadReports(env, ids, period, now) {
     const s = stats.get(row.business_id);
     if (!s) continue;
     const n = Number(row.events);
-    const t = row.is_current ? s.cur : s.prev;
+    addEvent(row.is_current ? s.cur : s.prev, row, n);
 
-    if (row.event_type === "page_view") {
-      t.views += n;
-      if (row.source in t) t[row.source] += n;
-    } else if (row.event_type === "click") {
-      t.clicks += n;
-      if (row.destination in t) t[row.destination] += n;
-    }
-
-    if (row.is_current && row.card_id) {
-      const c = s.cards.get(row.card_id) || { views: 0, clicks: 0 };
-      if (row.event_type === "page_view") c.views += n;
-      if (row.event_type === "click") c.clicks += n;
+    if (row.card_id) {
+      const c = s.cards.get(row.card_id) || { cur: emptyTotals(), prev: emptyTotals() };
+      addEvent(row.is_current ? c.cur : c.prev, row, n);
       s.cards.set(row.card_id, c);
     }
   }
 
-  const cardNames = new Map(cards.map((c) => [c.id, c.label || formatCardCode(c.code)]));
   const result = new Map();
   for (const b of businesses) {
     const s = stats.get(b.id);
-    const cardRows = [...s.cards.entries()]
-      .filter(([id]) => cardNames.has(id))
-      .map(([id, c]) => ({ name: cardNames.get(id), views: c.views, clicks: c.clicks }))
-      .sort((a, b) => b.views - a.views || b.clicks - a.clicks);
-    result.set(b.id, { id: b.id, name: b.name, period, range, cur: s.cur, prev: s.prev, cards: cardRows });
+    const allCards = cards
+      .filter((c) => c.business_id === b.id)
+      .map((c) => {
+        const t = s.cards.get(c.id) || { cur: emptyTotals(), prev: emptyTotals() };
+        return {
+          id: c.id,
+          code: c.code,
+          name: c.label || formatCardCode(c.code),
+          businessId: b.id,
+          isActive: c.is_active,
+          cur: t.cur,
+          prev: t.prev
+        };
+      })
+      // Отключённую карту без переходов показывать незачем
+      .filter((c) => c.isActive || c.cur.views || c.cur.clicks)
+      .sort((x, y) => y.cur.views - x.cur.views || y.cur.clicks - x.cur.clicks);
+    const cardRows = allCards
+      .filter((c) => c.cur.views || c.cur.clicks)
+      .map((c) => ({ name: c.name, views: c.cur.views, clicks: c.cur.clicks }));
+    result.set(b.id, { id: b.id, name: b.name, period, range, cur: s.cur, prev: s.prev, cards: cardRows, allCards });
   }
   return result;
 }
 
-// По дням (для графика): [{ day: "2026-10-25", views, clicks }] — каждый день периода, включая пустые
-export async function loadDaily(env, businessId, period, now) {
+function addEvent(t, row, n) {
+  if (row.event_type === "page_view") {
+    t.views += n;
+    if (row.source in t) t[row.source] += n;
+  } else if (row.event_type === "click") {
+    t.clicks += n;
+    if (row.destination in t) t[row.destination] += n;
+  }
+}
+
+// Сумма итогов нескольких заведений: { cur, prev }
+export function sumTotals(items) {
+  const cur = emptyTotals();
+  const prev = emptyTotals();
+  for (const item of items) {
+    for (const key of Object.keys(cur)) {
+      cur[key] += item.cur[key];
+      prev[key] += item.prev[key];
+    }
+  }
+  return { cur, prev };
+}
+
+// По дням (для графика): [{ day: "2026-10-25", views, clicks }] — каждый день периода, включая пустые.
+// ids — заведения (сумма по ним); cardId — только одна карта (или null)
+export async function loadDaily(env, ids, period, now, cardId = null) {
   const days = PERIODS[period].days;
-  const rows = await db(env, "rpc/business_stats", {
+  const range = periodRange(period, now);
+  const rows = await db(env, "rpc/stats_daily", {
     method: "POST",
-    body: { p_business_id: businessId, p_days: days + 1, p_tz: "Europe/Moscow" }
+    body: {
+      p_business_ids: ids,
+      p_card_id: cardId,
+      p_from: new Date(range.from).toISOString(),
+      p_tz: "Europe/Moscow"
+    }
   });
 
-  const range = periodRange(period, now);
   const list = [];
   const byDay = new Map();
   for (let i = 0; i < days; i++) {

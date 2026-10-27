@@ -618,10 +618,105 @@ function renderStatsLinks(business, rows) {
       remove.type = "button";
       remove.addEventListener("click", () => onDeleteStatsLink(business, link, remove));
 
-      li.append(row, meta, remove);
+      li.append(row, statsLinkCards(business, link), statsLinkVenues(business, link), meta, remove);
       return li;
     })
   );
+}
+
+// Карты, которые владелец видит по ссылке, и добавление карты по номеру с обратной стороны
+function statsLinkCards(business, link) {
+  const box = el("div", "sl-venues");
+  const cards = link.cards || [];
+  box.append(el("span", "sl-venues-title", cards.length ? `Карты в ссылке (${cards.length}):` : "Карт в ссылке пока нет."));
+
+  const chips = el("div", "sl-chips");
+  for (const card of cards) {
+    const pretty = card.code.length === 6 ? `${card.code.slice(0, 3)}-${card.code.slice(3)}` : card.code;
+    const text = pretty + (card.label ? ` · ${card.label}` : "") + (card.is_active ? "" : " (отключена)");
+    chips.append(el("span", "sl-chip", text));
+  }
+  box.append(chips);
+
+  const form = el("form", "sl-card-form");
+  const input = el("input");
+  input.type = "text";
+  input.placeholder = "Номер карты, напр. W6A-P37";
+  input.maxLength = 16;
+  input.autocomplete = "off";
+  const add = el("button", "btn btn-secondary btn-small", "Добавить карту");
+  add.type = "submit";
+  form.append(input, add);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!input.value.trim()) return;
+    hideError("sl-error");
+    add.disabled = true;
+    try {
+      await api(`/api/admin/stats-links/${link.token}`, { method: "PATCH", body: { add_card: input.value } });
+      await loadStatsLinks(business);
+    } catch (error) {
+      showError("sl-error", error.message);
+      add.disabled = false;
+    }
+  });
+  box.append(form);
+  return box;
+}
+
+// Какие заведения видит владелец по ссылке: можно добавить другие точки того же владельца
+function statsLinkVenues(business, link) {
+  const box = el("div", "sl-venues");
+  const ids = link.business_ids;
+  box.append(el("span", "sl-venues-title", ids.length > 1 ? `Заведения в ссылке (${ids.length}):` : "Заведения в ссылке:"));
+
+  const chips = el("div", "sl-chips");
+  for (const id of ids) {
+    const found = businessById(id);
+    const chip = el("span", "sl-chip", found ? found.name : `Удалённое заведение #${id}`);
+    if (ids.length > 1) {
+      const x = el("button", "sl-chip-x", "✕");
+      x.type = "button";
+      x.title = "Убрать из ссылки";
+      x.addEventListener("click", () =>
+        onChangeStatsLink(business, link, ids.filter((other) => other !== id), x)
+      );
+      chip.append(x);
+    }
+    chips.append(chip);
+  }
+  box.append(chips);
+
+  const available = [...state.businesses]
+    .filter((b) => !ids.includes(b.id))
+    .sort((a, b) => a.name.localeCompare(b.name, "ru"));
+  if (available.length) {
+    const select = el("select", "sl-add");
+    const first = el("option", "", "+ Добавить заведение…");
+    first.value = "";
+    select.append(first, ...available.map((b) => {
+      const option = el("option", "", b.name + (b.address ? ` — ${b.address}` : ""));
+      option.value = String(b.id);
+      return option;
+    }));
+    select.addEventListener("change", () => {
+      if (select.value) onChangeStatsLink(business, link, [...ids, Number(select.value)], select);
+    });
+    box.append(select);
+  }
+  return box;
+}
+
+async function onChangeStatsLink(business, link, ids, control) {
+  hideError("sl-error");
+  control.disabled = true;
+  try {
+    await api(`/api/admin/stats-links/${link.token}`, { method: "PATCH", body: { business_ids: ids } });
+    await loadStatsLinks(business);
+  } catch (error) {
+    showError("sl-error", error.message);
+    control.disabled = false;
+  }
 }
 
 async function onCreateStatsLink() {

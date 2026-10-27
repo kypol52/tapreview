@@ -22,6 +22,7 @@
 //   DELETE /api/admin/telegram/subscribers/:id       — отключить чат
 //   GET    /api/admin/businesses/:id/stats-links     — ссылки на страницу статистики (/s/...)
 //   POST   /api/admin/businesses/:id/stats-links     — создать ссылку
+//   PATCH  /api/admin/stats-links/:token             — какие заведения показывает ссылка { business_ids }
 //   DELETE /api/admin/stats-links/:token             — отключить ссылку
 //
 // Каждый запрос к /api/admin/ проверяет токен входа Supabase и email из ADMIN_EMAILS.
@@ -152,8 +153,9 @@ export async function handleApi(request, env, url) {
       }
 
       const statsLinkMatch = path.match(/^\/api\/admin\/stats-links\/([A-Za-z0-9]{24})$/);
-      if (statsLinkMatch && method === "DELETE") {
-        return await deleteStatsLink(env, statsLinkMatch[1]);
+      if (statsLinkMatch) {
+        if (method === "PATCH") return await updateStatsLink(request, env, statsLinkMatch[1]);
+        if (method === "DELETE") return await deleteStatsLink(env, statsLinkMatch[1]);
       }
     }
 
@@ -650,12 +652,31 @@ function statsLinkUrl(env, token) {
   return `${String(env.PUBLIC_BASE_URL || "").replace(/\/+$/, "")}/s/${token}`;
 }
 
+const STATS_LINK_COLUMNS = "token,business_id,business_ids,created_at,last_opened_at";
+const MAX_STATS_LINK_BUSINESSES = 50;
+
+// Ссылки, в которых есть это заведение (одна ссылка может показывать несколько заведений)
 async function listStatsLinks(env, businessId) {
   const rows = await db(
     env,
-    `stats_links?business_id=eq.${businessId}&select=token,created_at,last_opened_at&order=created_at.asc`
+    `stats_links?or=(business_id.eq.${businessId},business_ids.cs.{${businessId}})` +
+      `&select=${STATS_LINK_COLUMNS}&order=created_at.asc`
   );
-  return json(rows.map((row) => ({ ...row, url: statsLinkUrl(env, row.token) })));
+  return json(await withLinkCards(env, rows.map((row) => statsLinkOut(env, row))));
+}
+
+function statsLinkOut(env, row) {
+  const ids = row.business_ids && row.business_ids.length ? row.business_ids : [row.business_id];
+  return { ...row, business_ids: ids, url: statsLinkUrl(env, row.token) };
+}
+
+// Карты, которые видны по ссылке (все карты её заведений): link.cards = [{ code, label, business_id, is_active }]
+async function withLinkCards(env, links) {
+  const ids = [...new Set(links.flatMap((l) => l.business_ids))];
+  const cards = ids.length
+    ? await db(env, `cards?business_id=in.(${ids.join(",")})&select=code,label,business_id,is_active&order=code.asc`)
+    : [];
+  return links.map((l) => ({ ...l, cards: cards.filter((c) => l.business_ids.includes(c.business_id)) }));
 }
 
 async function createStatsLink(env, businessId) {
@@ -667,12 +688,75 @@ async function createStatsLink(env, businessId) {
   if (existing.length >= MAX_STATS_LINKS) {
     throw new HttpError(400, `У заведения уже ${MAX_STATS_LINKS} ссылок — отключите ненужные`);
   }
-  const rows = await db(env, "stats_links?select=token,created_at,last_opened_at", {
+  const id = Number(businessId);
+  const rows = await db(env, `stats_links?select=${STATS_LINK_COLUMNS}`, {
     method: "POST",
-    body: { token: randomString(STATS_TOKEN_ALPHABET, STATS_TOKEN_LENGTH), business_id: Number(businessId) },
+    body: { token: randomString(STATS_TOKEN_ALPHABET, STATS_TOKEN_LENGTH), business_id: id, business_ids: [id] },
     prefer: "return=representation"
   });
-  return json({ ...rows[0], url: statsLinkUrl(env, rows[0].token) }, 201);
+  return json(statsLinkOut(env, rows[0]), 201);
+}
+
+// Что показывает ссылка:
+//   { business_ids: [id, ...] } — список заведений по порядку, первое — главное
+//   { add_card: "W6A-P37" }     — добавить карту по номеру (добавляется заведение, к которому она привязана)
+async function updateStatsLink(request, env, token) {
+  const data = await readJson(request);
+  if (data.add_card !== undefined) {
+    data.business_ids = await idsWithCard(env, token, data.add_card);
+  }
+  if (!Array.isArray(data.business_ids)) {
+    throw new HttpError(400, "Нужен список заведений");
+  }
+  const ids = [...new Set(data.business_ids.map(Number))];
+  if (!ids.length) {
+    throw new HttpError(400, "В ссылке должно остаться хотя бы одно заведение");
+  }
+  if (ids.length > MAX_STATS_LINK_BUSINESSES) {
+    throw new HttpError(400, `В одной ссылке — не больше ${MAX_STATS_LINK_BUSINESSES} заведений`);
+  }
+  if (!ids.every((id) => Number.isSafeInteger(id) && id > 0)) {
+    throw new HttpError(400, "Неверный список заведений");
+  }
+  const found = await db(env, `businesses?id=in.(${ids.join(",")})&select=id`);
+  if (found.length !== ids.length) {
+    throw new HttpError(400, "Некоторые заведения не найдены — обновите страницу");
+  }
+  const rows = await db(env, `stats_links?token=eq.${token}&select=${STATS_LINK_COLUMNS}`, {
+    method: "PATCH",
+    body: { business_id: ids[0], business_ids: ids },
+    prefer: "return=representation"
+  });
+  if (!rows.length) {
+    throw new HttpError(404, "Ссылка не найдена");
+  }
+  return json(statsLinkOut(env, rows[0]));
+}
+
+async function idsWithCard(env, token, rawCode) {
+  const code = String(rawCode || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!/^[A-Z0-9]{4,12}$/.test(code)) {
+    throw new HttpError(400, "Введите номер карты — он напечатан на обратной стороне, например W6A-P37");
+  }
+  const pretty = code.length === 6 ? `${code.slice(0, 3)}-${code.slice(3)}` : code; // как на карте
+  const [cards, links] = await Promise.all([
+    db(env, `cards?code=eq.${code}&select=business_id`),
+    db(env, `stats_links?token=eq.${token}&select=business_id,business_ids`)
+  ]);
+  if (!links.length) {
+    throw new HttpError(404, "Ссылка не найдена");
+  }
+  if (!cards.length) {
+    throw new HttpError(404, `Карта ${pretty} не найдена`);
+  }
+  if (!cards[0].business_id) {
+    throw new HttpError(400, `Карта ${pretty} ещё не привязана к заведению — сначала привяжите её во вкладке «Карты»`);
+  }
+  const link = statsLinkOut(env, links[0]);
+  if (link.business_ids.includes(cards[0].business_id)) {
+    throw new HttpError(400, `Карта ${pretty} уже есть в этой ссылке`);
+  }
+  return [...link.business_ids, cards[0].business_id];
 }
 
 async function deleteStatsLink(env, token) {
