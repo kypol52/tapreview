@@ -27,6 +27,7 @@ const state = {
   cardsLoaded: false,
   cardStats: {}, // id карты → { page_views, clicks } за 30 дней
   cardFilter: "all",
+  billingFilter: "all", // фильтр списка бизнесов по подписке
   editingCard: null,
   pendingCardCode: null, // карта, которую нужно открыть после загрузки (?card=КОД)
   tg: null // состояние Telegram-бота (загружается один раз)
@@ -62,6 +63,22 @@ function bindEvents() {
   $("logout-button").addEventListener("click", logout);
   $("new-button").addEventListener("click", () => openEditor(null));
   $("search").addEventListener("input", renderList);
+  for (const chip of document.querySelectorAll("#businesses-section .chip")) {
+    chip.addEventListener("click", () => {
+      state.billingFilter = chip.dataset.billing;
+      for (const other of document.querySelectorAll("#businesses-section .chip")) {
+        other.classList.toggle("active", other === chip);
+      }
+      renderList();
+    });
+  }
+  $("f-plus-month").addEventListener("click", () => extendPaidUntil(1));
+  $("f-plus-year").addEventListener("click", () => extendPaidUntil(12));
+  $("f-no-billing").addEventListener("click", () => {
+    $("f-paid-until").value = "";
+    showBillingStatus();
+  });
+  $("f-paid-until").addEventListener("input", showBillingStatus);
 
   $("editor-form").addEventListener("submit", onSave);
   $("editor-close").addEventListener("click", closeEditor);
@@ -379,14 +396,16 @@ function renderList() {
   const query = $("search").value.trim().toLowerCase();
   const items = state.businesses.filter(
     (b) =>
-      !query ||
-      b.name.toLowerCase().includes(query) ||
-      b.slug.toLowerCase().includes(query)
+      (!query ||
+        b.name.toLowerCase().includes(query) ||
+        b.slug.toLowerCase().includes(query)) &&
+      (state.billingFilter === "all" || billingGroup(b) === state.billingFilter)
   );
 
   const total = state.businesses.length;
   const active = state.businesses.filter((b) => b.is_active).length;
   $("count").textContent = total ? `Всего: ${total}, активных: ${active}` : "";
+  renderBillingSummary();
 
   const rows = $("rows");
   rows.replaceChildren(...items.map(renderRow));
@@ -415,6 +434,10 @@ function renderRow(business) {
       ? el("span", "badge badge-on", "Активен")
       : el("span", "badge badge-off", "Выключен")
   );
+  const billing = billingInfo(business.paid_until);
+  if (billing.state !== "none") {
+    statusCell.append(el("div", `cell-billing ${billing.tone}`, billing.short));
+  }
 
   // Статистика за 30 дней
   const stats = state.summary[business.id];
@@ -468,6 +491,10 @@ function openEditor(business) {
   $("f-discount-code").value = business ? business.discount_code || "" : "";
   $("f-discount-text").value = business ? business.discount_text || "" : "";
   $("f-active").checked = business ? business.is_active : true;
+  $("f-paid-until").value = business ? business.paid_until || "" : "";
+  $("f-price").value = business && business.monthly_price != null ? String(business.monthly_price) : "";
+  $("f-billing-note").value = business ? business.billing_note || "" : "";
+  showBillingStatus();
 
   const hasColor = Boolean(business && business.brand_color);
   $("f-color-on").checked = hasColor;
@@ -886,8 +913,119 @@ function readForm() {
     discount_code: $("f-discount-code").value,
     discount_text: $("f-discount-text").value,
     brand_color: $("f-color-on").checked ? $("f-color").value : null,
-    is_active: $("f-active").checked
+    is_active: $("f-active").checked,
+    paid_until: $("f-paid-until").value,
+    monthly_price: $("f-price").value,
+    billing_note: $("f-billing-note").value
   };
+}
+
+// ================= Подписка =================
+// Те же правила, что в src/billing.js: дни по Москве, 3 дня отсрочки, напоминание за 5 дней
+
+const GRACE_DAYS = 3;
+const REMIND_DAYS = 5;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function mskToday() {
+  return new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+function dayNum(iso) {
+  return Math.round(Date.parse(`${iso}T00:00:00Z`) / DAY_MS);
+}
+
+function isoFromDayNum(n) {
+  return new Date(n * DAY_MS).toISOString().slice(0, 10);
+}
+
+function prettyDay(iso, withYear = false) {
+  return new Date(`${iso}T12:00:00Z`).toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "short",
+    ...(withYear ? { year: "numeric" } : {}),
+    timeZone: "UTC"
+  });
+}
+
+// { state: none|ok|ending|grace|expired, tone, short, long }
+function billingInfo(paidUntil) {
+  if (!paidUntil) return { state: "none", tone: "", short: "", long: "Подписка не ведётся — всё работает всегда." };
+  const left = dayNum(paidUntil) - dayNum(mskToday());
+  const date = prettyDay(paidUntil, true);
+  if (left >= REMIND_DAYS) {
+    return { state: "ok", tone: "ok", short: `до ${prettyDay(paidUntil)}`, long: `Оплачено до ${date} (ещё ${left} дн.)` };
+  }
+  if (left >= 0) {
+    const when = left === 0 ? "сегодня последний день" : `осталось ${left} дн.`;
+    return { state: "ending", tone: "soon", short: `до ${prettyDay(paidUntil)} · ${when}`, long: `Оплачено до ${date} — ${when}. Владелец видит напоминание.` };
+  }
+  if (-left <= GRACE_DAYS) {
+    const off = prettyDay(isoFromDayNum(dayNum(paidUntil) + GRACE_DAYS + 1));
+    return { state: "grace", tone: "bad", short: `просрочено · отключится ${off}`, long: `Срок прошёл ${date}. Отсрочка: карта отключится ${off}.` };
+  }
+  return { state: "expired", tone: "bad", short: `отключено с ${prettyDay(isoFromDayNum(dayNum(paidUntil) + GRACE_DAYS + 1))}`, long: `Не оплачено с ${date}: карта ведёт сразу на площадку, статистика владельца на паузе.` };
+}
+
+// Группа для фильтра списка: soon (скоро продление или отсрочка), expired, none, ok
+function billingGroup(business) {
+  const s = billingInfo(business.paid_until).state;
+  return s === "ending" || s === "grace" ? "soon" : s;
+}
+
+function renderBillingSummary() {
+  const box = $("billing-summary");
+  const tracked = state.businesses.filter((b) => b.paid_until);
+  if (!tracked.length) {
+    box.hidden = true;
+    return;
+  }
+  let paying = 0;
+  let income = 0;
+  let soon = 0;
+  let expired = 0;
+  for (const b of tracked) {
+    const s = billingInfo(b.paid_until).state;
+    if (s === "expired") {
+      expired++;
+      continue;
+    }
+    paying++;
+    income += b.monthly_price || 0;
+    if (s === "ending" || s === "grace") soon++;
+  }
+  box.replaceChildren(
+    "Платят: ", el("b", "", String(paying)),
+    " · В месяц: ", el("b", "", `${income.toLocaleString("ru-RU")} ₽`),
+    " · Скоро продление: ", el("b", soon ? "warn" : "", String(soon)),
+    " · Отключены за неуплату: ", el("b", expired ? "bad" : "", String(expired))
+  );
+  box.hidden = false;
+}
+
+function showBillingStatus() {
+  const info = billingInfo($("f-paid-until").value);
+  const node = $("f-billing-status");
+  node.textContent = info.long;
+  node.className = `billing-status ${info.tone}`;
+}
+
+// +N месяцев: если подписка ещё идёт (или в отсрочке) — от конца срока, иначе — с сегодняшнего дня
+function extendPaidUntil(months) {
+  const current = $("f-paid-until").value;
+  const today = mskToday();
+  const fromEnd = current && dayNum(current) >= dayNum(today) - GRACE_DAYS;
+  const base = fromEnd ? current : isoFromDayNum(dayNum(today) - 1);
+  $("f-paid-until").value = addMonths(base, months);
+  showBillingStatus();
+}
+
+function addMonths(iso, months) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const target = new Date(Date.UTC(y, m - 1 + months, 1));
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  target.setUTCDate(Math.min(d, lastDay));
+  return target.toISOString().slice(0, 10);
 }
 
 async function onSave(event) {

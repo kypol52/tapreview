@@ -11,6 +11,7 @@
 
 import { db } from "./supabase.js";
 import { PERIODS, PLATFORMS, loadReports, formatDateRange } from "./report.js";
+import { formatDay } from "./billing.js";
 
 const MAX_BUSINESSES_PER_CHAT = 10;
 const INVITE_RE = /^[A-Za-z0-9]{16,32}$/;
@@ -288,9 +289,25 @@ async function buildReports(env, ids, period, now) {
   return result;
 }
 
-function reportText({ name, period, range, cur, prev, cards }) {
+function reportText({ name, period, range, cur, prev, cards, billing }) {
   const p = PERIODS[period];
   const lines = [];
+
+  if (billing.state === "expired") {
+    return (
+      `⏸ <b>${esc(name)}</b>\n` +
+      `Подписка закончилась ${formatDay(billing.paidUntil)}, статистика на паузе.\n` +
+      "Карта работает: гости попадают сразу на страницу площадки. После продления статистика вернётся."
+    );
+  }
+  if (billing.state === "ending" || billing.state === "grace") {
+    lines.push(
+      billing.state === "ending"
+        ? `⚠️ Подписка оплачена до ${formatDay(billing.paidUntil)} включительно — продлите заранее.`
+        : `⚠️ Подписка закончилась ${formatDay(billing.paidUntil)}. Карта работает до ${formatDay(billing.lastDay)}, потом статистика встанет на паузу.`
+    );
+    lines.push("");
+  }
 
   lines.push(`📊 <b>${esc(name)}</b>`);
   lines.push(`${p.title} · ${formatDateRange(period, range)}`);

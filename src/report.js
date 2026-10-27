@@ -7,6 +7,7 @@
 //   «30 дней»  — сегодня и 29 дней до него;  сравнение — такой же отрезок 30 днями раньше
 
 import { db } from "./supabase.js";
+import { billingState } from "./billing.js";
 
 const DAY = 24 * 60 * 60 * 1000;
 const MSK_OFFSET = 3 * 60 * 60 * 1000; // Москва, без перехода на летнее время
@@ -34,7 +35,8 @@ function emptyTotals() {
   return { views: 0, nfc: 0, qr: 0, direct: 0, clicks: 0, yandex: 0, google: 0, twogis: 0 };
 }
 
-// Возвращает Map: id заведения → { id, name, period, range, cur, prev, cards, allCards }
+// Возвращает Map: id заведения → { id, name, period, range, cur, prev, cards, allCards, billing }
+//   billing  — состояние подписки (billing.js): { state: "none" | "ok" | "ending" | "grace" | "expired", ... }
 //   cards    — карты, по которым были переходы: [{ name, views, clicks }] (для бота)
 //   allCards — все карты заведения, включая нулевые: [{ id, code, name, businessId, cur, prev }]
 export async function loadReports(env, ids, period, now) {
@@ -53,7 +55,7 @@ export async function loadReports(env, ids, period, now) {
         p_prev_to: iso(range.prevTo)
       }
     }),
-    db(env, `businesses?id=in.(${idList})&select=id,name`),
+    db(env, `businesses?id=in.(${idList})&select=id,name,paid_until`),
     db(env, `cards?business_id=in.(${idList})&select=id,code,label,business_id,is_active&order=code.asc`)
   ]);
 
@@ -96,7 +98,17 @@ export async function loadReports(env, ids, period, now) {
     const cardRows = allCards
       .filter((c) => c.cur.views || c.cur.clicks)
       .map((c) => ({ name: c.name, views: c.cur.views, clicks: c.cur.clicks }));
-    result.set(b.id, { id: b.id, name: b.name, period, range, cur: s.cur, prev: s.prev, cards: cardRows, allCards });
+    result.set(b.id, {
+      id: b.id,
+      name: b.name,
+      period,
+      range,
+      cur: s.cur,
+      prev: s.prev,
+      cards: cardRows,
+      allCards,
+      billing: billingState(b.paid_until, now)
+    });
   }
   return result;
 }

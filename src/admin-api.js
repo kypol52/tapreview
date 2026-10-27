@@ -35,7 +35,8 @@ const CATEGORIES = ["restaurant", "beauty", "shop", "hotel", "auto", "other"];
 
 const ADMIN_COLUMNS =
   "id,slug,name,tagline,category,address,logo_url,brand_color," +
-  "google_url,yandex_url,twogis_url,discount_code,discount_text,is_active,created_at,updated_at";
+  "google_url,yandex_url,twogis_url,discount_code,discount_text,is_active," +
+  "paid_until,monthly_price,billing_note,created_at,updated_at";
 
 const GROUP_COLUMNS = "id,slug,name,tagline,logo_url,business_ids,is_active,created_at,updated_at";
 const MAX_GROUP_SIZE = 50;
@@ -491,8 +492,30 @@ function validateBusiness(input) {
     twogis_url: cleanUrl(input.twogis_url, "2ГИС"),
     discount_code: cleanText(input.discount_code, 40, "Кодовое слово") || null,
     discount_text: cleanText(input.discount_text, 120, "Описание скидки") || null,
-    is_active: input.is_active !== false
+    is_active: input.is_active !== false,
+    paid_until: cleanDate(input.paid_until),
+    monthly_price: cleanPrice(input.monthly_price),
+    billing_note: cleanText(input.billing_note, 200, "Заметка об оплате") || null
   };
+}
+
+function cleanDate(value) {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text) || Number.isNaN(Date.parse(`${text}T00:00:00Z`))) {
+    throw new HttpError(400, "«Оплачено до»: неверная дата");
+  }
+  return text;
+}
+
+function cleanPrice(value) {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  const price = Number(text);
+  if (!Number.isInteger(price) || price < 0 || price > 1000000) {
+    throw new HttpError(400, "Цена в месяц: целое число рублей от 0 до 1 000 000");
+  }
+  return price;
 }
 
 function cleanText(value, maxLength, label) {

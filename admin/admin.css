@@ -412,6 +412,35 @@ input[type="color"]:disabled { opacity: 0.4; }
 .chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
 
 .badge-free { background: #fef3c7; color: #92400e; }
+
+/* ---------- Подписка ---------- */
+
+.billing {
+  margin: 0 0 16px;
+  padding: 12px 14px 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.billing legend { padding: 0 6px; font-size: 14px; font-weight: 600; }
+.billing-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 8px; }
+.billing-status { min-height: 20px; margin: 0 0 10px; font-size: 13px; font-weight: 600; }
+.billing-status.ok { color: var(--success-text); }
+.billing-status.soon { color: #92400e; }
+.billing-status.bad { color: #b91c1c; }
+.billing-summary {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 14px;
+}
+.billing-summary b { font-variant-numeric: tabular-nums; }
+.billing-summary .warn { color: #92400e; }
+.billing-summary .bad { color: #b91c1c; }
+.cell-billing { margin-top: 4px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.cell-billing.soon { color: #92400e; font-weight: 600; }
+.cell-billing.bad { color: #b91c1c; font-weight: 600; }
 .card-code { font-weight: 600; letter-spacing: 0.04em; }
 .table tr.clickable { cursor: pointer; }
 .table tr.clickable:hover td { background: #fafbfc; }

@@ -59,7 +59,17 @@
         <button id="new-button" class="btn btn-primary" type="button">+ Новый бизнес</button>
       </div>
 
-      <input id="search" class="search" type="search" placeholder="Поиск по названию или ссылке">
+      <p id="billing-summary" class="billing-summary" hidden></p>
+
+      <div class="toolbar">
+        <input id="search" class="search" type="search" placeholder="Поиск по названию или ссылке">
+        <div class="filters" role="group" aria-label="Подписка">
+          <button class="chip active" type="button" data-billing="all">Все</button>
+          <button class="chip" type="button" data-billing="soon">Скоро продление</button>
+          <button class="chip" type="button" data-billing="expired">Отключены за неуплату</button>
+          <button class="chip" type="button" data-billing="none">Без подписки</button>
+        </div>
+      </div>
 
       <p id="list-error" class="error" hidden></p>
       <p id="loading" class="muted">Загрузка…</p>
@@ -356,6 +366,36 @@
         Если кодовое слово заполнено, на странице появится кнопка «Получить скидку».
         Оставьте пустым, чтобы кнопку убрать.
       </p>
+
+      <fieldset class="billing">
+        <legend>Подписка</legend>
+        <div class="grid-2">
+          <label class="field">
+            <span>Оплачено до (включительно)</span>
+            <input id="f-paid-until" type="date">
+          </label>
+          <label class="field">
+            <span>Цена в месяц, ₽</span>
+            <input id="f-price" type="number" min="0" max="1000000" step="1" inputmode="numeric" placeholder="490">
+          </label>
+        </div>
+        <div class="billing-buttons">
+          <button id="f-plus-month" class="btn btn-secondary btn-small" type="button">+1 месяц</button>
+          <button id="f-plus-year" class="btn btn-secondary btn-small" type="button">+12 месяцев</button>
+          <button id="f-no-billing" class="btn btn-ghost btn-small" type="button">Без подписки</button>
+        </div>
+        <p id="f-billing-status" class="billing-status"></p>
+        <label class="field">
+          <span>Заметка об оплате (видна только вам)</span>
+          <input id="f-billing-note" type="text" maxlength="200" placeholder="СБП, Иван, +7 900 …; год со скидкой">
+        </label>
+        <p class="muted field-hint">
+          Пустая дата — подписка не ведётся, всё работает всегда. После даты 3 дня отсрочки,
+          затем карта ведёт гостей сразу на Яндекс Карты (или 2ГИС / Google), а статистика владельца встаёт на паузу.
+          За 5 дней до конца владелец видит напоминание на странице статистики и в Telegram.
+          После изменения нажмите «Сохранить».
+        </p>
+      </fieldset>
 
       <div class="grid-2">
         <div class="field">

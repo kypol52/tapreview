@@ -7,6 +7,7 @@
 
 import { db } from "./supabase.js";
 import { logEvent, sourceFrom } from "./analytics.js";
+import { isExpired } from "./billing.js";
 
 const SLUG_RE = /^[A-Za-z0-9_-]{3,64}$/;
 const COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
@@ -67,9 +68,9 @@ const GIFT = `<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20
 
 const BUSINESS_COLUMNS =
   "id,slug,name,tagline,category,logo_url,brand_color,google_url,yandex_url,twogis_url," +
-  "discount_code,discount_text";
+  "discount_code,discount_text,paid_until";
 
-const TELEGRAM_URL ="https://t.me/tapreviewru";
+export const TELEGRAM_URL ="https://t.me/tapreviewru";
 
 export async function handleBusinessPage(request, env, ctx, slug) {
   const result = await loadBusiness(env, slug);
@@ -82,7 +83,26 @@ export async function handleBusinessPage(request, env, ctx, slug) {
     logEvent(request, env, { businessId: business.id, eventType: "page_view", source })
   );
 
+  if (isExpired(business.paid_until)) return pausedResponse(business);
   return businessPage(business, source);
+}
+
+// Подписка закончилась (после отсрочки): гость не должен упираться в ошибку —
+// отправляем его сразу на первую площадку из списка. Открытия продолжаем считать,
+// чтобы после продления владелец увидел их в статистике.
+function pausedResponse(business) {
+  const platform = PLATFORMS.find((p) => isHttpsUrl(business[p.field]));
+  if (platform) return redirect(business[platform.field]);
+  return renderPage({
+    status: 200,
+    title: business.name,
+    accent: DEFAULT_ACCENT,
+    body: `
+      <h1 class="name">${escapeHtml(business.name)}</h1>
+      <div class="divider"></div>
+      <h2 class="thanks">Спасибо, что вы с нами!</h2>
+      <p class="lead">Страница отзывов временно недоступна.</p>`
+  });
 }
 
 export async function handleGo(request, env, ctx, slug, platformKey) {
@@ -196,6 +216,7 @@ export async function handleCardPage(request, env, ctx, rawCode) {
     })
   );
 
+  if (isExpired(business.paid_until)) return pausedResponse(business);
   return businessPage(business, source, card.code);
 }
 

@@ -4,7 +4,8 @@
 
 import { db } from "./supabase.js";
 import { PERIODS, PLATFORMS, loadReports, loadDaily, sumTotals, formatDateRange, formatCardCode } from "./report.js";
-import { ICONS } from "./public-page.js";
+import { ICONS, TELEGRAM_URL } from "./public-page.js";
+import { formatDay } from "./billing.js";
 
 const TOKEN_RE = /^[A-Za-z0-9]{24}$/;
 const TABS = [
@@ -52,17 +53,14 @@ async function statsPage(request, env, ctx, token) {
 
   const reports = await loadReports(env, linkIds, period, now);
   // Удалённые заведения просто пропускаем, порядок — как в ссылке
-  const venues = linkIds.map((id) => reports.get(id)).filter(Boolean);
-  if (!venues.length) return notFound();
+  const allVenues = linkIds.map((id) => reports.get(id)).filter(Boolean);
+  if (!allVenues.length) return notFound();
+
+  // Заведения с закончившейся подпиской: статистика на паузе, показываем только напоминание
+  const venues = allVenues.filter((v) => v.billing.state !== "expired");
+  const paused = allVenues.filter((v) => v.billing.state === "expired");
+  const notices = billingNotices(allVenues, env);
   const multi = venues.length > 1;
-
-  const view = pickView(url, venues, multi);
-  if (!view) return notFound();
-
-  const daily =
-    period === "today"
-      ? null
-      : await loadDaily(env, view.dailyIds, period, now, view.card ? view.card.id : null);
 
   // Запоминаем, когда владелец смотрел статистику (видно в админ-панели)
   ctx.waitUntil(
@@ -73,8 +71,97 @@ async function statsPage(request, env, ctx, token) {
     }).catch((error) => console.error(`stats_links last_opened_at: ${error.message}`))
   );
 
-  const page = { token, period, range: venues[0].range, now, multi };
+  if (!venues.length || refersTo(url, paused)) {
+    return html(200, "Статистика на паузе", pausedBody(token, venues.length ? null : allVenues, notices));
+  }
+  const view = pickView(url, venues, multi);
+  if (!view) return notFound();
+
+  const daily =
+    period === "today"
+      ? null
+      : await loadDaily(env, view.dailyIds, period, now, view.card ? view.card.id : null);
+
+  const page = { token, period, range: venues[0].range, now, multi, notices };
   return html(200, `Статистика · ${view.title}`, renderBody(view, daily, page));
+}
+
+// ---------- Подписка ----------
+
+// Напоминания владельцу: скоро закончится / закончилась, идёт отсрочка / на паузе
+function billingNotices(venues, env) {
+  const contact = env.SUPPORT_URL || TELEGRAM_URL;
+  const renew = `<a href="${esc(contact)}" target="_blank" rel="noopener noreferrer">Продлить — написать в TapReview</a>`;
+  return venues
+    .map(({ name, billing: b }) => {
+      const who = `«${esc(name)}»`;
+      if (b.state === "ending") {
+        return notice(
+          "warn",
+          b.daysLeft === 0
+            ? `Подписка на ${who} заканчивается сегодня.`
+            : `Подписка на ${who} оплачена до ${formatDay(b.paidUntil)} включительно.`,
+          "Продлите заранее, чтобы карта и статистика работали без перерыва.",
+          renew
+        );
+      }
+      if (b.state === "grace") {
+        return notice(
+          "bad",
+          `Подписка на ${who} закончилась ${formatDay(b.paidUntil)}.`,
+          `Карта работает до ${formatDay(b.lastDay)} включительно. После этого гости будут попадать сразу на страницу ` +
+            "площадки без вашей страницы отзывов, а статистика встанет на паузу.",
+          renew
+        );
+      }
+      if (b.state === "expired") {
+        return notice(
+          "bad",
+          `${who}: подписка закончилась ${formatDay(b.paidUntil)}, статистика на паузе.`,
+          "Карта по-прежнему работает: гости попадают сразу на страницу площадки. Открытия мы продолжаем считать — " +
+            "после продления они появятся здесь.",
+          renew
+        );
+      }
+      return "";
+    })
+    .join("");
+}
+
+function notice(tone, title, text, action) {
+  return `<section class="notice notice-${tone}" role="status">
+      <p class="notice-title">${title}</p>
+      <p>${esc(text)}</p>
+      <p class="notice-action">${action}</p>
+    </section>`;
+}
+
+// Ссылка ведёт на заведение или карту, у которых подписка на паузе
+function refersTo(url, paused) {
+  const id = Number(url.searchParams.get("b"));
+  const code = String(url.searchParams.get("c") || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return paused.some((v) => v.id === id || (code && v.allCards.some((c) => c.code === code)));
+}
+
+function pausedBody(token, allPaused, notices) {
+  const title = allPaused
+    ? allPaused.length > 1
+      ? "Все заведения"
+      : allPaused[0].name
+    : "Статистика на паузе";
+  return `
+  <header class="top">
+    <div class="top-inner">
+      <div class="brand">TapReview <span>· статистика</span></div>
+      ${allPaused ? "" : `<a class="back" href="/s/${token}">← Вернуться к статистике</a>`}
+      <h1 class="name">${esc(title)}</h1>
+      <p class="range">Статистика на паузе</p>
+    </div>
+  </header>
+  <main class="wrap">${notices}</main>
+  <footer class="foot">
+    <p>Сохраните ссылку — после продления статистика появится здесь же.</p>
+  </footer>`;
 }
 
 function pickView(url, venues, multi) {
@@ -210,6 +297,7 @@ function renderBody(view, daily, page) {
     </div>
   </header>
   <main class="wrap">
+    ${page.notices}
     <section class="kpis">
       <div class="kpi">
         <div class="kpi-label">Открыли страницу</div>
@@ -462,6 +550,13 @@ const CSS = `
   .back:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
   .back + .name { margin-top: 4px; }
   .sub { margin: 0 0 4px; font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.9); overflow-wrap: anywhere; }
+  .notice { margin-bottom: 12px; padding: 14px 16px; border-radius: 16px; font-size: 13px; line-height: 1.5; }
+  .notice p { margin: 0 0 6px; }
+  .notice p:last-child { margin-bottom: 0; }
+  .notice-title { font-size: 14px; font-weight: 700; }
+  .notice-warn { background: #fff7e0; color: #6b4a00; border: 1px solid #f3d27a; }
+  .notice-bad { background: #fdecec; color: #7f1d1d; border: 1px solid #f5b5b5; }
+  .notice-action a { color: inherit; font-weight: 700; }
   .hint { margin: -6px 0 10px; font-size: 12px; color: var(--muted); }
   .items { list-style: none; margin: 0; padding: 0; }
   .item { display: grid; grid-template-columns: 1fr 64px 64px 14px; align-items: center; column-gap: 8px;
