@@ -4,10 +4,13 @@
 
 import { db } from "./supabase.js";
 import { PERIODS, PLATFORMS, loadReports, loadDaily, sumTotals, formatDateRange, formatCardCode } from "./report.js";
-import { ICONS, TELEGRAM_URL } from "./public-page.js";
+import { ICONS } from "./public-page.js";
 import { formatDay } from "./billing.js";
 
 const TOKEN_RE = /^[A-Za-z0-9]{24}$/;
+// Куда владелец пишет, чтобы продлить подписку (личный Telegram TapReview)
+const SUPPORT_HANDLE = "@tapreview_ru";
+const SUPPORT_URL = "https://t.me/tapreview_ru";
 const TABS = [
   { key: "today", label: "Сегодня" },
   { key: "week", label: "7 дней" },
@@ -59,7 +62,7 @@ async function statsPage(request, env, ctx, token) {
   // Заведения с закончившейся подпиской: статистика на паузе, показываем только напоминание
   const venues = allVenues.filter((v) => v.billing.state !== "expired");
   const paused = allVenues.filter((v) => v.billing.state === "expired");
-  const notices = billingNotices(allVenues, env);
+  const notices = billingNotices(allVenues);
   const multi = venues.length > 1;
 
   // Запоминаем, когда владелец смотрел статистику (видно в админ-панели)
@@ -89,9 +92,8 @@ async function statsPage(request, env, ctx, token) {
 // ---------- Подписка ----------
 
 // Напоминания владельцу: скоро закончится / закончилась, идёт отсрочка / на паузе
-function billingNotices(venues, env) {
-  const contact = env.SUPPORT_URL || TELEGRAM_URL;
-  const renew = `<a href="${esc(contact)}" target="_blank" rel="noopener noreferrer">Продлить — написать в TapReview</a>`;
+function billingNotices(venues) {
+  const renew = `<a href="${esc(SUPPORT_URL)}" target="_blank" rel="noopener noreferrer">Продлить — написать в Telegram ${esc(SUPPORT_HANDLE)}</a>`;
   return venues
     .map(({ name, billing: b }) => {
       const who = `«${esc(name)}»`;
