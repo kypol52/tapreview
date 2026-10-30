@@ -451,13 +451,13 @@ function notFoundPage() {
 
 // Оформление страницы отзывов: выбирается в админке одним кликом (businesses.theme, миграция 018).
 // accent — цвет черты под названием по умолчанию (если у заведения не задан свой brand_color).
-// Кнопки площадок остаются светлыми с тёмным текстом в любой теме — так они узнаваемы и читаемы.
+// Кнопки площадок — в цветах темы (btn*): спокойный фон и тонкая рамка, узнаваемость дают логотипы.
 export const THEMES = {
-  classic: { label: "Классика", bg: "#f4f6fa", blob1: "#e8ecf5", blob2: "#eef1f7", card: "#ffffff", text: "#141a2b", muted: "#6b7280", accent: "#c9a27e", cta1: "#22a06b", cta2: "#137a4d", shadow: "rgba(20, 26, 43, 0.08)" },
-  dark: { label: "Тёмная", bg: "#0e131d", blob1: "#161d2b", blob2: "#1b2335", card: "#171e2c", text: "#f1f3f8", muted: "#9aa4b6", accent: "#e5aa0c", cta1: "#22a06b", cta2: "#137a4d", shadow: "rgba(0, 0, 0, 0.35)" },
-  coffee: { label: "Кофейня", bg: "#f3ebe1", blob1: "#eadfce", blob2: "#efe6da", card: "#fffaf4", text: "#2a1f17", muted: "#7a6a5c", accent: "#a9744a", cta1: "#3c9461", cta2: "#28704a", shadow: "rgba(60, 40, 20, 0.10)" },
-  fresh: { label: "Свежая", bg: "#edf6f0", blob1: "#dcefe3", blob2: "#e6f3ea", card: "#ffffff", text: "#13261b", muted: "#5f7466", accent: "#2f9e5b", cta1: "#16a34a", cta2: "#0f7a37", shadow: "rgba(15, 60, 35, 0.10)" },
-  rose: { label: "Бьюти", bg: "#f8eef1", blob1: "#f1dde4", blob2: "#f5e6eb", card: "#ffffff", text: "#2a1720", muted: "#80646f", accent: "#c2577a", cta1: "#22a06b", cta2: "#137a4d", shadow: "rgba(90, 30, 50, 0.10)" }
+  classic: { label: "Классика", bg: "#f4f6fa", blob1: "#e8ecf5", blob2: "#eef1f7", card: "#ffffff", text: "#141a2b", muted: "#6b7280", accent: "#c9a27e", cta1: "#22a06b", cta2: "#137a4d", shadow: "rgba(20, 26, 43, 0.08)", btn: "#f5f7fb", btnBorder: "#e3e7ef", btnText: "#141a2b", gift: "#fff8e8", giftBorder: "#f3dfa9" },
+  dark: { label: "Тёмная", bg: "#0e131d", blob1: "#161d2b", blob2: "#1b2335", card: "#171e2c", text: "#f1f3f8", muted: "#9aa4b6", accent: "#e5aa0c", cta1: "#22a06b", cta2: "#137a4d", shadow: "rgba(0, 0, 0, 0.35)", btn: "rgba(255, 255, 255, 0.06)", btnBorder: "rgba(255, 255, 255, 0.12)", btnText: "#f1f3f8", gift: "rgba(229, 170, 12, 0.12)", giftBorder: "rgba(229, 170, 12, 0.38)" },
+  coffee: { label: "Кофейня", bg: "#f3ebe1", blob1: "#eadfce", blob2: "#efe6da", card: "#fffaf4", text: "#2a1f17", muted: "#7a6a5c", accent: "#a9744a", cta1: "#3c9461", cta2: "#28704a", shadow: "rgba(60, 40, 20, 0.10)", btn: "#f7efe5", btnBorder: "#eadcc9", btnText: "#2a1f17", gift: "#fbf0d9", giftBorder: "#ead29b" },
+  fresh: { label: "Свежая", bg: "#edf6f0", blob1: "#dcefe3", blob2: "#e6f3ea", card: "#ffffff", text: "#13261b", muted: "#5f7466", accent: "#2f9e5b", cta1: "#16a34a", cta2: "#0f7a37", shadow: "rgba(15, 60, 35, 0.10)", btn: "#f2f8f4", btnBorder: "#d9ebe0", btnText: "#13261b", gift: "#fff8e8", giftBorder: "#f3dfa9" },
+  rose: { label: "Бьюти", bg: "#f8eef1", blob1: "#f1dde4", blob2: "#f5e6eb", card: "#ffffff", text: "#2a1720", muted: "#80646f", accent: "#c2577a", cta1: "#22a06b", cta2: "#137a4d", shadow: "rgba(90, 30, 50, 0.10)", btn: "#fbf2f5", btnBorder: "#f0dbe3", btnText: "#2a1720", gift: "#fff6ea", giftBorder: "#f1dcb0" }
 };
 
 // footer — { href, text }: зелёная кнопка внизу («Работает на TapReview / Хочу такую карту»).
@@ -509,6 +509,11 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
       --cta1: ${t.cta1};
       --cta2: ${t.cta2};
       --card-shadow: ${t.shadow};
+      --btn-bg: ${t.btn};
+      --btn-border: ${t.btnBorder};
+      --btn-text: ${t.btnText};
+      --gift-bg: ${t.gift};
+      --gift-border: ${t.giftBorder};
       --serif: "Playfair Display", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Noto Serif", "Times New Roman", serif;
       --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     }
@@ -616,23 +621,21 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
       gap: 16px;
       padding: 14px 20px 14px 16px;
       border-radius: 999px;
-      border: 1px solid;
-      color: #141a2b; /* кнопки светлые в любой теме — текст всегда тёмный */
+      border: 1px solid var(--btn-border);
+      background: var(--btn-bg);
+      color: var(--btn-text);
       text-decoration: none;
       text-align: left;
       transition: transform 0.15s ease, box-shadow 0.15s ease;
       -webkit-tap-highlight-color: transparent;
     }
-    .button:hover { box-shadow: 0 6px 18px rgba(20, 26, 43, 0.08); }
+    .button:hover { box-shadow: 0 6px 18px var(--card-shadow); border-color: var(--accent); }
     .button:active { transform: scale(0.98); }
     .button:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
-    .button-yandex { background: #fff3f2; border-color: #fbd9d5; }
-    .button-google { background: #f2f6fe; border-color: #d9e4fb; }
-    .button-twogis { background: #f2f9ef; border-color: #d8eccf; }
     .icon { flex: none; width: 40px; height: 40px; }
     .icon svg { display: block; width: 100%; height: 100%; }
     .label { flex: 1; font-size: 16px; line-height: 1.35; }
-    .arrow { flex: none; width: 22px; height: 22px; color: #3a4152; }
+    .arrow { flex: none; width: 22px; height: 22px; color: var(--muted); }
 
     /* Страница шаблонной карты, которая ещё не привязана */
     .card-mark {
@@ -675,8 +678,8 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
       width: 100%;
       font: inherit;
       cursor: pointer;
-      background: #fff8e8;
-      border-color: #f3dfa9;
+      background: var(--gift-bg);
+      border-color: var(--gift-border);
     }
     .bonus-button .label { font-weight: 600; text-align: center; }
     .bonus-button .icon { width: 34px; height: 34px; }
