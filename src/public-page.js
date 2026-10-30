@@ -73,7 +73,7 @@ export const BONUS_COLUMNS =
 
 const BUSINESS_COLUMNS =
   "id,slug,name,tagline,category,logo_url,brand_color,google_url,yandex_url,twogis_url," +
-  "discount_code,discount_text,paid_until," + BONUS_COLUMNS;
+  "discount_code,discount_text,paid_until,theme," + BONUS_COLUMNS;
 
 export const TELEGRAM_URL ="https://t.me/tapreviewru";
 
@@ -376,9 +376,8 @@ function redirect(location) {
 }
 
 function businessPage(business, source, cardCode = null) {
-  const accent = COLOR_RE.test(business.brand_color || "")
-    ? business.brand_color
-    : DEFAULT_ACCENT;
+  // Свой фирменный цвет заведения, иначе — цвет черты выбранной темы
+  const accent = COLOR_RE.test(business.brand_color || "") ? business.brand_color : null;
 
   // Источник (NFC / QR) и код карты передаём дальше, чтобы клик тоже знал,
   // откуда пришёл посетитель
@@ -425,6 +424,7 @@ function businessPage(business, source, cardCode = null) {
     status: 200,
     title: `Отзыв — ${business.name}`,
     accent,
+    theme: business.theme,
     // «Карта как реклама»: гость-владелец бизнеса переходит на наш сайт, а заведение получает рекомендацию
     footer: { href: `/r/${business.slug}?s=card`, text: "Хочу такую карту" },
     body: `
@@ -449,10 +449,28 @@ function notFoundPage() {
   });
 }
 
-// footer — { href, text }: подпись внизу. По умолчанию — «TapReview» со ссылкой на Telegram-канал.
-export function renderPage({ status, title, accent, body, extraCss = "", footer = null }) {
+// Оформление страницы отзывов: выбирается в админке одним кликом (businesses.theme, миграция 018).
+// accent — цвет черты под названием по умолчанию (если у заведения не задан свой brand_color).
+// Кнопки площадок остаются светлыми с тёмным текстом в любой теме — так они узнаваемы и читаемы.
+export const THEMES = {
+  classic: { label: "Классика", bg: "#f4f6fa", blob1: "#e8ecf5", blob2: "#eef1f7", card: "#ffffff", text: "#141a2b", muted: "#6b7280", accent: "#c9a27e", cta1: "#22a06b", cta2: "#137a4d", shadow: "rgba(20, 26, 43, 0.08)" },
+  dark: { label: "Тёмная", bg: "#0e131d", blob1: "#161d2b", blob2: "#1b2335", card: "#171e2c", text: "#f1f3f8", muted: "#9aa4b6", accent: "#e5aa0c", cta1: "#22a06b", cta2: "#137a4d", shadow: "rgba(0, 0, 0, 0.35)" },
+  coffee: { label: "Кофейня", bg: "#f3ebe1", blob1: "#eadfce", blob2: "#efe6da", card: "#fffaf4", text: "#2a1f17", muted: "#7a6a5c", accent: "#a9744a", cta1: "#3c9461", cta2: "#28704a", shadow: "rgba(60, 40, 20, 0.10)" },
+  fresh: { label: "Свежая", bg: "#edf6f0", blob1: "#dcefe3", blob2: "#e6f3ea", card: "#ffffff", text: "#13261b", muted: "#5f7466", accent: "#2f9e5b", cta1: "#16a34a", cta2: "#0f7a37", shadow: "rgba(15, 60, 35, 0.10)" },
+  rose: { label: "Бьюти", bg: "#f8eef1", blob1: "#f1dde4", blob2: "#f5e6eb", card: "#ffffff", text: "#2a1720", muted: "#80646f", accent: "#c2577a", cta1: "#22a06b", cta2: "#137a4d", shadow: "rgba(90, 30, 50, 0.10)" }
+};
+
+// footer — { href, text }: зелёная кнопка внизу («Работает на TapReview / Хочу такую карту»).
+// Без footer — скромная подпись «TapReview» со ссылкой на Telegram-канал (служебные страницы).
+// theme — ключ из THEMES.
+export function renderPage({ status, title, accent, body, extraCss = "", footer = null, theme = "classic" }) {
+  const t = THEMES[theme] || THEMES.classic;
   const footerHtml = footer
-    ? `<a class="footer" href="${escapeHtml(footer.href)}" rel="nofollow">${HEART}<span class="footer-text">TapReview</span><span class="footer-cta">· ${escapeHtml(footer.text)}</span>${EXTERNAL}</a>`
+    ? `<a class="footer footer-cta-btn" href="${escapeHtml(footer.href)}" rel="nofollow">
+        <span class="footer-mark" aria-hidden="true">TR</span>
+        <span class="footer-copy"><span class="footer-small">Работает на TapReview</span><span class="footer-big">${escapeHtml(footer.text)}</span></span>
+        <svg class="footer-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>`
     : `<a class="footer" href="${TELEGRAM_URL}" target="_blank" rel="noopener">${HEART}<span class="footer-text">TapReview</span>${EXTERNAL}</a>`;
   const html = `<!DOCTYPE html>
 <html lang="ru">
@@ -460,7 +478,7 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
-  <meta name="theme-color" content="#f4f6fa">
+  <meta name="theme-color" content="${t.bg}">
   <title>${escapeHtml(title)}</title>
   <link rel="preload" href="/fonts/playfair-display-600-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
   <style>
@@ -481,10 +499,16 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
       unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
     }
     :root {
-      --accent: ${accent};
-      --text: #141a2b;
-      --muted: #6b7280;
-      --bg: #f4f6fa;
+      --accent: ${accent || t.accent};
+      --text: ${t.text};
+      --muted: ${t.muted};
+      --bg: ${t.bg};
+      --card: ${t.card};
+      --blob1: ${t.blob1};
+      --blob2: ${t.blob2};
+      --cta1: ${t.cta1};
+      --cta2: ${t.cta2};
+      --card-shadow: ${t.shadow};
       --serif: "Playfair Display", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Noto Serif", "Times New Roman", serif;
       --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     }
@@ -510,7 +534,7 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
       content: "";
       position: fixed;
       border-radius: 50%;
-      background: linear-gradient(135deg, #e8ecf5, #eef1f7);
+      background: linear-gradient(135deg, var(--blob1), var(--blob2));
       z-index: 0;
       pointer-events: none;
     }
@@ -522,11 +546,11 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
       z-index: 1;
       width: 100%;
       max-width: 440px;
-      background: #fff;
+      background: var(--card);
       border-radius: 22px;
       padding: 32px 26px 28px;
       text-align: center;
-      box-shadow: 0 1px 2px rgba(20, 26, 43, 0.04), 0 12px 40px rgba(20, 26, 43, 0.08);
+      box-shadow: 0 1px 2px rgba(20, 26, 43, 0.04), 0 12px 40px var(--card-shadow);
     }
     .logo {
       display: block;
@@ -593,7 +617,7 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
       padding: 14px 20px 14px 16px;
       border-radius: 999px;
       border: 1px solid;
-      color: var(--text);
+      color: #141a2b; /* кнопки светлые в любой теме — текст всегда тёмный */
       text-decoration: none;
       text-align: left;
       transition: transform 0.15s ease, box-shadow 0.15s ease;
@@ -697,9 +721,42 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
     .footer svg { width: 18px; height: 18px; }
     .footer .ext { width: 13px; height: 13px; opacity: 0.75; }
     .footer-text { text-decoration: underline; text-decoration-color: #c4c9d6; text-underline-offset: 3px; }
-    .footer-cta { color: #8a91a1; }
     .footer:hover, .footer:focus-visible { color: #1f2433; border-color: #c4c9d6; background: #fff; }
     .footer:focus-visible { outline: 2px solid #9aa3b8; outline-offset: 2px; }
+
+    /* Зелёная кнопка «Работает на TapReview / Хочу такую карту» */
+    .footer-cta-btn {
+      gap: 10px;
+      margin-top: 22px;
+      padding: 7px 16px 7px 7px;
+      border: 0;
+      background: linear-gradient(135deg, var(--cta1), var(--cta2));
+      color: #fff;
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset, 0 8px 20px rgba(19, 122, 77, 0.28);
+      text-align: left;
+    }
+    .footer-cta-btn:hover, .footer-cta-btn:focus-visible {
+      color: #fff;
+      background: linear-gradient(135deg, var(--cta1), var(--cta2));
+      filter: brightness(1.06);
+    }
+    .footer-mark {
+      flex: none;
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: #fff;
+      color: var(--cta2);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+    }
+    .footer-copy { display: flex; flex-direction: column; line-height: 1.15; }
+    .footer-small { font-size: 11px; font-weight: 500; opacity: 0.85; }
+    .footer-big { font-size: 15px; font-weight: 700; }
+    .footer-arrow { flex: none; width: 18px; height: 18px; margin-left: 2px; }
 
     @media (max-width: 360px) {
       .card { padding: 26px 18px 22px; }

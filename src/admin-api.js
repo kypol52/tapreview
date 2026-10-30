@@ -53,7 +53,7 @@ const ADMIN_COLUMNS =
   "google_url,yandex_url,twogis_url,discount_code,discount_text,is_active," +
   "paid_until,monthly_price,billing_note," +
   "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions," +
-  "referred_by,ref_reward_at," +
+  "referred_by,ref_reward_at,theme," +
   "created_at,updated_at";
 
 const GROUP_COLUMNS = "id,slug,name,tagline,logo_url,business_ids,is_active,created_at,updated_at";
@@ -566,6 +566,7 @@ function validateBusiness(input) {
     monthly_price: cleanPrice(input.monthly_price),
     billing_note: cleanText(input.billing_note, 200, "Заметка об оплате") || null,
     referred_by: cleanRefId(input.referred_by),
+    theme: ["classic", "dark", "coffee", "fresh", "rose"].includes(input.theme) ? input.theme : "classic",
     ...cleanBonus(input)
   };
 }

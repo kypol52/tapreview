@@ -691,6 +691,8 @@ function openEditor(business) {
   $("f-twogis").value = business ? business.twogis_url || "" : "";
   $("f-logo").value = business ? business.logo_url || "" : "";
   $("f-discount-text").value = business ? business.discount_text || "" : "";
+  const theme = (business && business.theme) || "classic";
+  for (const radio of document.querySelectorAll('input[name="f-theme"]')) radio.checked = radio.value === theme;
   fillBonus(business);
   $("f-active").checked = business ? business.is_active : true;
   $("f-paid-until").value = business ? business.paid_until || "" : "";
@@ -1127,7 +1129,8 @@ function readForm() {
     paid_until: $("f-paid-until").value,
     monthly_price: $("f-price").value,
     billing_note: $("f-billing-note").value,
-    referred_by: $("f-referred-by").value || null
+    referred_by: $("f-referred-by").value || null,
+    theme: (document.querySelector('input[name="f-theme"]:checked') || {}).value || "classic"
   };
 }
 

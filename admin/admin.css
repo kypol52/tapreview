@@ -467,6 +467,22 @@ input[type="color"]:disabled { opacity: 0.4; }
 .prize-share { width: 40px; font-size: 13px; font-weight: 600; color: var(--muted); text-align: right; }
 @media (max-width: 640px) { .grid-3 { grid-template-columns: 1fr; } }
 .ref-visits { margin: 10px 0 0; font-size: 13px; }
+
+/* Выбор оформления страницы отзывов */
+.themes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.theme-opt { display: grid; gap: 6px; justify-items: center; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--muted); }
+.theme-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.theme-prev {
+  position: relative; display: block; width: 100%; aspect-ratio: 3 / 4; border-radius: 10px; background: var(--bg);
+  box-shadow: 0 0 0 1px var(--border);
+}
+.theme-prev i { position: absolute; left: 14%; right: 14%; top: 12%; bottom: 30%; border-radius: 6px; background: var(--card); }
+.theme-prev i::after { content: ""; position: absolute; left: 35%; right: 35%; top: 28%; height: 2px; border-radius: 2px; background: var(--line); }
+.theme-prev b { position: absolute; left: 22%; right: 22%; bottom: 10%; height: 10%; border-radius: 99px; background: linear-gradient(135deg, #22a06b, #137a4d); }
+.theme-opt input:checked + .theme-prev { box-shadow: 0 0 0 2px var(--primary); }
+.theme-opt input:checked ~ .theme-name { color: var(--text); }
+.theme-opt input:focus-visible + .theme-prev { outline: 2px solid var(--primary); outline-offset: 2px; }
+@media (max-width: 480px) { .themes { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .staff-box { margin: 14px 0 6px; padding: 12px; border: 1px dashed var(--border); border-radius: var(--radius); }
 .staff-new { display: flex; gap: 8px; flex-wrap: wrap; }
 .staff-new input { flex: 1; min-width: 180px; }

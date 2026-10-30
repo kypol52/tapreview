@@ -93,7 +93,7 @@ export async function handleBonus(request, env) {
     const rows = await db(
       env,
       `businesses?slug=eq.${encodeURIComponent(slug)}&is_active=eq.true` +
-        `&select=id,slug,name,discount_text,paid_until,${BONUS_COLUMNS}&limit=1`
+        `&select=id,slug,name,discount_text,paid_until,theme,${BONUS_COLUMNS}&limit=1`
     );
     const business = rows[0];
     if (!business || isExpired(business.paid_until) || !bonusEnabled(business)) {
@@ -256,7 +256,8 @@ function resultPage(business, c, { repeat, backUrl, wheel = null }) {
   return renderPage({
     status: 200,
     title: `Подарок — ${business.name}`,
-    accent: DEFAULT_ACCENT,
+    accent: null,
+    theme: business.theme,
     extraCss: BONUS_PAGE_CSS,
     body: `
       <h1 class="name name-long">${escapeHtml(business.name)}</h1>
@@ -304,7 +305,7 @@ const BONUS_PAGE_CSS = `
   }
   .br-gift { width: 64px; height: 64px; margin: 4px auto 16px; }
   .br-gift svg { width: 100%; height: 100%; }
-  .br { padding: 18px 18px 16px; border: 1px dashed #e2c46e; border-radius: 18px; background: #fffdf6; }
+  .br { padding: 18px 18px 16px; border: 1px dashed #e2c46e; border-radius: 18px; background: #fffdf6; color: #141a2b; }
   .br-fade { animation: br-in 0.5s ease 0.2s both; }
   .br-after-spin { animation: br-in 0.5s ease 4.6s both; }
   @keyframes br-in { from { opacity: 0; transform: translateY(8px); visibility: hidden; } to { opacity: 1; transform: none; visibility: visible; } }
@@ -316,11 +317,11 @@ const BONUS_PAGE_CSS = `
     font-size: 30px; font-weight: 700; letter-spacing: 0.12em; user-select: all;
   }
   .br-valid { margin: 0; font-size: 15px; font-weight: 600; }
-  .br-cond { margin: 6px 0 0; font-size: 14px; color: var(--muted); }
+  .br-cond { margin: 6px 0 0; font-size: 14px; color: #6b7280; }
   .br-warn { margin: 10px 0 0; padding: 8px 10px; border-radius: 10px; background: #fdecec; color: #7f1d1d; font-size: 14px; }
-  .br-hint { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
+  .br-hint { margin: 10px 0 0; font-size: 13px; color: #6b7280; }
   .br-rules { margin: 14px 0 0; font-size: 12px; color: var(--muted); }
-  .br-back { display: inline-block; margin-top: 14px; font-size: 14px; color: #0a2a5c; text-underline-offset: 3px; }
+  .br-back { display: inline-block; margin-top: 14px; font-size: 14px; color: var(--text); text-underline-offset: 3px; }
   @media (prefers-reduced-motion: reduce) {
     .wheel { animation: none; transform: rotate(var(--end)); }
     .br-fade, .br-after-spin { animation: none; }
