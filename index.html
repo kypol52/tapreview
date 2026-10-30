@@ -258,7 +258,13 @@
     .dash-cards { margin: 16px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
     .dash-cards li { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13px; font-weight: 600; color: var(--text); }
     .dash-cards li:last-child { border-bottom: 0; padding-bottom: 0; }
-    .dash-cards b { font-variant-numeric: tabular-nums; color: var(--ink); }
+    .dash-cards b { font-variant-numeric: tabular-nums; color: #b9bfcb; }
+    .dash-cards i { font-style: normal; }
+    .c-navy { color: var(--navy) !important; }
+    .c-gold { color: #b58200 !important; } /* темнее фирменного золотого — чтобы цифры читались на светлом фоне */
+    .col-mark { flex: none; display: block; width: 8px; height: 18px; margin: 2px 6px 0; border-radius: 3px 3px 1px 1px; }
+    .col-navy { background: var(--navy); }
+    .col-gold { background: var(--gold); }
 
     /* Для кого */
     .who { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; list-style: none; }
@@ -449,7 +455,7 @@
     <div class="hero">
       <div class="wrap">
         <div>
-          <p class="eyebrow reveal"><span class="dot" aria-hidden="true"></span>NFC + QR-карты для отзывов на картах</p>
+          <p class="eyebrow reveal"><span class="dot" aria-hidden="true"></span>Карты с NFC и QR-кодом для отзывов</p>
           <h1 class="reveal" style="--d:.05s">Отзывы <span class="accent">в одно</span> касание</h1>
           <p class="lead reveal" style="--d:.1s">
             Карта стоит на столе или у кассы. Гость прикладывает телефон или сканирует QR-код —
@@ -460,14 +466,14 @@
               <svg aria-hidden="true"><use href="#i-calc"/></svg>
               Заказать карту
             </a>
-            <a class="btn btn-ghost" href="/b/yarik">Посмотреть пример</a>
+            <a class="btn btn-gold" href="/b/yarik">Посмотреть пример</a>
           </div>
           <!-- ЦЕНЫ: подключение 100 ₽ за карту, подписка 200 ₽/мес или 2 000 ₽/год (меняются здесь и в разделе «Цены») -->
-          <p class="hero-price reveal" style="--d:.2s">Подключение <b>100&nbsp;₽</b>, подписка от <b>167&nbsp;₽/мес</b> · <a href="#pricing">все цены</a></p>
+          <p class="hero-price reveal" style="--d:.2s">Карта — <b>100&nbsp;₽</b>, подписка от <b>167&nbsp;₽/мес</b> за карту · <a href="#pricing">все цены</a></p>
           <ul class="hero-meta reveal" style="--d:.25s">
             <li><svg aria-hidden="true"><use href="#i-check"/></svg>Без приложений</li>
             <li><svg aria-hidden="true"><use href="#i-check"/></svg>Любой смартфон</li>
-            <li><svg aria-hidden="true"><use href="#i-check"/></svg>Ссылки меняем без перепечатки</li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg>Смена ссылок без перепечатки</li>
           </ul>
         </div>
 
@@ -556,7 +562,7 @@
           <div class="benefit reveal">
             <div class="benefit-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
             <h3>Статистика по каждой карте</h3>
-            <p>Видно, какая карта работает лучше: у кассы, на столике или у мастера.</p>
+            <p>Видно, какая карта работает лучше. Отчёт в Telegram по понедельникам и ссылка на статистику в любой момент.</p>
           </div>
           <div class="benefit reveal" style="--d:.06s">
             <div class="benefit-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21V9l9-6 9 6v12M9 21v-6h6v6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
@@ -564,9 +570,9 @@
             <p>Владелец сети видит общую сводку и каждое заведение отдельно.</p>
           </div>
           <div class="benefit reveal" style="--d:.12s">
-            <div class="benefit-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-tg"/></svg></div>
-            <h3>Отчёт в Telegram</h3>
-            <p>Каждый понедельник — итоги недели. И статистика по ссылке в любой момент.</p>
+            <div class="benefit-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11h16v9H4zM3 7h18v4H3zM12 7v13M12 7c-1.5-3-6-3.5-6-1 0 1.5 2.5 1 6 1zM12 7c1.5-3 6-3.5 6-1 0 1.5-2.5 1-6 1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <h3>Бонусы для гостей</h3>
+            <p>Кнопка «Получить скидку» на странице: кодовое слово на скидку или подарок при следующем визите.</p>
           </div>
         </div>
 
@@ -575,8 +581,8 @@
             <h3>Вы видите, как работают карты</h3>
             <p>Личная ссылка на статистику открывается в любом браузере — без входа и паролей.</p>
             <ul class="checks">
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Сколько раз открыли страницу отзывов</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Сколько человек перешли к отзыву и куда</li>
+              <li><span class="col-mark col-navy" aria-hidden="true"></span>Сколько раз открыли страницу отзывов</li>
+              <li><span class="col-mark col-gold" aria-hidden="true"></span>Сколько человек перешли к отзыву и куда</li>
               <li><svg aria-hidden="true"><use href="#i-check"/></svg>NFC или QR — что используют чаще</li>
               <li><svg aria-hidden="true"><use href="#i-check"/></svg>Сравнение с прошлой неделей и месяцем</li>
             </ul>
@@ -584,8 +590,8 @@
           <div class="dash reveal" style="--d:.08s" role="img" aria-label="Пример страницы статистики: открытия и переходы к отзыву по дням и по картам">
             <div class="dash-top"><span class="dash-title">Кофейня «Утро» · 7 дней</span><span class="dash-label">Пример</span></div>
             <div class="dash-kpis">
-              <div class="kpi"><small>Открыли страницу</small><strong>184</strong><em>▲ +23</em></div>
-              <div class="kpi"><small>Перешли к отзыву</small><strong>71</strong><em>▲ +12</em></div>
+              <div class="kpi"><small>Открыли страницу</small><strong class="c-navy">184</strong><em>▲ +23</em></div>
+              <div class="kpi"><small>Перешли к отзыву</small><strong class="c-gold">71</strong><em>▲ +12</em></div>
             </div>
             <div class="bars" aria-hidden="true">
               <div class="bar" style="--i:0;height:52%"><i style="height:38%"></i></div>
@@ -598,9 +604,9 @@
             </div>
             <div class="bar-days" aria-hidden="true"><span>пн</span><span>вт</span><span>ср</span><span>чт</span><span>пт</span><span>сб</span><span>вс</span></div>
             <ul class="dash-cards" aria-hidden="true">
-              <li><span>Стойка у кассы</span><b>96 · 41</b></li>
-              <li><span>Столик у окна</span><b>58 · 19</b></li>
-              <li><span>Терраса</span><b>30 · 11</b></li>
+              <li><span>Стойка у кассы</span><b><i class="c-navy">96</i> · <i class="c-gold">41</i></b></li>
+              <li><span>Столик у окна</span><b><i class="c-navy">58</i> · <i class="c-gold">19</i></b></li>
+              <li><span>Терраса</span><b><i class="c-navy">30</i> · <i class="c-gold">11</i></b></li>
             </ul>
           </div>
         </div>
@@ -634,15 +640,15 @@
         <div class="section-head reveal">
           <p class="kicker">Цены</p>
           <h2>Понятная цена без сюрпризов</h2>
-          <p>Один раз оплачиваете подключение — карты и настройку. Дальше — подписка на работу страницы и статистику.</p>
+          <p>За каждую карту: один раз 100&nbsp;₽ за подключение, дальше — подписка 200&nbsp;₽ в месяц или 2&nbsp;000&nbsp;₽ в год.</p>
         </div>
 
         <div class="plans">
           <article class="plan reveal">
             <h3>Месяц</h3>
             <p class="plan-sub">Чтобы попробовать</p>
-            <p class="price"><strong>200&nbsp;₽</strong><span>в месяц</span></p>
-            <p class="price-note">+&nbsp;подключение 100&nbsp;₽ за&nbsp;карту</p>
+            <p class="price"><strong>200&nbsp;₽</strong><span>в месяц за карту</span></p>
+            <p class="price-note">+&nbsp;100&nbsp;₽ за&nbsp;подключение каждой карты</p>
             <ul>
               <li><svg aria-hidden="true"><use href="#i-check"/></svg>Карта NFC + QR</li>
               <li><svg aria-hidden="true"><use href="#i-check"/></svg>Страница отзывов под ваше заведение</li>
@@ -656,8 +662,8 @@
             <span class="plan-badge">Выгоднее</span>
             <h3>Год</h3>
             <p class="plan-sub">Для тех, кто уже решил</p>
-            <p class="price"><strong>2&nbsp;000&nbsp;₽</strong><span>в год</span></p>
-            <p class="price-note">≈&nbsp;167&nbsp;₽ в&nbsp;месяц · +&nbsp;подключение 100&nbsp;₽ за&nbsp;карту</p>
+            <p class="price"><strong>2&nbsp;000&nbsp;₽</strong><span>в год за карту</span></p>
+            <p class="price-note">≈&nbsp;167&nbsp;₽ в&nbsp;месяц · +&nbsp;100&nbsp;₽ за&nbsp;подключение карты</p>
             <ul>
               <li><svg aria-hidden="true"><use href="#i-check"/></svg>Всё, что в тарифе «Месяц»</li>
               <li><svg aria-hidden="true"><use href="#i-check"/></svg>Два месяца бесплатно</li>
@@ -671,7 +677,7 @@
             <h3>Сеть</h3>
             <p class="plan-sub">Несколько точек или много карт</p>
             <p class="price"><strong class="price-text">Индивидуально</strong></p>
-            <p class="price-note">Каждая карта — 100&nbsp;₽ за подключение</p>
+            <p class="price-note">Карта — 100&nbsp;₽ + подписка 200&nbsp;₽/мес</p>
             <ul>
               <li><svg aria-hidden="true"><use href="#i-check"/></svg>Карты на каждый стол или мастера</li>
               <li><svg aria-hidden="true"><use href="#i-check"/></svg>Статистика по каждой карте</li>
@@ -684,7 +690,7 @@
 
         <div class="pricing-foot reveal">
           <p><svg aria-hidden="true"><use href="#i-check"/></svg>Без автосписаний — каждый период вы оплачиваете сами, за 5 дней до конца напомним.</p>
-          <p><svg aria-hidden="true"><use href="#i-check"/></svg>Если не продлить — карта не превратится в мусор: гости попадут сразу на Яндекс Карты или 2ГИС.</p>
+          <p><svg aria-hidden="true"><use href="#i-check"/></svg>Смена ссылок и перепривязка карт — бесплатно, пока действует подписка.</p>
         </div>
       </div>
     </section>
@@ -735,7 +741,7 @@
           </details>
           <details>
             <summary>Что будет, если не продлить подписку?</summary>
-            <p>Мы напомним заранее. Если всё же не продлить, через 3 дня карта продолжит работать, но будет вести гостей сразу на площадку отзывов, а статистика встанет на паузу. После оплаты всё вернётся.</p>
+            <p>Мы напомним заранее. Если всё же не продлить, через 3 дня карта продолжит работать, но будет вести гостей сразу на площадку отзывов, а статистика встанет на паузу. После оплаты всё вернётся. Если не продлить в течение недели, карты могут быть отвязаны, а статистика удалена.</p>
           </details>
           <details>
             <summary>У меня несколько заведений. Это удобно?</summary>

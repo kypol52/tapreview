@@ -147,9 +147,9 @@ function validate(data) {
   };
 }
 
-// Подключение каждой карты + подписка за каждое заведение
-export function orderTotals({ venues, cards, plan }) {
-  const subscription = venues * PRICES[plan];
+// Подключение каждой карты + подписка за каждую карту
+export function orderTotals({ cards, plan }) {
+  const subscription = cards * PRICES[plan];
   return { connection: cards * PRICES.card, subscription, now: cards * PRICES.card + subscription, next: subscription };
 }
 

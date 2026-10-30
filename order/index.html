@@ -161,7 +161,7 @@
 
     .footer { padding: 0 0 40px; color: var(--muted); font-size: 13.5px; }
     .footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 22px; justify-content: space-between; }
-    .footer nav { display: flex; flex-wrap: wrap; gap: 10px 20px; }
+    .footer nav { display: flex; flex-wrap: wrap; gap: 10px 24px; }
     .footer a { font-weight: 600; text-decoration: none; }
     .footer a:hover { text-decoration: underline; }
 
@@ -223,13 +223,13 @@
         <form id="order-form" novalidate>
           <section class="panel" aria-labelledby="calc-title">
             <h2 id="calc-title">Расчёт</h2>
-            <p class="panel-sub">Подписка оплачивается за каждое заведение, подключение — за каждую карту.</p>
+            <p class="panel-sub">За каждую карту: 100 ₽ за подключение и подписка — 200 ₽ в месяц или 2 000 ₽ в год.</p>
 
             <div class="seg" role="radiogroup" aria-label="Тариф">
               <input type="radio" name="plan" id="plan-month" value="month" checked>
-              <label for="plan-month"><b>Месяц</b><span>200 ₽ в месяц</span></label>
+              <label for="plan-month"><b>Месяц</b><span>200 ₽ в месяц за карту</span></label>
               <input type="radio" name="plan" id="plan-year" value="year">
-              <label for="plan-year"><b>Год <span class="save">−2 мес</span></b><span>2 000 ₽ в год</span></label>
+              <label for="plan-year"><b>Год <span class="save">−2 мес</span></b><span>2 000 ₽ в год за карту</span></label>
             </div>
 
             <div class="counter">
@@ -306,14 +306,14 @@
           <h2 id="sum-title">Итого</h2>
           <ul class="sum-rows">
             <li><span>Подключение<small id="s-conn-note">1 карта × 100 ₽</small></span><span id="s-conn">100 ₽</span></li>
-            <li><span>Подписка<small id="s-sub-note">1 заведение × 200 ₽ в месяц</small></span><span id="s-sub">200 ₽</span></li>
+            <li><span>Подписка<small id="s-sub-note">1 карта × 200 ₽ в месяц</small></span><span id="s-sub">200 ₽</span></li>
           </ul>
           <div class="total"><span>При заказе</span><strong id="s-total">300 ₽</strong></div>
           <p class="next">Дальше — <b id="s-next">200 ₽ в месяц</b></p>
           <ul class="sum-notes">
             <li><svg aria-hidden="true"><use href="#i-check"/></svg>Оплата после подтверждения заказа</li>
             <li><svg aria-hidden="true"><use href="#i-check"/></svg>Без автосписаний — продлеваете сами</li>
-            <li><svg aria-hidden="true"><use href="#i-check"/></svg>Ссылки меняем без перепечатки карт</li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg>Смена ссылок без перепечатки</li>
           </ul>
         </section>
       </aside>
@@ -328,10 +328,8 @@
   <footer class="footer">
     <div class="wrap">
       <span>© 2026 TapReview</span>
-      <nav aria-label="Публичная оферта">
+      <nav aria-label="Документы">
         <a href="/oferta/">Публичная оферта</a>
-      </nav>
-      <nav aria-label="Документы" id="legal-links">
         <a href="/privacy/">Политика обработки персональных данных</a>
         <a href="/consent/">Согласие на обработку данных</a>
       </nav>
@@ -374,19 +372,19 @@
         cardsInput.value = cards;
         var p = plan();
         var conn = cards * PRICES.card;
-        var sub = venues * PRICES[p];
+        var sub = cards * PRICES[p]; // подписка — за каждую карту
         var per = p === "year" ? "в год" : "в месяц";
 
         document.getElementById("s-conn-note").textContent = cards + " " + plural(cards, "карта", "карты", "карт") + " × " + rub(PRICES.card);
         document.getElementById("s-conn").textContent = rub(conn);
-        document.getElementById("s-sub-note").textContent = venues + " " + plural(venues, "заведение", "заведения", "заведений") + " × " + rub(PRICES[p]) + " " + per;
+        document.getElementById("s-sub-note").textContent = cards + " " + plural(cards, "карта", "карты", "карт") + " × " + rub(PRICES[p]) + " " + per;
         document.getElementById("s-sub").textContent = rub(sub);
         document.getElementById("s-total").textContent = rub(conn + sub);
         document.getElementById("s-next").textContent = rub(sub) + " " + per;
         document.getElementById("m-total").textContent = rub(conn + sub);
         document.getElementById("m-next").textContent = "дальше " + rub(sub) + " " + per;
         document.getElementById("calc-text").textContent =
-          "Здравствуйте! Хочу заказать TapReview.\n" +
+          "Здравствуйте! Хочу заказать " + cards + " " + plural(cards, "карту", "карты", "карт") + " TapReview.\n" +
           "Тариф: " + (p === "year" ? "Год" : "Месяц") + "\n" +
           "Заведений: " + venues + ", карт: " + cards + "\n" +
           "При заказе: " + rub(conn + sub) + " (подключение " + rub(conn) + " + подписка " + rub(sub) + ")\n" +
@@ -424,7 +422,6 @@
       // ---------- Пока без формы: расчёт → Telegram ----------
       if (!FORM_ENABLED) {
         document.getElementById("contacts-panel").hidden = true;
-        document.getElementById("legal-links").hidden = true;
         document.getElementById("tg-panel").hidden = false;
         document.getElementById("tg-send").addEventListener("click", function () {
           // Копируем в момент нажатия, а Telegram открывает сама ссылка — так браузер её не блокирует
