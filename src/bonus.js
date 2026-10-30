@@ -50,29 +50,38 @@ function bonusEnabled(business) {
 export function bonusBlock(business, source, cardCode) {
   if (!bonusEnabled(business) || (source !== "nfc" && source !== "qr")) return "";
   const wheel = business.bonus_mode === "wheel";
+  // Обычная ссылка, а не форма: в РФ провайдеры иногда обрывают соединения с Cloudflare,
+  // и обычный переход браузер сам повторяет, а отправку формы — нет («соединение прервано» в Safari).
+  // Повтор безопасен: тот же телефон получает тот же код.
+  const params = new URLSearchParams({ b: business.slug, s: source });
+  if (cardCode) params.set("c", cardCode);
   return `
-    <form class="bonus" method="post" action="/bonus">
-      <input type="hidden" name="b" value="${escapeHtml(business.slug)}">
-      <input type="hidden" name="s" value="${escapeHtml(source)}">
-      ${cardCode ? `<input type="hidden" name="c" value="${escapeHtml(cardCode)}">` : ""}
+    <div class="bonus">
       <p class="bonus-note">Подарок на следующий визит</p>
-      <button class="button bonus-button" type="submit">
+      <a class="button bonus-button" href="/bonus?${escapeHtml(params.toString())}" rel="nofollow">
         <span class="icon bonus-icon">${GIFT}</span>
         <span class="label">${wheel ? "Крутить колесо подарков" : "Получить подарок"}</span>
-      </button>
-    </form>`;
+      </a>
+    </div>`;
 }
 
-// ---------- POST /bonus ----------
+// ---------- GET /bonus?b=SLUG&s=nfc|qr&c=КОД ----------
 
 export async function handleBonus(request, env) {
   try {
-    if (request.method !== "POST") return infoPage(405, "Откройте страницу с карты ещё раз");
+    if (request.method !== "GET" && request.method !== "POST") return infoPage(405, "Откройте страницу с карты ещё раз");
     if (isBot(request)) return infoPage(403, "Бонус недоступен");
 
-    const text = await request.text();
-    if (text.length > 2000) return infoPage(413, "Слишком большой запрос");
-    const form = new URLSearchParams(text);
+    // GET — основной способ (ссылка); POST оставлен для страниц, открытых до обновления
+    let form;
+    if (request.method === "GET") {
+      form = new URL(request.url).searchParams;
+    } else {
+      const text = await request.text();
+      if (text.length > 2000) return infoPage(413, "Слишком большой запрос");
+      form = new URLSearchParams(text);
+    }
+    if (!form.get("b")) return infoPage(404, "Откройте страницу с карты ещё раз");
     const slug = String(form.get("b") || "");
     const source = form.get("s");
     const cardCode = String(form.get("c") || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);

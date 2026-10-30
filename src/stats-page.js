@@ -108,27 +108,26 @@ export async function handleBonusDesk(request, env, token) {
     if (!businesses.length) return notFound();
     const names = new Map(businesses.map((b) => [b.id, b.name]));
 
-    let input = "";
+    // Погашение — обычной ссылкой ?code=…&redeem=1 (а не формой): в РФ соединения с Cloudflare
+    // иногда обрываются, и обычный переход браузер повторяет сам. Если повтор пришёл сразу после
+    // погашения, показываем «погашен», а не «уже погашен» — кассир не запутается.
+    const url = new URL(request.url);
+    const params = request.method === "POST" ? new URLSearchParams((await request.text()).slice(0, 500)) : url.searchParams;
+    const input = String(params.get("code") || "");
+    const wantRedeem = request.method === "POST" || params.get("redeem") === "1";
     let result = "";
-    if (request.method === "POST") {
-      const form = new URLSearchParams((await request.text()).slice(0, 500));
-      input = String(form.get("code") || "");
+    if (input) {
       const code = normalizeCode(input);
       const found = code ? await findCode(env, code, ids) : null;
-      if (found && found.state === "ok") {
+      if (wantRedeem && found && found.state === "ok") {
         const done = await redeemCode(env, found.row.id);
         result = done
           ? deskResult("done", found.row, names, "Код погашен — можно выдавать подарок")
           : deskResult("used", found.row, names, "Код уже погашен");
+      } else if (wantRedeem && found && found.state === "used" && Date.now() - Date.parse(found.row.redeemed_at) < 2 * 60 * 1000) {
+        result = deskResult("done", found.row, names, "Код погашен — можно выдавать подарок");
       } else {
-        result = deskState(found, input, names);
-      }
-    } else {
-      const url = new URL(request.url);
-      input = String(url.searchParams.get("code") || "");
-      if (input) {
-        const code = normalizeCode(input);
-        result = deskState(code ? await findCode(env, code, ids) : null, input, names);
+        result = deskState(found, input, names, token);
       }
     }
 
@@ -176,15 +175,12 @@ export async function handleBonusDesk(request, env, token) {
   }
 }
 
-function deskState(found, input, names) {
+function deskState(found, input, names, token) {
   if (!found) return `<div class="desk-res desk-bad"><p class="desk-title">Такого кода нет</p><p>Проверьте, правильно ли введён код «${esc(input)}».</p></div>`;
   const { row, state } = found;
   if (state === "ok") {
     return `${deskResult("ok", row, names, "Код действует")}
-      <form method="post" action="" class="desk-redeem">
-        <input type="hidden" name="code" value="${esc(row.code)}">
-        <button type="submit">Погасить код и выдать подарок</button>
-      </form>`;
+      <a class="desk-redeem" href="/s/${token}/bonus?code=${esc(row.code)}&amp;redeem=1" rel="nofollow">Погасить код и выдать подарок</a>`;
   }
   if (state === "soon") {
     return deskResult("soon", row, names, `Код начнёт действовать ${formatDayTime(row.valid_from)}`);
@@ -691,9 +687,11 @@ const CSS = `
   .desk-form input { flex: 1; min-width: 0; padding: 12px 14px; border: 0; border-radius: 12px; box-shadow: 0 0 0 1.5px var(--line) inset;
     font: inherit; font-size: 22px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text); }
   .desk-form input:focus { outline: none; box-shadow: 0 0 0 2px var(--navy) inset; }
-  .desk-form button, .desk-redeem button { border: 0; border-radius: 12px; padding: 0 18px; background: var(--navy); color: #fff;
+  .desk-form button { border: 0; border-radius: 12px; padding: 0 18px; background: var(--navy); color: #fff;
     font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
-  .desk-redeem button { width: 100%; min-height: 52px; margin-top: 10px; background: var(--up); }
+  .desk-redeem { display: grid; place-items: center; min-height: 52px; margin-top: 10px; border-radius: 12px; background: var(--up);
+    color: #fff; font-size: 15px; font-weight: 700; text-decoration: none; }
+  .desk-redeem:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
   .desk-res { margin-top: 14px; padding: 14px 16px; border-radius: 14px; font-size: 14px; line-height: 1.5; }
   .desk-res p { margin: 0 0 4px; }
   .desk-title { font-size: 16px; font-weight: 700; }
