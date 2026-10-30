@@ -329,8 +329,14 @@ const BONUS_PAGE_CSS = `
 
 // ---------- Касса: проверка и погашение кода (страница /s/ТОКЕН/bonus) ----------
 
+// Русские буквы-двойники (кассир не переключил раскладку) → латиница
+const RU_LOOKALIKE = { А: "A", В: "B", Е: "E", К: "K", М: "M", Н: "H", О: "O", Р: "P", С: "C", Т: "T", Х: "X", У: "Y" };
+
 export function normalizeCode(value) {
-  const code = String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const code = String(value || "")
+    .toUpperCase()
+    .replace(/[А-ЯЁ]/g, (ch) => RU_LOOKALIKE[ch] || "")
+    .replace(/[^A-Z0-9]/g, "");
   return code.length === CODE_LENGTH ? code : null;
 }
 

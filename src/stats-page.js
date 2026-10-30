@@ -202,7 +202,7 @@ async function renderDesk(request, env, { ids, base, owner, token, by, onRedeem 
   <main class="wrap">
     <section class="panel">
       <form class="desk-form" method="get" action="${base}">
-        <input name="code" value="${esc(input)}" maxlength="12" autocomplete="off" autocapitalize="characters"
+        <input name="code" value="${esc(prettyInput(input))}" maxlength="12" autocomplete="off" autocapitalize="characters"
           spellcheck="false" placeholder="ABC-123" aria-label="Код подарка" required>
         <button type="submit">Проверить</button>
       </form>
@@ -215,11 +215,38 @@ async function renderDesk(request, env, { ids, base, owner, token, by, onRedeem 
       ${owner ? "" : "<p>Это рабочая ссылка кассы. Не передавайте её гостям.</p>"}
     </section>
   </main>`;
-    return html(200, "Проверка подарка", body);
+    return html(200, "Проверка подарка", body, DESK_SCRIPT);
+}
+
+// Касса: заглавные буквы, русские буквы-двойники → латиница, тире после 3-го символа,
+// и проверка сама, как только набраны все 6 символов. Без скрипта всё тоже работает (сервер нормализует код).
+const DESK_SCRIPT = `(function () {
+  var input = document.querySelector(".desk-form input");
+  if (!input) return;
+  var RU = { "А": "A", "В": "B", "Е": "E", "К": "K", "М": "M", "Н": "H", "О": "O", "Р": "P", "С": "C", "Т": "T", "Х": "X", "У": "Y" };
+  function format(value) {
+    var raw = value.toUpperCase().replace(/[А-ЯЁ]/g, function (ch) { return RU[ch] || ""; }).replace(/[^A-Z0-9]/g, "").slice(0, 6);
+    return raw.length > 3 ? raw.slice(0, 3) + "-" + raw.slice(3) : raw;
+  }
+  var sent = false;
+  input.addEventListener("input", function () {
+    var formatted = format(input.value);
+    if (formatted !== input.value) input.value = formatted;
+    if (formatted.length === 7 && !sent) { sent = true; input.form.submit(); }
+    if (formatted.length < 7) sent = false;
+  });
+  // Сразу готово к вводу следующего кода: курсор в поле, старый код выделен
+  if (!document.querySelector(".desk-redeem")) { input.focus(); input.select(); }
+})();`;
+
+// «78y-hgy» → «78Y-HGY» (для показа в поле и в сообщении)
+function prettyInput(value) {
+  const code = normalizeCode(value);
+  return code ? `${code.slice(0, 3)}-${code.slice(3)}` : String(value || "").slice(0, 12);
 }
 
 function deskState(found, input, names, base) {
-  if (!found) return `<div class="desk-res desk-bad"><p class="desk-title">Такого кода нет</p><p>Проверьте, правильно ли введён код «${esc(input)}».</p></div>`;
+  if (!found) return `<div class="desk-res desk-bad"><p class="desk-title">Такого кода нет</p><p>Код «${esc(prettyInput(input))}» не найден в этом заведении. Проверьте, правильно ли он введён.</p></div>`;
   const { row, state } = found;
   if (state === "ok") {
     return `${deskResult("ok", row, names, "Код действует")}
@@ -584,7 +611,10 @@ function notFound() {
   );
 }
 
-function html(status, title, body) {
+// script — необязательный маленький встроенный скрипт (только для кассы); разрешается разовым nonce
+function html(status, title, body, script = "") {
+  const nonce = script ? btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16)))) : "";
+  const scriptCsp = script ? `script-src 'nonce-${nonce}'; ` : "";
   const page = `<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -600,6 +630,7 @@ function html(status, title, body) {
   <style>${CSS}</style>
 </head>
 <body>${body}
+${script ? `<script nonce="${nonce}">${script}</script>` : ""}
 </body>
 </html>`;
   return new Response(page, {
@@ -611,7 +642,7 @@ function html(status, title, body) {
       "X-Robots-Tag": "noindex, nofollow",
       "Referrer-Policy": "no-referrer",
       "Content-Security-Policy":
-        "default-src 'none'; img-src 'self'; font-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+        `default-src 'none'; ${scriptCsp}img-src 'self'; font-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`
     }
   });
 }
