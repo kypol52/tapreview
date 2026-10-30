@@ -1,16 +1,17 @@
-// Заявки с сайта: POST /api/order (страница tapreview.ru/order/ — калькулятор и форма).
-// Заявка сохраняется в базе и сразу приходит в Telegram всем чатам из order_recipients
-// (чаты подключаются в админ-панели → «Заявки» → «Получать заявки в Telegram»).
+// Заявки с сайта: POST /api/order — копия заявки из России.
 //
-// Защита от спама: скрытое поле-ловушка, слишком быстрая отправка, не больше 3 заявок
-// с одного контакта за 10 минут и не больше 20 заявок в минуту всего. IP-адреса не сохраняем.
+// Форма на tapreview.ru/order/ отправляет заявку не сюда, а в функцию Yandex Cloud (папка yandex-function/):
+// по закону персональные данные сначала записываются в базу в России (Yandex Database). Функция сохраняет
+// заявку и пересылает копию сюда с секретом X-Relay-Secret. Здесь копия сохраняется в Supabase
+// (для админ-панели → «Заявки») и уходит в Telegram всем чатам из order_recipients.
+// Напрямую из браузера сюда заявку отправить нельзя.
+//
+// Секреты Cloudflare Worker:
+//   ORDER_RELAY_SECRET  — общий секрет с функцией (у функции — RELAY_SECRET)
+//   ORDER_FUNCTION_URL  — адрес функции: через него удаляем заявку и из российской базы
 
 import { db } from "./supabase.js";
 import { tg } from "./telegram.js";
-
-// Приём заявок включается, когда опубликованы политика и согласие (privacy/, consent/)
-// с данными оператора. Вместе с этим — FORM_ENABLED = true в order/index.html.
-const ORDERS_OPEN = false;
 
 // Цены — те же, что на главной и на странице заказа (order/index.html)
 export const PRICES = { card: 100, month: 200, year: 2000 };
@@ -19,7 +20,7 @@ export const PLAN_LABELS = { month: "Месяц", year: "Год" };
 const CONSENT_VERSION = "2026-10-30";
 
 const MAX_BODY = 8000;
-const MIN_FILL_MS = 3000;
+const RU_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 class OrderError extends Error {
   constructor(status, message) {
@@ -31,10 +32,10 @@ class OrderError extends Error {
 export async function handleOrder(request, env, ctx) {
   try {
     if (request.method !== "POST") throw new OrderError(405, "Метод не поддерживается");
-    if (!ORDERS_OPEN) {
-      throw new OrderError(503, "Приём заявок через сайт скоро откроется. Напишите нам в Telegram @tapreview_ru");
+    const secret = request.headers.get("X-Relay-Secret") || "";
+    if (!env.ORDER_RELAY_SECRET || !sameString(secret, env.ORDER_RELAY_SECRET)) {
+      throw new OrderError(403, "Заявки принимаются через форму на tapreview.ru/order/");
     }
-    checkOrigin(request, env);
 
     const text = await request.text();
     if (text.length > MAX_BODY) throw new OrderError(413, "Слишком большой запрос");
@@ -45,13 +46,9 @@ export async function handleOrder(request, env, ctx) {
       throw new OrderError(400, "Неверный формат данных");
     }
     if (!data || typeof data !== "object") throw new OrderError(400, "Неверный формат данных");
+    if (!RU_ID_RE.test(String(data.ru_id))) throw new OrderError(400, "Нет номера заявки в российской базе");
 
-    // Роботы заполняют скрытое поле или отправляют форму мгновенно — делаем вид, что всё хорошо
-    if (String(data.website || "").trim() || Number(data.elapsed) < MIN_FILL_MS) {
-      return reply({ ok: true });
-    }
-
-    const order = validate(data);
+    const order = { ...validate(data), ru_id: String(data.ru_id) };
     await checkRate(env, order);
 
     const rows = await db(env, "orders?select=id,created_at", {
@@ -70,13 +67,28 @@ export async function handleOrder(request, env, ctx) {
   }
 }
 
-// Форму можно отправить только со своего сайта
-function checkOrigin(request, env) {
-  const origin = request.headers.get("Origin");
-  if (!origin) return;
-  const allowed = new Set([new URL(request.url).origin]);
-  if (env.PUBLIC_BASE_URL) allowed.add(new URL(env.PUBLIC_BASE_URL).origin);
-  if (!allowed.has(origin)) throw new OrderError(403, "Запрос с чужого сайта");
+// Удалить заявку из российской базы (вызывается при удалении в админ-панели)
+export async function deleteRuOrder(env, ruId) {
+  if (!ruId) return;
+  if (!env.ORDER_FUNCTION_URL || !env.ORDER_RELAY_SECRET) {
+    throw new Error("Не заданы ORDER_FUNCTION_URL и ORDER_RELAY_SECRET — не могу удалить заявку из российской базы");
+  }
+  const response = await fetch(env.ORDER_FUNCTION_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Relay-Secret": env.ORDER_RELAY_SECRET },
+    body: JSON.stringify({ action: "delete", ru_id: ruId })
+  });
+  if (!response.ok) {
+    throw new Error(`Не удалось удалить заявку из российской базы (код ${response.status})`);
+  }
+}
+
+// Сравнение строк за одинаковое время — чтобы секрет нельзя было подобрать по скорости ответа
+function sameString(a, b) {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
 }
 
 function clean(value, max, label, required = false) {

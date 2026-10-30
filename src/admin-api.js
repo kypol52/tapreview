@@ -36,6 +36,7 @@
 
 import { db } from "./supabase.js";
 import { tg, BOT_COMMANDS } from "./telegram.js";
+import { deleteRuOrder } from "./orders.js";
 
 const CATEGORIES = ["restaurant", "beauty", "shop", "hotel", "auto", "other"];
 
@@ -715,6 +716,10 @@ async function updateOrder(request, env, id) {
 
 // Удаление — по просьбе человека или когда данные больше не нужны (см. политику /privacy/)
 async function deleteOrder(env, id) {
+  // Сначала — из российской базы (первичная запись), потом копию здесь
+  const found = await db(env, `orders?id=eq.${id}&select=ru_id`);
+  if (!found.length) throw new HttpError(404, "Заявка не найдена");
+  await deleteRuOrder(env, found[0].ru_id);
   const rows = await db(env, `orders?id=eq.${id}&select=id`, { method: "DELETE", prefer: "return=representation" });
   if (!rows.length) throw new HttpError(404, "Заявка не найдена");
   return json({ deleted: true });

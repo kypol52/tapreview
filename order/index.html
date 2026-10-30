@@ -328,6 +328,9 @@
   <footer class="footer">
     <div class="wrap">
       <span>© 2026 TapReview</span>
+      <nav aria-label="Публичная оферта">
+        <a href="/oferta/">Публичная оферта</a>
+      </nav>
       <nav aria-label="Документы" id="legal-links">
         <a href="/privacy/">Политика обработки персональных данных</a>
         <a href="/consent/">Согласие на обработку данных</a>
@@ -337,9 +340,12 @@
 
   <script>
     (function () {
-      // Форма заявки включается, когда готовы политика и согласие (privacy/, consent/) — тогда true,
-      // и в src/orders.js тоже ORDERS_OPEN = true. Пока false: расчёт отправляют в Telegram.
-      var FORM_ENABLED = false;
+      // Адрес функции Yandex Cloud, которая принимает заявки и хранит их в России (yandex-function/).
+      // Пусто — формы нет, расчёт отправляют в Telegram. Вписали адрес — форма включилась.
+      // Функция создана: https://functions.yandexcloud.net/d4e5d3nbcandlpe495lk — вписать сюда,
+      // когда проверка setup.ps1 покажет «200 ok» (30.10.2026 Yandex Cloud был в ограниченном режиме).
+      var ORDER_ENDPOINT = "";
+      var FORM_ENABLED = ORDER_ENDPOINT !== "";
       // Цены — те же, что на главной и в src/orders.js (сервер пересчитывает итог сам)
       var PRICES = { card: 100, month: 200, year: 2000 };
       var form = document.getElementById("order-form");
@@ -476,9 +482,11 @@
 
         submit.disabled = true;
         submit.textContent = "Отправляем…";
-        fetch("/api/order", {
+        // Заявка уходит сразу в Россию (Yandex Cloud). text/plain — чтобы браузер не делал лишний
+        // предварительный запрос; функция всё равно читает JSON.
+        fetch(ORDER_ENDPOINT, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "text/plain;charset=UTF-8" },
           body: JSON.stringify(payload)
         })
           .then(function (response) {
@@ -491,8 +499,7 @@
             form.hidden = true;
             document.getElementById("mbar").hidden = true;
             var done = document.getElementById("done");
-            if (data.id) document.getElementById("done-title").textContent = "Заявка №" + data.id + " отправлена!";
-            done.hidden = false;
+            if (data.id) document.getElementById("done-title").textContent = "Заявка №" + data.id + " отправлена!";            done.hidden = false;
             done.focus();
             window.scrollTo({ top: 0, behavior: "smooth" });
           })
