@@ -311,6 +311,7 @@
           <div class="total"><span>При заказе</span><strong id="s-total">300 ₽</strong></div>
           <p class="next">Дальше — <b id="s-next">200 ₽ в месяц</b></p>
           <ul class="sum-notes">
+            <li id="ref-note" hidden><svg aria-hidden="true"><use href="#i-check"/></svg><b>По приглашению: первый месяц подписки в подарок</b></li>
             <li><svg aria-hidden="true"><use href="#i-check"/></svg>Оплата после подтверждения заказа</li>
             <li><svg aria-hidden="true"><use href="#i-check"/></svg>Без автосписаний — продлеваете сами</li>
             <li><svg aria-hidden="true"><use href="#i-check"/></svg>Смена ссылок без перепечатки</li>
@@ -351,6 +352,16 @@
       var cardsInput = document.getElementById("cards");
       var startedAt = Date.now();
 
+      // Приглашение от другого заведения (ссылка /r/SLUG → главная запомнила его на 60 дней)
+      var REF = null;
+      try {
+        var refParam = new URLSearchParams(location.search).get("ref");
+        if (refParam && /^[A-Za-z0-9]{4,32}$/.test(refParam)) localStorage.setItem("tr_ref", JSON.stringify({ slug: refParam, at: Date.now() }));
+        var savedRef = JSON.parse(localStorage.getItem("tr_ref") || "null");
+        if (savedRef && Date.now() - savedRef.at < 60 * 864e5) REF = savedRef.slug;
+      } catch (e) {}
+      if (REF) document.getElementById("ref-note").hidden = false;
+
       function rub(n) { return n.toLocaleString("ru-RU") + " ₽"; }
       function plural(n, one, few, many) {
         var n10 = n % 10, n100 = n % 100;
@@ -389,6 +400,7 @@
           "Заведений: " + venues + ", карт: " + cards + "\n" +
           "При заказе: " + rub(conn + sub) + " (подключение " + rub(conn) + " + подписка " + rub(sub) + ")\n" +
           "Дальше: " + rub(sub) + " " + per + "\n" +
+          (REF ? "По приглашению: " + REF + " (первый месяц в подарок)\n" : "") +
           "Заведение: ";
         document.getElementById("network-hint").hidden = venues < 3;
 
@@ -471,9 +483,9 @@
           telegram: f.telegram.value,
           business_name: f.business_name.value,
           city: f.city.value,
-          comment: f.comment.value,
           consent: true,
           website: f.website.value,
+          comment: (f.comment.value ? f.comment.value + "\n" : "") + (REF ? "По приглашению: " + REF : ""),
           elapsed: Date.now() - startedAt
         };
 

@@ -20,6 +20,8 @@
 //   POST   /api/admin/businesses/:id/telegram-invite — одноразовая ссылка для владельца
 //   GET    /api/admin/businesses/:id/telegram        — чаты, подключённые к бизнесу
 //   DELETE /api/admin/telegram/subscribers/:id       — отключить чат
+//   GET    /api/admin/businesses/:id/referrals       — ссылка-приглашение, переходы за 30 дней, кого привело
+//   POST   /api/admin/businesses/:id/ref-reward      — «месяц бесплатно обоим» за приглашённое заведение :id
 //   GET    /api/admin/businesses/:id/staff-links     — ссылки для персонала (/k/...): только касса подарков
 //   POST   /api/admin/businesses/:id/staff-links     — создать { label }
 //   DELETE /api/admin/staff-links/:token             — отключить
@@ -42,6 +44,7 @@ import { db } from "./supabase.js";
 import { tg, BOT_COMMANDS } from "./telegram.js";
 import { deleteRuOrder } from "./orders.js";
 import { bonusCounts } from "./bonus.js";
+import { refUrl, refStats } from "./referral.js";
 
 const CATEGORIES = ["restaurant", "beauty", "shop", "hotel", "auto", "other"];
 
@@ -50,6 +53,7 @@ const ADMIN_COLUMNS =
   "google_url,yandex_url,twogis_url,discount_code,discount_text,is_active," +
   "paid_until,monthly_price,billing_note," +
   "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions," +
+  "referred_by,ref_reward_at," +
   "created_at,updated_at";
 
 const GROUP_COLUMNS = "id,slug,name,tagline,logo_url,business_ids,is_active,created_at,updated_at";
@@ -159,6 +163,17 @@ export async function handleApi(request, env, url) {
       const tgSubMatch = path.match(/^\/api\/admin\/telegram\/subscribers\/(\d{1,18})$/);
       if (tgSubMatch && method === "DELETE") {
         return await deleteTelegramSubscriber(env, tgSubMatch[1]);
+      }
+
+      const refMatch = path.match(/^\/api\/admin\/businesses\/(\d{1,18})\/referrals$/);
+      if (refMatch && method === "GET") {
+        const rows = await db(env, `businesses?id=eq.${refMatch[1]}&select=slug`);
+        if (!rows.length) throw new HttpError(404, "Бизнес не найден");
+        return json({ url: refUrl(env, rows[0].slug), ...(await refStats(env, Number(refMatch[1]))) });
+      }
+      const rewardMatch = path.match(/^\/api\/admin\/businesses\/(\d{1,18})\/ref-reward$/);
+      if (rewardMatch && method === "POST") {
+        return await giveRefReward(env, Number(rewardMatch[1]));
       }
 
       const staffLinksMatch = path.match(/^\/api\/admin\/businesses\/(\d{1,18})\/staff-links$/);
@@ -296,6 +311,7 @@ async function createBusiness(request, env) {
 
 async function updateBusiness(request, env, id) {
   const data = validateBusiness(await readJson(request));
+  if (data.referred_by === Number(id)) throw new HttpError(400, "Заведение не может пригласить само себя");
   const rows = await db(env, `businesses?id=eq.${id}&select=${ADMIN_COLUMNS}`, {
     method: "PATCH",
     body: data,
@@ -549,8 +565,16 @@ function validateBusiness(input) {
     paid_until: cleanDate(input.paid_until),
     monthly_price: cleanPrice(input.monthly_price),
     billing_note: cleanText(input.billing_note, 200, "Заметка об оплате") || null,
+    referred_by: cleanRefId(input.referred_by),
     ...cleanBonus(input)
   };
+}
+
+function cleanRefId(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const id = Number(value);
+  if (!Number.isSafeInteger(id) || id <= 0) throw new HttpError(400, "«Кто привёл»: неверное заведение");
+  return id;
 }
 
 // Подарок для гостей (bonus.js): режим, призы колеса, сроки, условия
@@ -751,6 +775,50 @@ async function deleteTelegramSubscriber(env, id) {
     throw new HttpError(404, "Чат не найден");
   }
   return json({ deleted: true });
+}
+
+// ---------- Рекомендации: «месяц бесплатно обоим» ----------
+// id — приглашённое заведение. Условие: у него указан «кто привёл» и есть оплаченная подписка.
+// Обоим продлеваем «Оплачено до» на 1 месяц (от конца срока или от сегодня, если срок прошёл).
+
+async function giveRefReward(env, id) {
+  const rows = await db(env, `businesses?id=eq.${id}&select=id,name,referred_by,paid_until,ref_reward_at`);
+  const invited = rows[0];
+  if (!invited) throw new HttpError(404, "Бизнес не найден");
+  if (!invited.referred_by) throw new HttpError(400, "У заведения не указано, кто его привёл");
+  if (invited.ref_reward_at) throw new HttpError(400, "Награда за это заведение уже выдана");
+  if (!invited.paid_until) throw new HttpError(400, "Заведение ещё не оплатило подписку — награда выдаётся после первой оплаты");
+
+  const refRows = await db(env, `businesses?id=eq.${invited.referred_by}&select=id,name,paid_until`);
+  const referrer = refRows[0];
+
+  const extended = {};
+  extended.invited = plusMonth(invited.paid_until);
+  await db(env, `businesses?id=eq.${invited.id}`, {
+    method: "PATCH",
+    body: { paid_until: extended.invited, ref_reward_at: new Date().toISOString() },
+    prefer: "return=minimal"
+  });
+  if (referrer && referrer.paid_until) {
+    extended.referrer = plusMonth(referrer.paid_until);
+    await db(env, `businesses?id=eq.${referrer.id}`, {
+      method: "PATCH",
+      body: { paid_until: extended.referrer },
+      prefer: "return=minimal"
+    });
+  }
+  return json({ ok: true, invited: extended.invited, referrer: extended.referrer || null, referrerName: referrer ? referrer.name : null });
+}
+
+// «2026-11-14» → «2026-12-14»; если срок уже прошёл — месяц от сегодняшнего дня (по Москве)
+function plusMonth(isoDate) {
+  const today = new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const base = isoDate && isoDate >= today ? isoDate : today;
+  const [y, m, d] = base.split("-").map(Number);
+  const target = new Date(Date.UTC(y, m, 1));
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  target.setUTCDate(Math.min(d, lastDay));
+  return target.toISOString().slice(0, 10);
 }
 
 // ---------- Ссылки для персонала (/k/...): только проверка и погашение кодов подарков ----------

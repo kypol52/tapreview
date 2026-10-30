@@ -301,6 +301,21 @@
         </div>
       </div>
 
+      <div id="ref-box" class="stats-box" hidden>
+        <div class="link-label">Рекомендации: «месяц бесплатно обоим»</div>
+        <p class="muted qr-text">
+          Ссылка-приглашение этого заведения (владелец видит её в своей статистике с кнопками «Отправить»).
+          Ссылка «Хочу такую карту» внизу страницы отзывов ведёт сюда же — гости-владельцы бизнеса тоже засчитываются.
+        </p>
+        <div class="link-row">
+          <input id="ref-url" type="text" readonly>
+          <button id="ref-copy" class="btn btn-secondary" type="button">Копировать</button>
+        </div>
+        <p id="ref-visits" class="muted ref-visits"></p>
+        <p id="ref-error" class="error" hidden></p>
+        <ul id="ref-list" class="tg-subs sl-list"></ul>
+      </div>
+
       <div id="sl-box" class="stats-box" hidden>
         <div class="link-label">Статистика владельцу по ссылке</div>
         <p class="muted qr-text">
@@ -481,6 +496,10 @@
         <label class="field">
           <span>Заметка об оплате (видна только вам)</span>
           <input id="f-billing-note" type="text" maxlength="200" placeholder="СБП, Иван, +7 900 …; год со скидкой">
+        </label>
+        <label class="field">
+          <span>Пришёл по рекомендации от</span>
+          <select id="f-referred-by"><option value="">— никто —</option></select>
         </label>
         <p class="muted field-hint">
           Пустая дата — подписка не ведётся, всё работает всегда. После даты 3 дня отсрочки,

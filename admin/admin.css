@@ -466,6 +466,7 @@ input[type="color"]:disabled { opacity: 0.4; }
 .prize-row .prize-weight { width: 76px; }
 .prize-share { width: 40px; font-size: 13px; font-weight: 600; color: var(--muted); text-align: right; }
 @media (max-width: 640px) { .grid-3 { grid-template-columns: 1fr; } }
+.ref-visits { margin: 10px 0 0; font-size: 13px; }
 .staff-box { margin: 14px 0 6px; padding: 12px; border: 1px dashed var(--border); border-radius: var(--radius); }
 .staff-new { display: flex; gap: 8px; flex-wrap: wrap; }
 .staff-new input { flex: 1; min-width: 180px; }

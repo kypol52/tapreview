@@ -7,6 +7,7 @@ import { PERIODS, PLATFORMS, loadReports, loadDaily, sumTotals, formatDateRange,
 import { ICONS } from "./public-page.js";
 import { formatDay } from "./billing.js";
 import { normalizeCode, findCode, redeemCode, bonusCounts, validityText } from "./bonus.js";
+import { refUrl, refStats } from "./referral.js";
 
 const TOKEN_RE = /^[A-Za-z0-9]{24}$/;
 // Куда владелец пишет, чтобы продлить подписку (личный Telegram TapReview)
@@ -55,11 +56,13 @@ async function statsPage(request, env, ctx, token) {
   const period = PERIODS[url.searchParams.get("p")] ? url.searchParams.get("p") : "week";
   const now = Date.now();
 
-  const [reports, bonusRows] = await Promise.all([
+  const [reports, extraRows] = await Promise.all([
     loadReports(env, linkIds, period, now),
-    // Включён ли подарок для гостей хотя бы в одном заведении — тогда показываем кнопку для кассы
-    db(env, `businesses?id=in.(${linkIds.join(",")})&bonus_mode=neq.off&select=id&limit=1`).catch(() => [])
+    // slug — для ссылки-приглашения; bonus_mode — показывать ли кнопку кассы подарков
+    db(env, `businesses?id=in.(${linkIds.join(",")})&select=id,slug,bonus_mode`).catch(() => [])
   ]);
+  const bonusRows = extraRows.filter((b) => b.bonus_mode && b.bonus_mode !== "off");
+  const slugs = new Map(extraRows.map((b) => [b.id, b.slug]));
   // Удалённые заведения просто пропускаем, порядок — как в ссылке
   const allVenues = linkIds.map((id) => reports.get(id)).filter(Boolean);
   if (!allVenues.length) return notFound();
@@ -90,7 +93,15 @@ async function statsPage(request, env, ctx, token) {
       ? null
       : await loadDaily(env, view.dailyIds, period, now, view.card ? view.card.id : null);
 
-  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn: bonusRows.length > 0 };
+  // Приглашение знакомых — на странице одного заведения
+  let invite = "";
+  if (view.kind === "venue" && slugs.get(view.dailyIds[0])) {
+    const id = view.dailyIds[0];
+    const stats = await refStats(env, id).catch(() => null);
+    invite = inviteSection(refUrl(env, slugs.get(id)), stats);
+  }
+
+  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn: bonusRows.length > 0, invite };
   return html(200, `Статистика · ${view.title}`, renderBody(view, daily, page));
 }
 
@@ -505,6 +516,7 @@ function renderBody(view, daily, page) {
       </div>
     </section>
     ${sections}
+    ${page.invite || ""}
     <section class="note">
       <h2>Как считаем</h2>
       <p><b>Открыли страницу</b> — сколько раз страницу отзывов открыли с карты (приложили телефон или отсканировали QR) или по ссылке.
@@ -566,6 +578,32 @@ function barsSection(title, rows, total, barClass) {
     })
     .join("");
   return `<section class="panel"><h2>${esc(title)}</h2><ul class="rows">${items}</ul></section>`;
+}
+
+// «Пригласите знакомых»: личная ссылка заведения + кнопки «Отправить» в Telegram и WhatsApp
+function inviteSection(url, stats) {
+  const text = "Мы собираем отзывы с картой TapReview — гость прикладывает телефон и сразу попадает в форму отзыва. " +
+    "По моей ссылке первый месяц подписки — в подарок:";
+  const tg = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
+  const wa = `https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`;
+  const visits = stats ? stats.visits.card + stats.visits.link : 0;
+  const joined = stats ? stats.invited.length : 0;
+  const line = stats
+    ? `<p class="inv-stats">За 30 дней по вашим ссылкам перешли: <b>${num(visits)}</b>` +
+      (stats.visits.card ? ` (со страницы отзывов — ${num(stats.visits.card)})` : "") +
+      `. Подключились по вашей рекомендации: <b>${num(joined)}</b>.</p>`
+    : "";
+  return `<section class="panel invite">
+      <h2>Пригласите знакомых владельцев</h2>
+      <p class="inv-lead">Порекомендуйте TapReview другому заведению — когда оно подключится и оплатит подписку,
+        <b>вы оба получите месяц бесплатно</b>.</p>
+      <p class="inv-link">${esc(url)}</p>
+      <div class="inv-actions">
+        <a class="inv-btn inv-tg" href="${esc(tg)}" target="_blank" rel="noopener">Отправить в Telegram</a>
+        <a class="inv-btn inv-wa" href="${esc(wa)}" target="_blank" rel="noopener">Отправить в WhatsApp</a>
+      </div>
+      ${line}
+    </section>`;
 }
 
 // Список заведений или карт — каждая строка ведёт на свою страницу
@@ -754,6 +792,16 @@ const CSS = `
   .notice-warn { background: #fff7e0; color: #6b4a00; border: 1px solid #f3d27a; }
   .notice-bad { background: #fdecec; color: #7f1d1d; border: 1px solid #f5b5b5; }
   .notice-action a { color: inherit; font-weight: 700; }
+  .invite { background: linear-gradient(180deg, #fffaf0, #fff); box-shadow: 0 0 0 1px #f3dfa9 inset, 0 8px 24px rgba(20,26,43,0.06); }
+  .inv-lead { margin: -4px 0 12px; font-size: 14px; line-height: 1.5; color: var(--text); }
+  .inv-link { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; background: #fff; box-shadow: 0 0 0 1px var(--line) inset;
+    font-size: 14px; font-weight: 600; color: var(--navy); overflow-wrap: anywhere; user-select: all; }
+  .inv-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .inv-btn { display: grid; place-items: center; min-height: 44px; padding: 0 10px; border-radius: 12px; color: #fff;
+    font-size: 14px; font-weight: 700; text-align: center; text-decoration: none; }
+  .inv-tg { background: #229ed9; }
+  .inv-wa { background: #25a244; }
+  .inv-stats { margin: 12px 0 0; font-size: 13px; color: var(--muted); }
   .desk-link { display: inline-block; margin-top: 14px; padding: 8px 14px; border-radius: 999px; background: rgba(255,255,255,0.12);
     color: #fff; font-size: 14px; font-weight: 600; text-decoration: none; }
   .desk-link:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }

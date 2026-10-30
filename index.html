@@ -164,6 +164,8 @@
     .hero-meta { display: flex; flex-wrap: wrap; gap: 10px 22px; margin: 28px 0 0; padding: 0; list-style: none; font-size: 14px; font-weight: 600; color: var(--text); }
     .hero-meta li { display: flex; align-items: center; gap: 8px; }
     .hero-meta svg { width: 18px; height: 18px; color: var(--gold-600); }
+    .ref-banner { margin: 0 0 16px; padding: 10px 14px; border-radius: 14px; background: var(--gold-50); box-shadow: 0 0 0 1px #f0d48a inset; font-size: 14px; color: #6b4a00; }
+    .ref-banner b { color: #4a3300; }
     .hero-price { margin: 18px 0 0; font-size: 14px; color: var(--muted); }
     .hero-price b { color: var(--ink); font-weight: 700; }
     .hero-price a { color: var(--navy); font-weight: 650; }
@@ -541,6 +543,7 @@
     <div class="hero">
       <div class="wrap">
         <div>
+          <p class="ref-banner" id="ref-banner" hidden>🎁 Вы пришли по приглашению — <b>первый месяц подписки в подарок</b></p>
           <p class="eyebrow reveal"><span class="dot" aria-hidden="true"></span>Карты с NFC и QR-кодом для отзывов</p>
           <h1 class="reveal" style="--d:.05s">Отзывы <span class="accent">в одно</span> касание</h1>
           <p class="lead reveal" style="--d:.1s">
@@ -859,6 +862,10 @@
             <summary>У меня несколько заведений. Это удобно?</summary>
             <p>Да. Все точки и карты можно собрать в одну ссылку: видно общую сводку и каждое заведение отдельно. А один QR-код может вести на список ваших заведений.</p>
           </details>
+          <details>
+            <summary>Есть бонус за рекомендацию?</summary>
+            <p>Да. У каждого клиента есть своя ссылка-приглашение в статистике. Когда приглашённое заведение подключится и оплатит подписку, вы оба получаете месяц бесплатно.</p>
+          </details>
         </div>
       </div>
     </section>
@@ -897,6 +904,23 @@
   </footer>
 
   <script>
+    // Приглашение (?ref=SLUG из ссылки /r/SLUG): запоминаем на 60 дней — его увидит калькулятор /order/
+    (function () {
+      var KEY = "tr_ref";
+      var DAYS = 60;
+      try {
+        var params = new URLSearchParams(location.search);
+        var ref = params.get("ref");
+        if (ref && /^[A-Za-z0-9]{4,32}$/.test(ref)) {
+          localStorage.setItem(KEY, JSON.stringify({ slug: ref, at: Date.now() }));
+          params.delete("ref");
+          history.replaceState(null, "", location.pathname + (params.toString() ? "?" + params : "") + location.hash);
+        }
+        var saved = JSON.parse(localStorage.getItem(KEY) || "null");
+        if (saved && Date.now() - saved.at < DAYS * 864e5) document.getElementById("ref-banner").hidden = false;
+      } catch (e) {}
+    })();
+
     // Мягкое появление блоков и тонкая линия под шапкой при прокрутке.
     // Без JS или при «уменьшить движение» всё просто видно сразу.
     (function () {

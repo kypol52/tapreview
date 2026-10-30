@@ -82,6 +82,7 @@ function bindEvents() {
   });
   $("f-paid-until").addEventListener("input", showBillingStatus);
   $("f-bonus-mode").addEventListener("change", showBonusMode);
+  $("ref-copy").addEventListener("click", () => copyText($("ref-url").value));
   $("staff-create").addEventListener("click", onCreateStaffLink);
   $("f-prize-add").addEventListener("click", () => {
     if ($("f-prizes").children.length < 8) $("f-prizes").append(prizeRow({ label: "", weight: 10 }));
@@ -695,6 +696,8 @@ function openEditor(business) {
   $("f-paid-until").value = business ? business.paid_until || "" : "";
   $("f-price").value = business && business.monthly_price != null ? String(business.monthly_price) : "";
   $("f-billing-note").value = business ? business.billing_note || "" : "";
+  fillReferredBy(business);
+  loadReferrals(business);
   showBillingStatus();
 
   const hasColor = Boolean(business && business.brand_color);
@@ -1123,8 +1126,88 @@ function readForm() {
     is_active: $("f-active").checked,
     paid_until: $("f-paid-until").value,
     monthly_price: $("f-price").value,
-    billing_note: $("f-billing-note").value
+    billing_note: $("f-billing-note").value,
+    referred_by: $("f-referred-by").value || null
   };
+}
+
+// ================= Рекомендации: «месяц бесплатно обоим» =================
+
+function fillReferredBy(business) {
+  const select = $("f-referred-by");
+  const options = [...state.businesses]
+    .filter((b) => !business || b.id !== business.id)
+    .sort((a, b) => a.name.localeCompare(b.name, "ru"))
+    .map((b) => {
+      const option = el("option", "", b.name + (b.address ? ` — ${b.address}` : ""));
+      option.value = String(b.id);
+      return option;
+    });
+  const none = el("option", "", "— никто —");
+  none.value = "";
+  select.replaceChildren(none, ...options);
+  select.value = business && business.referred_by ? String(business.referred_by) : "";
+}
+
+async function loadReferrals(business) {
+  $("ref-box").hidden = !business;
+  if (!business) return;
+  hideError("ref-error");
+  $("ref-list").replaceChildren();
+  $("ref-visits").textContent = "Загрузка…";
+  try {
+    const data = await api(`/api/admin/businesses/${business.id}/referrals`);
+    if (state.editing !== business) return;
+    $("ref-url").value = data.url;
+    $("ref-visits").textContent =
+      `За 30 дней переходов: со страницы отзывов — ${data.visits.card}, по ссылке владельца — ${data.visits.link}. ` +
+      (data.invited.length ? `Привело заведений: ${data.invited.length}.` : "Пока никого не привело.");
+    $("ref-list").replaceChildren(...data.invited.map((invited) => referralRow(business, invited)));
+  } catch (error) {
+    if (state.editing === business) {
+      $("ref-visits").textContent = "";
+      showError("ref-error", error.message);
+    }
+  }
+}
+
+function referralRow(business, invited) {
+  const li = document.createElement("li");
+  li.append(el("span", "tg-sub-name", invited.name));
+  if (invited.ref_reward_at) {
+    li.append(el("span", "sl-meta", `награда выдана ${new Date(invited.ref_reward_at).toLocaleDateString("ru-RU")}`));
+  } else if (!invited.paid_until) {
+    li.append(el("span", "sl-meta", "ещё не оплатило — награда после первой оплаты"));
+  } else {
+    const button = el("button", "btn btn-primary btn-small", "Выдать месяц обоим");
+    button.type = "button";
+    button.addEventListener("click", async () => {
+      if (!confirm(`Продлить подписку на 1 месяц «${invited.name}» и «${business.name}»?`)) return;
+      button.disabled = true;
+      hideError("ref-error");
+      try {
+        await api(`/api/admin/businesses/${invited.id}/ref-reward`, { method: "POST", body: {} });
+        await loadBusinesses(); // обновить «Оплачено до» в списке
+        const fresh = businessById(business.id);
+        if (fresh && state.editing && state.editing.id === business.id) {
+          state.editing = fresh;
+          $("f-paid-until").value = fresh.paid_until || "";
+          showBillingStatus();
+          loadReferrals(fresh);
+        }
+      } catch (error) {
+        showError("ref-error", error.message);
+        button.disabled = false;
+      }
+    });
+    li.append(button);
+  }
+  return li;
+}
+
+// Сколько наград «месяц обоим» ждут выдачи (для сводки над списком)
+function pendingRewards() {
+  return state.businesses.filter((b) => b.referred_by && b.paid_until && !b.ref_reward_at).length;
 }
 
 // ================= Подарок для гостей =================
@@ -1380,6 +1463,8 @@ function renderBillingSummary() {
     " · Скоро продление: ", el("b", soon ? "warn" : "", String(soon)),
     " · Отключены за неуплату: ", el("b", expired ? "bad" : "", String(expired))
   );
+  const rewards = pendingRewards();
+  if (rewards) box.append(" · Награды за рекомендации к выдаче: ", el("b", "warn", String(rewards)));
   box.hidden = false;
 }
 

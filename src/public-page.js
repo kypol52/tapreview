@@ -425,6 +425,8 @@ function businessPage(business, source, cardCode = null) {
     status: 200,
     title: `Отзыв — ${business.name}`,
     accent,
+    // «Карта как реклама»: гость-владелец бизнеса переходит на наш сайт, а заведение получает рекомендацию
+    footer: { href: `/r/${business.slug}?s=card`, text: "Хочу такую карту" },
     body: `
       ${logo}
       <h1 class="${nameClass}">${escapeHtml(business.name)}</h1>
@@ -447,7 +449,11 @@ function notFoundPage() {
   });
 }
 
-export function renderPage({ status, title, accent, body, extraCss = "" }) {
+// footer — { href, text }: подпись внизу. По умолчанию — «TapReview» со ссылкой на Telegram-канал.
+export function renderPage({ status, title, accent, body, extraCss = "", footer = null }) {
+  const footerHtml = footer
+    ? `<a class="footer" href="${escapeHtml(footer.href)}" rel="nofollow">${HEART}<span class="footer-text">TapReview</span><span class="footer-cta">· ${escapeHtml(footer.text)}</span>${EXTERNAL}</a>`
+    : `<a class="footer" href="${TELEGRAM_URL}" target="_blank" rel="noopener">${HEART}<span class="footer-text">TapReview</span>${EXTERNAL}</a>`;
   const html = `<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -691,6 +697,7 @@ export function renderPage({ status, title, accent, body, extraCss = "" }) {
     .footer svg { width: 18px; height: 18px; }
     .footer .ext { width: 13px; height: 13px; opacity: 0.75; }
     .footer-text { text-decoration: underline; text-decoration-color: #c4c9d6; text-underline-offset: 3px; }
+    .footer-cta { color: #8a91a1; }
     .footer:hover, .footer:focus-visible { color: #1f2433; border-color: #c4c9d6; background: #fff; }
     .footer:focus-visible { outline: 2px solid #9aa3b8; outline-offset: 2px; }
 
@@ -717,7 +724,7 @@ ${extraCss}
   <main class="card">
     ${body}
   </main>
-  <a class="footer" href="${TELEGRAM_URL}" target="_blank" rel="noopener">${HEART}<span class="footer-text">TapReview</span>${EXTERNAL}</a>
+  ${footerHtml}
 </body>
 </html>`;
 

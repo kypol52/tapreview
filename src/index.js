@@ -10,6 +10,7 @@
 //   /s/:token/bonus      — касса владельца: проверить и погасить код подарка + счётчики (stats-page.js)
 //   /k/:token            — касса для персонала: только проверить и погасить код (stats-page.js)
 //   POST /bonus          — выдать гостю код подарка, колесо призов (bonus.js)
+//   /r/:slug             — ссылка-приглашение заведения: учёт перехода → главная с ?ref= (referral.js)
 // Все остальные адреса отдаются как обычные файлы (index.html, admin/, 404.html и т.д.).
 
 import { handleBusinessPage, handleCardPage, handleGroupPage, handleGo } from "./public-page.js";
@@ -17,6 +18,7 @@ import { handleApi } from "./admin-api.js";
 import { handleTelegramWebhook, weeklyReports } from "./telegram.js";
 import { handleStatsPage, handleBonusDesk, handleStaffDesk } from "./stats-page.js";
 import { handleBonus } from "./bonus.js";
+import { handleRef } from "./referral.js";
 import { handleOrder } from "./orders.js";
 import { db } from "./supabase.js";
 
@@ -46,6 +48,11 @@ export default {
     const goMatch = url.pathname.match(/^\/go\/([^/]+)\/([a-z0-9]+)\/?$/);
     if (goMatch && isRead) {
       return handleGo(request, env, ctx, goMatch[1], goMatch[2]);
+    }
+
+    const refMatch = url.pathname.match(/^\/r\/([^/]+)\/?$/);
+    if (refMatch && isRead) {
+      return handleRef(request, env, ctx, refMatch[1]);
     }
 
     if (url.pathname === "/bonus") {
