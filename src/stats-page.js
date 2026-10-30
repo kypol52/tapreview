@@ -6,6 +6,7 @@ import { db } from "./supabase.js";
 import { PERIODS, PLATFORMS, loadReports, loadDaily, sumTotals, formatDateRange, formatCardCode } from "./report.js";
 import { ICONS } from "./public-page.js";
 import { formatDay } from "./billing.js";
+import { normalizeCode, findCode, redeemCode, bonusCounts, validityText } from "./bonus.js";
 
 const TOKEN_RE = /^[A-Za-z0-9]{24}$/;
 // Куда владелец пишет, чтобы продлить подписку (личный Telegram TapReview)
@@ -54,7 +55,11 @@ async function statsPage(request, env, ctx, token) {
   const period = PERIODS[url.searchParams.get("p")] ? url.searchParams.get("p") : "week";
   const now = Date.now();
 
-  const reports = await loadReports(env, linkIds, period, now);
+  const [reports, bonusRows] = await Promise.all([
+    loadReports(env, linkIds, period, now),
+    // Включён ли подарок для гостей хотя бы в одном заведении — тогда показываем кнопку для кассы
+    db(env, `businesses?id=in.(${linkIds.join(",")})&bonus_mode=neq.off&select=id&limit=1`).catch(() => [])
+  ]);
   // Удалённые заведения просто пропускаем, порядок — как в ссылке
   const allVenues = linkIds.map((id) => reports.get(id)).filter(Boolean);
   if (!allVenues.length) return notFound();
@@ -85,8 +90,127 @@ async function statsPage(request, env, ctx, token) {
       ? null
       : await loadDaily(env, view.dailyIds, period, now, view.card ? view.card.id : null);
 
-  const page = { token, period, range: venues[0].range, now, multi, notices };
+  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn: bonusRows.length > 0 };
   return html(200, `Статистика · ${view.title}`, renderBody(view, daily, page));
+}
+
+// ---------- Касса: проверка и погашение кода подарка (/s/:token/bonus) ----------
+// GET ?code=ABC123 — проверить; POST code=ABC123 — погасить. Только коды заведений этой ссылки.
+
+export async function handleBonusDesk(request, env, token) {
+  try {
+    if (!TOKEN_RE.test(token)) return notFound();
+    const links = await db(env, `stats_links?token=eq.${token}&select=business_id,business_ids`);
+    if (!links.length) return notFound();
+    const link = links[0];
+    const ids = [...new Set(link.business_ids && link.business_ids.length ? link.business_ids : [link.business_id])];
+    const businesses = await db(env, `businesses?id=in.(${ids.join(",")})&select=id,name`);
+    if (!businesses.length) return notFound();
+    const names = new Map(businesses.map((b) => [b.id, b.name]));
+
+    let input = "";
+    let result = "";
+    if (request.method === "POST") {
+      const form = new URLSearchParams((await request.text()).slice(0, 500));
+      input = String(form.get("code") || "");
+      const code = normalizeCode(input);
+      const found = code ? await findCode(env, code, ids) : null;
+      if (found && found.state === "ok") {
+        const done = await redeemCode(env, found.row.id);
+        result = done
+          ? deskResult("done", found.row, names, "Код погашен — можно выдавать подарок")
+          : deskResult("used", found.row, names, "Код уже погашен");
+      } else {
+        result = deskState(found, input, names);
+      }
+    } else {
+      const url = new URL(request.url);
+      input = String(url.searchParams.get("code") || "");
+      if (input) {
+        const code = normalizeCode(input);
+        result = deskState(code ? await findCode(env, code, ids) : null, input, names);
+      }
+    }
+
+    const counts = await bonusCounts(env, ids, 30);
+    const prizeRows = Object.entries(counts.byPrize)
+      .sort((a, b) => b[1].issued - a[1].issued)
+      .map(([prize, c]) => `<tr><td>${esc(prize)}</td><td>${num(c.issued)}</td><td>${num(c.redeemed)}</td></tr>`)
+      .join("");
+
+    const body = `
+  <header class="top">
+    <div class="top-inner">
+      <div class="brand">TapReview <span>· касса</span></div>
+      <a class="back" href="/s/${token}">← Статистика</a>
+      <h1 class="name">Проверка подарка</h1>
+      <p class="range">Введите код с экрана гостя: 6 букв и цифр, например ABC-123</p>
+    </div>
+  </header>
+  <main class="wrap">
+    <section class="panel">
+      <form class="desk-form" method="get" action="/s/${token}/bonus">
+        <input name="code" value="${esc(input)}" maxlength="12" autocomplete="off" autocapitalize="characters"
+          spellcheck="false" placeholder="ABC-123" aria-label="Код подарка" required>
+        <button type="submit">Проверить</button>
+      </form>
+      ${result}
+    </section>
+    <section class="panel">
+      <h2>Подарки за 30 дней</h2>
+      <div class="kpis desk-kpis">
+        <div class="kpi"><div class="kpi-label">Выдано кодов</div><div class="kpi-value">${num(counts.issued)}</div></div>
+        <div class="kpi"><div class="kpi-label">Погашено</div><div class="kpi-value">${num(counts.redeemed)}</div></div>
+      </div>
+      ${prizeRows ? `<table class="desk-table"><thead><tr><th>Подарок</th><th>Выдано</th><th>Погашено</th></tr></thead><tbody>${prizeRows}</tbody></table>` : ""}
+    </section>
+    <section class="note">
+      <p>Код действует один раз. Гость получает его, только когда сканирует карту в заведении, и не чаще раза в несколько недель.
+        Подарок не зависит от отзыва — так требуют правила Яндекс Карт и 2ГИС.</p>
+    </section>
+  </main>`;
+    return html(200, "Проверка подарка", body);
+  } catch (error) {
+    console.error(`Bonus desk error: ${error.message}\n${error.stack}`);
+    return html(500, "Ошибка", `<main class="wrap wrap-center"><section class="panel"><h1 class="lost">Не удалось проверить код</h1><p>Попробуйте ещё раз через минуту.</p></section></main>`);
+  }
+}
+
+function deskState(found, input, names) {
+  if (!found) return `<div class="desk-res desk-bad"><p class="desk-title">Такого кода нет</p><p>Проверьте, правильно ли введён код «${esc(input)}».</p></div>`;
+  const { row, state } = found;
+  if (state === "ok") {
+    return `${deskResult("ok", row, names, "Код действует")}
+      <form method="post" action="" class="desk-redeem">
+        <input type="hidden" name="code" value="${esc(row.code)}">
+        <button type="submit">Погасить код и выдать подарок</button>
+      </form>`;
+  }
+  if (state === "soon") {
+    return deskResult("soon", row, names, `Код начнёт действовать ${formatDayTime(row.valid_from)}`);
+  }
+  if (state === "expired") return deskResult("bad", row, names, "Срок действия кода истёк");
+  return deskResult("used", row, names, `Код уже погашен ${formatDayTime(row.redeemed_at)}`);
+}
+
+function deskResult(kind, row, names, title) {
+  const tone = kind === "ok" || kind === "done" ? "desk-ok" : kind === "soon" ? "desk-warn" : "desk-bad";
+  return `<div class="desk-res ${tone}">
+      <p class="desk-title">${kind === "done" ? "✅ " : ""}${esc(title)}</p>
+      <p class="desk-prize">${esc(row.prize)}</p>
+      <p>${esc(validityText(row))}${names.size > 1 ? ` · ${esc(names.get(row.business_id) || "")}` : ""}</p>
+      ${row.conditions ? `<p>Условия: ${esc(row.conditions)}</p>` : ""}
+    </div>`;
+}
+
+function formatDayTime(iso) {
+  return new Date(iso).toLocaleString("ru-RU", {
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Moscow"
+  });
 }
 
 // ---------- Подписка ----------
@@ -296,6 +420,7 @@ function renderBody(view, daily, page) {
       ${view.sub ? `<p class="sub">${esc(view.sub)}</p>` : ""}
       <p class="range">${p.title} · ${formatDateRange(period, range)}</p>
       <nav class="tabs" aria-label="Период">${tabs}</nav>
+      ${page.bonusOn ? `<a class="desk-link" href="/s/${token}/bonus">🎁 Проверить код подарка</a>` : ""}
     </div>
   </header>
   <main class="wrap">
@@ -447,7 +572,7 @@ function html(status, title, body) {
       "X-Robots-Tag": "noindex, nofollow",
       "Referrer-Policy": "no-referrer",
       "Content-Security-Policy":
-        "default-src 'none'; img-src 'self'; font-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+        "default-src 'none'; img-src 'self'; font-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
     }
   });
 }
@@ -559,6 +684,29 @@ const CSS = `
   .notice-warn { background: #fff7e0; color: #6b4a00; border: 1px solid #f3d27a; }
   .notice-bad { background: #fdecec; color: #7f1d1d; border: 1px solid #f5b5b5; }
   .notice-action a { color: inherit; font-weight: 700; }
+  .desk-link { display: inline-block; margin-top: 14px; padding: 8px 14px; border-radius: 999px; background: rgba(255,255,255,0.12);
+    color: #fff; font-size: 14px; font-weight: 600; text-decoration: none; }
+  .desk-link:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .desk-form { display: flex; gap: 8px; }
+  .desk-form input { flex: 1; min-width: 0; padding: 12px 14px; border: 0; border-radius: 12px; box-shadow: 0 0 0 1.5px var(--line) inset;
+    font: inherit; font-size: 22px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text); }
+  .desk-form input:focus { outline: none; box-shadow: 0 0 0 2px var(--navy) inset; }
+  .desk-form button, .desk-redeem button { border: 0; border-radius: 12px; padding: 0 18px; background: var(--navy); color: #fff;
+    font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
+  .desk-redeem button { width: 100%; min-height: 52px; margin-top: 10px; background: var(--up); }
+  .desk-res { margin-top: 14px; padding: 14px 16px; border-radius: 14px; font-size: 14px; line-height: 1.5; }
+  .desk-res p { margin: 0 0 4px; }
+  .desk-title { font-size: 16px; font-weight: 700; }
+  .desk-prize { font-size: 20px; font-weight: 800; }
+  .desk-ok { background: #e9f7ef; color: #14532d; }
+  .desk-warn { background: #fff7e0; color: #6b4a00; }
+  .desk-bad { background: #fdecec; color: #7f1d1d; }
+  .desk-kpis { margin: 0 0 12px; }
+  .desk-kpis .kpi { box-shadow: none; background: var(--bg); }
+  .desk-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .desk-table th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 0 0 8px; }
+  .desk-table td { padding: 8px 0; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  .desk-table th + th, .desk-table td + td { text-align: right; padding-left: 12px; }
   .hint { margin: -6px 0 10px; font-size: 12px; color: var(--muted); }
   .items { list-style: none; margin: 0; padding: 0; }
   .item { display: grid; grid-template-columns: 1fr 64px 64px 14px; align-items: center; column-gap: 8px;

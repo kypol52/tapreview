@@ -37,13 +37,16 @@
 import { db } from "./supabase.js";
 import { tg, BOT_COMMANDS } from "./telegram.js";
 import { deleteRuOrder } from "./orders.js";
+import { bonusCounts } from "./bonus.js";
 
 const CATEGORIES = ["restaurant", "beauty", "shop", "hotel", "auto", "other"];
 
 const ADMIN_COLUMNS =
   "id,slug,name,tagline,category,address,logo_url,brand_color," +
   "google_url,yandex_url,twogis_url,discount_code,discount_text,is_active," +
-  "paid_until,monthly_price,billing_note,created_at,updated_at";
+  "paid_until,monthly_price,billing_note," +
+  "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions," +
+  "created_at,updated_at";
 
 const GROUP_COLUMNS = "id,slug,name,tagline,logo_url,business_ids,is_active,created_at,updated_at";
 const MAX_GROUP_SIZE = 50;
@@ -152,6 +155,11 @@ export async function handleApi(request, env, url) {
       const tgSubMatch = path.match(/^\/api\/admin\/telegram\/subscribers\/(\d{1,18})$/);
       if (tgSubMatch && method === "DELETE") {
         return await deleteTelegramSubscriber(env, tgSubMatch[1]);
+      }
+
+      const bonusStatsMatch = path.match(/^\/api\/admin\/businesses\/(\d{1,18})\/bonus-stats$/);
+      if (bonusStatsMatch && method === "GET") {
+        return json(await bonusCounts(env, [Number(bonusStatsMatch[1])], 30));
       }
 
       if (path === "/api/admin/orders" && method === "GET") {
@@ -521,7 +529,42 @@ function validateBusiness(input) {
     is_active: input.is_active !== false,
     paid_until: cleanDate(input.paid_until),
     monthly_price: cleanPrice(input.monthly_price),
-    billing_note: cleanText(input.billing_note, 200, "Заметка об оплате") || null
+    billing_note: cleanText(input.billing_note, 200, "Заметка об оплате") || null,
+    ...cleanBonus(input)
+  };
+}
+
+// Подарок для гостей (bonus.js): режим, призы колеса, сроки, условия
+function cleanBonus(input) {
+  const mode = ["off", "fixed", "wheel"].includes(input.bonus_mode) ? input.bonus_mode : "off";
+  const prizes = Array.isArray(input.bonus_prizes) ? input.bonus_prizes : [];
+  if (prizes.length > 8) throw new HttpError(400, "Колесо: не больше 8 призов");
+  const cleanPrizes = prizes.map((p, i) => {
+    const label = cleanText(p && p.label, 30, `Приз ${i + 1}`);
+    const weight = Number(p && p.weight);
+    if (!label) throw new HttpError(400, `Приз ${i + 1}: укажите название`);
+    if (!Number.isInteger(weight) || weight < 1 || weight > 1000) {
+      throw new HttpError(400, `Приз «${label}»: шанс — целое число от 1 до 1000`);
+    }
+    return { label, weight };
+  });
+  if (mode === "wheel" && cleanPrizes.length < 2) throw new HttpError(400, "Для колеса нужно хотя бы 2 приза");
+  if (mode === "fixed" && !cleanText(input.discount_text, 120, "Подарок")) {
+    throw new HttpError(400, "Напишите, какой подарок получает гость");
+  }
+  const int = (value, min, max, label, fallback) => {
+    if (value === undefined || value === null || value === "") return fallback;
+    const n = Number(value);
+    if (!Number.isInteger(n) || n < min || n > max) throw new HttpError(400, `${label}: целое число от ${min} до ${max}`);
+    return n;
+  };
+  return {
+    bonus_mode: mode,
+    bonus_prizes: cleanPrizes,
+    bonus_from_days: int(input.bonus_from_days, 0, 30, "Через сколько дней начинает действовать", 1),
+    bonus_valid_days: int(input.bonus_valid_days, 1, 365, "Сколько дней действует", 14),
+    bonus_cooldown_days: int(input.bonus_cooldown_days, 1, 365, "Как часто можно получать", 30),
+    bonus_conditions: cleanText(input.bonus_conditions, 200, "Условия подарка") || null
   };
 }
 

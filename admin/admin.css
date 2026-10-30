@@ -456,6 +456,17 @@ input[type="color"]:disabled { opacity: 0.4; }
 .o-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
 .o-status { font-size: 13px; padding: 5px 8px; }
 
+/* ---------- Подарок для гостей ---------- */
+
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 12px; }
+.bonus-box .field-hint { margin-top: 4px; }
+.prizes { display: grid; gap: 6px; margin-bottom: 8px; }
+.prize-row { display: flex; align-items: center; gap: 6px; }
+.prize-row .prize-label { flex: 1; min-width: 0; }
+.prize-row .prize-weight { width: 76px; }
+.prize-share { width: 40px; font-size: 13px; font-weight: 600; color: var(--muted); text-align: right; }
+@media (max-width: 640px) { .grid-3 { grid-template-columns: 1fr; } }
+
 /* ---------- Подписка ---------- */
 
 .billing {

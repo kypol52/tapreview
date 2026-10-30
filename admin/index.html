@@ -396,21 +396,55 @@
         <input id="f-logo" type="url" placeholder="https://…/logo.png">
       </label>
 
-      <div class="grid-2">
+      <fieldset class="billing bonus-box">
+        <legend>Подарок для гостей</legend>
         <label class="field">
-          <span>Кодовое слово для скидки</span>
-          <input id="f-discount-code" type="text" maxlength="40" placeholder="ЛЕТО10">
+          <span>Режим</span>
+          <select id="f-bonus-mode">
+            <option value="off">Выключен</option>
+            <option value="fixed">Один подарок для всех</option>
+            <option value="wheel">Колесо подарков</option>
+          </select>
         </label>
 
-        <label class="field">
-          <span>Что даёт скидка</span>
-          <input id="f-discount-text" type="text" maxlength="120" placeholder="Скидка 10% на следующий визит">
-        </label>
-      </div>
-      <p class="muted field-hint">
-        Если кодовое слово заполнено, на странице появится кнопка «Получить скидку».
-        Оставьте пустым, чтобы кнопку убрать.
-      </p>
+        <div id="f-bonus-settings" hidden>
+          <label class="field" id="f-fixed-box">
+            <span>Подарок</span>
+            <input id="f-discount-text" type="text" maxlength="60" placeholder="Скидка 10% на следующий визит">
+          </label>
+
+          <div id="f-wheel-box" class="field">
+            <span>Призы колеса и их шансы (2–8 призов)</span>
+            <div id="f-prizes" class="prizes"></div>
+            <button id="f-prize-add" class="btn btn-secondary btn-small" type="button">+ Добавить приз</button>
+          </div>
+
+          <div class="grid-3">
+            <label class="field">
+              <span>Начинает действовать через, дней</span>
+              <input id="f-bonus-from" type="number" min="0" max="30" step="1" value="1">
+            </label>
+            <label class="field">
+              <span>Действует, дней</span>
+              <input id="f-bonus-valid" type="number" min="1" max="365" step="1" value="14">
+            </label>
+            <label class="field">
+              <span>Один подарок на телефон раз в, дней</span>
+              <input id="f-bonus-cooldown" type="number" min="1" max="365" step="1" value="30">
+            </label>
+          </div>
+          <label class="field">
+            <span>Условия (видят гость и кассир)</span>
+            <input id="f-bonus-conditions" type="text" maxlength="200" placeholder="При заказе от 500 ₽, один код на чек">
+          </label>
+          <p id="f-bonus-stats" class="billing-status"></p>
+        </div>
+        <p class="muted field-hint">
+          Кнопка подарка появляется через несколько секунд после скана карты (NFC или QR), ниже кнопок отзывов.
+          Каждый гость получает свой одноразовый код; кассир проверяет и гасит его по ссылке статистики → «Проверить код подарка».
+          Подарок не должен зависеть от отзыва — так требуют правила Яндекс Карт и 2ГИС; не пишите «за отзыв».
+        </p>
+      </fieldset>
 
       <fieldset class="billing">
         <legend>Подписка</legend>

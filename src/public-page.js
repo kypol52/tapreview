@@ -8,11 +8,12 @@
 import { db } from "./supabase.js";
 import { logEvent, sourceFrom } from "./analytics.js";
 import { isExpired } from "./billing.js";
+import { bonusBlock } from "./bonus.js";
 
 const SLUG_RE = /^[A-Za-z0-9_-]{3,64}$/;
 const COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
 // Тёплый золотисто-бежевый — черта под названием, если свой цвет не задан
-const DEFAULT_ACCENT = "#c9a27e";
+export const DEFAULT_ACCENT = "#c9a27e";
 
 // Подпись под названием, если в админке её не заполнили
 const CATEGORY_TAGLINES = {
@@ -64,11 +65,15 @@ const HEART = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7.5-
 
 const EXTERNAL = `<svg class="ext" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 16 16 8M9.5 8H16v6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
-const GIFT = `<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="20" fill="#f0b43c"/><g fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"><rect x="11" y="17" width="18" height="12" rx="1.5"/><path d="M10 13.5h20v3.5H10zM20 13.5V29"/><path d="M20 13.5c-1.5-3.5-6-4-6-1.2 0 1.5 2.5 1.2 6 1.2zM20 13.5c1.5-3.5 6-4 6-1.2 0 1.5-2.5 1.2-6 1.2z" stroke-linecap="round"/></g></svg>`;
+export const GIFT = `<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="20" fill="#f0b43c"/><g fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"><rect x="11" y="17" width="18" height="12" rx="1.5"/><path d="M10 13.5h20v3.5H10zM20 13.5V29"/><path d="M20 13.5c-1.5-3.5-6-4-6-1.2 0 1.5 2.5 1.2 6 1.2zM20 13.5c1.5-3.5 6-4 6-1.2 0 1.5-2.5 1.2-6 1.2z" stroke-linecap="round"/></g></svg>`;
+
+// Настройки бонуса для гостей (bonus.js, миграция 015)
+export const BONUS_COLUMNS =
+  "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions";
 
 const BUSINESS_COLUMNS =
   "id,slug,name,tagline,category,logo_url,brand_color,google_url,yandex_url,twogis_url," +
-  "discount_code,discount_text,paid_until";
+  "discount_code,discount_text,paid_until," + BONUS_COLUMNS;
 
 export const TELEGRAM_URL ="https://t.me/tapreviewru";
 
@@ -412,23 +417,9 @@ function businessPage(business, source, cardCode = null) {
        <div class="buttons">${buttons}</div>`
     : `<p class="lead">Ссылки для отзывов скоро появятся.</p>`;
 
-  // Кнопка «Получить скидку»: раскрывает кодовое слово программы лояльности.
-  // Работает без JavaScript (<details>), поэтому на странице по-прежнему нет скриптов.
-  const discountCode = (business.discount_code || "").trim();
-  const discount = discountCode
-    ? `<details class="discount">
-         <summary class="button discount-button">
-           <span class="icon discount-icon">${GIFT}</span>
-           <span class="label">Получить скидку</span>
-           <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-         </summary>
-         <div class="discount-panel">
-           ${business.discount_text ? `<p class="discount-text">${escapeHtml(business.discount_text)}</p>` : ""}
-           <p class="discount-hint">Назовите или покажите кодовое слово:</p>
-           <p class="discount-code">${escapeHtml(discountCode)}</p>
-         </div>
-       </details>`
-    : "";
+  // Подарок для гостей (bonus.js): только при скане карты, появляется через несколько секунд,
+  // не зависит от отзыва. Без JavaScript — обычная форма.
+  const discount = bonusBlock(business, source, cardCode);
 
   return renderPage({
     status: 200,
@@ -456,7 +447,7 @@ function notFoundPage() {
   });
 }
 
-function renderPage({ status, title, accent, body }) {
+export function renderPage({ status, title, accent, body, extraCss = "" }) {
   const html = `<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -643,35 +634,22 @@ function renderPage({ status, title, accent, body }) {
       text-underline-offset: 3px;
     }
 
-    /* «Получить скидку» */
-    .discount { margin-top: 14px; }
-    .discount-button {
-      list-style: none;
+    /* Подарок для гостей: появляется через несколько секунд, место под него занято сразу (без скачков) */
+    .bonus { margin: 20px 0 0; animation: bonus-in 0.5s ease 10s both; }
+    @keyframes bonus-in {
+      from { opacity: 0; transform: translateY(8px); visibility: hidden; }
+      to { opacity: 1; transform: none; visibility: visible; }
+    }
+    .bonus-note { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+    .bonus-button {
+      width: 100%;
+      font: inherit;
       cursor: pointer;
       background: #fff8e8;
       border-color: #f3dfa9;
     }
-    .discount-button::-webkit-details-marker { display: none; }
-    .discount-button .label { font-weight: 600; }
-    .chevron { flex: none; width: 22px; height: 22px; color: #3a4152; transition: transform 0.2s ease; }
-    .discount[open] .chevron { transform: rotate(180deg); }
-    .discount-panel {
-      margin-top: 10px;
-      padding: 16px 18px 18px;
-      border: 1px dashed #e2c46e;
-      border-radius: 16px;
-      background: #fffdf6;
-    }
-    .discount-text { margin: 0 0 10px; font-size: 16px; font-weight: 600; line-height: 1.35; }
-    .discount-hint { margin: 0; font-size: 14px; color: var(--muted); }
-    .discount-code {
-      margin: 6px 0 0;
-      font-size: 28px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      overflow-wrap: anywhere;
-      user-select: all;
-    }
+    .bonus-button .label { font-weight: 600; text-align: center; }
+    .bonus-button .icon { width: 34px; height: 34px; }
 
     /* Кнопки заведений на странице группы /g/... */
     .venue { background: #fff; border-color: #e1e5ee; padding: 10px 20px 10px 10px; }
@@ -726,9 +704,13 @@ function renderPage({ status, title, accent, body }) {
       .label { font-size: 15px; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .button, .chevron { transition: none; }
+      .button { transition: none; }
       .footer { transition: none; }
+      /* Без движения, но с той же паузой */
+      .bonus { animation-name: bonus-show; animation-duration: 0.01s; }
+      @keyframes bonus-show { from { visibility: hidden; opacity: 0; } to { visibility: visible; opacity: 1; } }
     }
+${extraCss}
   </style>
 </head>
 <body>
@@ -747,7 +729,7 @@ function renderPage({ status, title, accent, body }) {
       "X-Content-Type-Options": "nosniff",
       "Referrer-Policy": "strict-origin-when-cross-origin",
       "Content-Security-Policy":
-        "default-src 'none'; img-src https:; font-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+        "default-src 'none'; img-src https:; font-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
     }
   });
 }
@@ -761,7 +743,7 @@ function isHttpsUrl(value) {
   }
 }
 
-function escapeHtml(value) {
+export function escapeHtml(value) {
   return String(value)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")

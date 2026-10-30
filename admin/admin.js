@@ -81,6 +81,11 @@ function bindEvents() {
     showBillingStatus();
   });
   $("f-paid-until").addEventListener("input", showBillingStatus);
+  $("f-bonus-mode").addEventListener("change", showBonusMode);
+  $("f-prize-add").addEventListener("click", () => {
+    if ($("f-prizes").children.length < 8) $("f-prizes").append(prizeRow({ label: "", weight: 10 }));
+    updatePrizeShares();
+  });
 
   $("editor-form").addEventListener("submit", onSave);
   $("editor-close").addEventListener("click", closeEditor);
@@ -683,8 +688,8 @@ function openEditor(business) {
   $("f-yandex").value = business ? business.yandex_url || "" : "";
   $("f-twogis").value = business ? business.twogis_url || "" : "";
   $("f-logo").value = business ? business.logo_url || "" : "";
-  $("f-discount-code").value = business ? business.discount_code || "" : "";
   $("f-discount-text").value = business ? business.discount_text || "" : "";
+  fillBonus(business);
   $("f-active").checked = business ? business.is_active : true;
   $("f-paid-until").value = business ? business.paid_until || "" : "";
   $("f-price").value = business && business.monthly_price != null ? String(business.monthly_price) : "";
@@ -1105,14 +1110,113 @@ function readForm() {
     yandex_url: $("f-yandex").value,
     twogis_url: $("f-twogis").value,
     logo_url: $("f-logo").value,
-    discount_code: $("f-discount-code").value,
+    discount_code: state.editing ? state.editing.discount_code || "" : "",
     discount_text: $("f-discount-text").value,
+    bonus_mode: $("f-bonus-mode").value,
+    bonus_prizes: readPrizes(),
+    bonus_from_days: $("f-bonus-from").value,
+    bonus_valid_days: $("f-bonus-valid").value,
+    bonus_cooldown_days: $("f-bonus-cooldown").value,
+    bonus_conditions: $("f-bonus-conditions").value,
     brand_color: $("f-color-on").checked ? $("f-color").value : null,
     is_active: $("f-active").checked,
     paid_until: $("f-paid-until").value,
     monthly_price: $("f-price").value,
     billing_note: $("f-billing-note").value
   };
+}
+
+// ================= Подарок для гостей =================
+
+const DEFAULT_PRIZES = [
+  { label: "Скидка 5%", weight: 50 },
+  { label: "Скидка 10%", weight: 30 },
+  { label: "Кофе в подарок", weight: 15 },
+  { label: "Десерт в подарок", weight: 5 }
+];
+
+function fillBonus(business) {
+  $("f-bonus-mode").value = business ? business.bonus_mode || "off" : "off";
+  const prizes = business && Array.isArray(business.bonus_prizes) && business.bonus_prizes.length
+    ? business.bonus_prizes
+    : DEFAULT_PRIZES;
+  $("f-prizes").replaceChildren(...prizes.map(prizeRow));
+  $("f-bonus-from").value = business ? business.bonus_from_days ?? 1 : 1;
+  $("f-bonus-valid").value = business ? business.bonus_valid_days ?? 14 : 14;
+  $("f-bonus-cooldown").value = business ? business.bonus_cooldown_days ?? 30 : 30;
+  $("f-bonus-conditions").value = business ? business.bonus_conditions || "" : "";
+  $("f-bonus-stats").textContent = "";
+  showBonusMode();
+  updatePrizeShares();
+  if (business && business.bonus_mode && business.bonus_mode !== "off") loadBonusStats(business);
+}
+
+function showBonusMode() {
+  const mode = $("f-bonus-mode").value;
+  $("f-bonus-settings").hidden = mode === "off";
+  $("f-fixed-box").hidden = mode !== "fixed";
+  $("f-wheel-box").hidden = mode !== "wheel";
+}
+
+function prizeRow(prize) {
+  const row = el("div", "prize-row");
+  const label = el("input");
+  label.type = "text";
+  label.maxLength = 30;
+  label.placeholder = "Название приза";
+  label.value = prize.label || "";
+  label.className = "prize-label";
+  const weight = el("input");
+  weight.type = "number";
+  weight.min = "1";
+  weight.max = "1000";
+  weight.step = "1";
+  weight.value = String(prize.weight || 10);
+  weight.className = "prize-weight";
+  weight.title = "Вес: чем больше, тем чаще выпадает";
+  weight.addEventListener("input", updatePrizeShares);
+  const share = el("span", "prize-share", "");
+  const remove = el("button", "sl-chip-x", "✕");
+  remove.type = "button";
+  remove.title = "Убрать приз";
+  remove.addEventListener("click", () => {
+    row.remove();
+    updatePrizeShares();
+  });
+  row.append(label, weight, share, remove);
+  return row;
+}
+
+function readPrizes() {
+  if ($("f-bonus-mode").value !== "wheel") return [];
+  return [...$("f-prizes").children]
+    .map((row) => ({
+      label: row.querySelector(".prize-label").value.trim(),
+      weight: Number(row.querySelector(".prize-weight").value)
+    }))
+    .filter((p) => p.label);
+}
+
+// Рядом с весом показываем шанс в процентах — так понятнее
+function updatePrizeShares() {
+  const rows = [...$("f-prizes").children];
+  const total = rows.reduce((sum, row) => sum + (Number(row.querySelector(".prize-weight").value) || 0), 0);
+  for (const row of rows) {
+    const w = Number(row.querySelector(".prize-weight").value) || 0;
+    row.querySelector(".prize-share").textContent = total ? `${Math.round((w / total) * 100)}%` : "";
+  }
+  $("f-prize-add").hidden = rows.length >= 8;
+}
+
+async function loadBonusStats(business) {
+  try {
+    const s = await api(`/api/admin/businesses/${business.id}/bonus-stats`);
+    if (state.editing !== business) return;
+    $("f-bonus-stats").textContent = `За 30 дней: выдано ${s.issued}, погашено ${s.redeemed}`;
+    $("f-bonus-stats").className = "billing-status ok";
+  } catch {
+    // счётчики — не главное, форму не ломаем
+  }
 }
 
 // ================= Подписка =================
