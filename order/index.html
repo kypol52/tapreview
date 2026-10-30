@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Рассчитать и заказать — TapReview</title>
+  <meta name="description" content="Посчитайте стоимость карт TapReview для своего заведения и оставьте заявку — мы свяжемся с вами.">
+  <meta name="theme-color" content="#0a2a5c">
+  <link rel="canonical" href="https://tapreview.ru/order/">
+  <link rel="icon" type="image/png" href="/assets/favicon.png">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <link rel="preload" href="/fonts/montserrat-var-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
+
+  <style>
+    @font-face {
+      font-family: "Montserrat";
+      src: url("/fonts/montserrat-var-cyrillic.woff2") format("woff2");
+      font-weight: 100 900; font-display: swap;
+      unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+    }
+    @font-face {
+      font-family: "Montserrat";
+      src: url("/fonts/montserrat-var-latin.woff2") format("woff2");
+      font-weight: 100 900; font-display: swap;
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+20BD, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+    }
+
+    :root {
+      --navy: #0a2a5c; --navy-700: #0d3574; --navy-900: #061a3a;
+      --gold: #e5aa0c; --gold-600: #c99208; --gold-50: #fdf7e6;
+      --ink: #0f1728; --text: #2b3346; --muted: #646d80;
+      --line: #e7eaf0; --line-strong: #d6dbe5; --soft: #f6f7fa;
+      --danger: #b91c1c; --ok: #15803d;
+      --r: 20px; --r-lg: 28px;
+      --shadow: 0 1px 2px rgba(15, 23, 40, 0.04), 0 12px 32px rgba(15, 23, 40, 0.07);
+      --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+    }
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0; background: var(--soft); color: var(--text);
+      font-family: "Montserrat", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      font-weight: 500; font-size: 16px; line-height: 1.55; -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--navy); }
+    svg { display: block; }
+    .wrap { width: min(1120px, 100%); margin: 0 auto; padding: 0 20px; }
+
+    .header { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 10; }
+    .header .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; gap: 12px; }
+    .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 750; font-size: 18px; color: var(--navy); }
+    .logo-mark { position: relative; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--navy); color: #fff; font-size: 12px; font-weight: 750; }
+    .logo-mark svg { position: absolute; top: 5px; right: 4px; width: 10px; height: 10px; }
+    .back { font-size: 14px; font-weight: 650; text-decoration: none; color: var(--muted); }
+    .back:hover { color: var(--navy); }
+
+    .head { padding: 40px 0 24px; }
+    .kicker { margin: 0 0 10px; color: var(--gold-600); font-size: 12.5px; font-weight: 750; letter-spacing: 0.16em; text-transform: uppercase; }
+    h1 { margin: 0; color: var(--ink); font-size: clamp(32px, 7vw, 48px); line-height: 1.08; font-weight: 750; letter-spacing: -0.03em; }
+    .head p:not(.kicker) { margin: 14px 0 0; max-width: 620px; color: var(--muted); font-size: 17px; }
+
+    .layout { display: grid; gap: 16px; padding-bottom: 64px; align-items: start; }
+    .panel { padding: 24px 22px; border-radius: var(--r-lg); background: #fff; box-shadow: 0 0 0 1px var(--line) inset; }
+    .panel + .panel { margin-top: 16px; }
+    h2 { margin: 0 0 4px; color: var(--ink); font-size: 20px; font-weight: 750; letter-spacing: -0.015em; }
+    .panel-sub { margin: 0 0 20px; color: var(--muted); font-size: 14.5px; }
+
+    /* Тариф */
+    .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 5px; border-radius: 16px; background: var(--soft); }
+    .seg input { position: absolute; opacity: 0; pointer-events: none; }
+    .seg label { position: relative; display: block; padding: 12px 10px; border-radius: 12px; text-align: center; cursor: pointer; transition: background 0.2s var(--ease), box-shadow 0.2s var(--ease); }
+    .seg label b { display: block; font-size: 15px; color: var(--ink); }
+    .seg label span { display: block; font-size: 12.5px; color: var(--muted); }
+    .seg input:checked + label { background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 40, 0.06), 0 4px 14px rgba(15, 23, 40, 0.08); }
+    .seg input:focus-visible + label { outline: 3px solid #9fb3d9; outline-offset: 2px; }
+    .seg label .save { display: inline-block; margin-left: 4px; padding: 1px 7px; border-radius: 99px; background: var(--gold); color: var(--navy-900); font-size: 11px; font-weight: 750; vertical-align: 1px; }
+
+    /* Счётчики */
+    .counter { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 0; border-top: 1px solid var(--line); }
+    .seg + .counter { margin-top: 18px; }
+    .counter-text b { display: block; color: var(--ink); font-size: 16px; }
+    .counter-text span { display: block; color: var(--muted); font-size: 13.5px; }
+    .stepper { display: flex; align-items: center; flex: none; border-radius: 14px; box-shadow: 0 0 0 1.5px var(--line-strong) inset; }
+    .stepper button {
+      display: grid; place-items: center; width: 44px; height: 46px; border: 0; background: none; cursor: pointer;
+      color: var(--navy); font: inherit; font-size: 22px; font-weight: 600; line-height: 1; -webkit-tap-highlight-color: transparent;
+    }
+    .stepper button:disabled { color: #c3c8d3; cursor: default; }
+    .stepper button:focus-visible { outline: 3px solid #9fb3d9; outline-offset: -3px; border-radius: 12px; }
+    .stepper input {
+      width: 52px; height: 46px; border: 0; background: none; text-align: center; color: var(--ink);
+      font: inherit; font-size: 18px; font-weight: 750; -moz-appearance: textfield; appearance: textfield;
+    }
+    .stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .stepper input:focus { outline: none; }
+    .hint { margin: 0; padding-top: 4px; color: var(--muted); font-size: 13px; }
+
+    /* Форма */
+    .fields { display: grid; gap: 14px; }
+    .field { display: grid; gap: 6px; }
+    .field > span { font-size: 14px; font-weight: 650; color: var(--ink); }
+    .field > span i { font-style: normal; color: var(--muted); font-weight: 500; }
+    .field input, .field textarea {
+      width: 100%; padding: 13px 14px; border: 0; border-radius: 12px; background: #fff;
+      box-shadow: 0 0 0 1.5px var(--line-strong) inset; color: var(--ink); font: inherit; font-size: 16px;
+      transition: box-shadow 0.15s var(--ease);
+    }
+    .field textarea { min-height: 90px; resize: vertical; }
+    .field input:focus, .field textarea:focus { outline: none; box-shadow: 0 0 0 2px var(--navy) inset, 0 0 0 4px rgba(10, 42, 92, 0.12); }
+    .field input[aria-invalid="true"] { box-shadow: 0 0 0 2px var(--danger) inset; }
+    .pair { display: grid; gap: 14px; }
+    .contact-note { margin: -4px 0 0; color: var(--muted); font-size: 13px; }
+    .trap { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+
+    .consent { display: flex; gap: 12px; align-items: flex-start; margin: 20px 0 0; font-size: 13.5px; line-height: 1.5; color: var(--text); cursor: pointer; }
+    .consent input { flex: none; width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--navy); cursor: pointer; }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%;
+      min-height: 56px; padding: 0 26px; border: 0; border-radius: 999px; cursor: pointer;
+      background: var(--navy); color: #fff; font: inherit; font-size: 16.5px; font-weight: 700;
+      box-shadow: 0 10px 24px rgba(10, 42, 92, 0.22); transition: transform 0.2s var(--ease), background 0.2s var(--ease), opacity 0.2s;
+      text-decoration: none;
+    }
+    .btn:hover { background: var(--navy-700); transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.6; cursor: progress; transform: none; }
+    .btn:focus-visible { outline: 3px solid #9fb3d9; outline-offset: 3px; }
+    .btn-light { background: #fff; color: var(--navy); box-shadow: 0 0 0 1.5px var(--line-strong) inset; }
+    .btn-light:hover { background: #fff; }
+    .submit { margin-top: 20px; }
+    .error { margin: 16px 0 0; padding: 12px 14px; border-radius: 12px; background: #fdecec; color: #7f1d1d; font-size: 14px; font-weight: 600; }
+    .alt { margin: 16px 0 0; text-align: center; font-size: 14px; color: var(--muted); }
+    .calc-text {
+      margin: 0; padding: 14px 16px; border-radius: 12px; background: var(--soft); color: var(--ink);
+      font: inherit; font-size: 14.5px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere;
+    }
+
+    /* Итог */
+    .summary { color: #c9d3e6; background: var(--navy-900); box-shadow: 0 30px 60px rgba(6, 26, 58, 0.22); }
+    .summary h2 { color: #fff; }
+    .sum-rows { margin: 18px 0 0; padding: 0; list-style: none; }
+    .sum-rows li { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1); font-size: 14.5px; }
+    .sum-rows li span:last-child { color: #fff; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .sum-rows small { display: block; color: #8fa1c4; font-size: 12.5px; }
+    .total { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 18px 0 4px; }
+    .total span { font-size: 15px; font-weight: 650; color: #fff; }
+    .total strong { font-size: 38px; line-height: 1; font-weight: 750; letter-spacing: -0.03em; color: #fff; font-variant-numeric: tabular-nums; }
+    .next { margin: 0; color: #9fb0cf; font-size: 14px; text-align: right; }
+    .next b { color: #fff; }
+    .sum-notes { margin: 20px 0 0; padding: 16px 0 0; border-top: 1px solid rgba(255, 255, 255, 0.1); list-style: none; display: grid; gap: 8px; font-size: 13px; color: #9fb0cf; }
+    .sum-notes li { display: flex; gap: 8px; }
+    .sum-notes svg { width: 16px; height: 16px; flex: none; margin-top: 2px; color: var(--gold); }
+
+    /* Успех */
+    .done { text-align: center; padding: 40px 24px; }
+    .done-icon { display: grid; place-items: center; width: 64px; height: 64px; margin: 0 auto 18px; border-radius: 50%; background: #e8f6ee; color: var(--ok); }
+    .done-icon svg { width: 30px; height: 30px; }
+    .done h2 { font-size: 24px; margin-bottom: 8px; }
+    .done p { margin: 0 auto 22px; max-width: 420px; color: var(--muted); }
+    .done .btn { width: auto; }
+
+    .footer { padding: 0 0 40px; color: var(--muted); font-size: 13.5px; }
+    .footer .wrap { display: flex; flex-wrap: wrap; gap: 10px 22px; justify-content: space-between; }
+    .footer nav { display: flex; flex-wrap: wrap; gap: 10px 20px; }
+    .footer a { font-weight: 600; text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
+
+    /* Телефон: итог всегда виден внизу экрана */
+    .mbar {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 12px 20px calc(12px + env(safe-area-inset-bottom)); background: var(--navy-900); color: #9fb0cf;
+      box-shadow: 0 -8px 24px rgba(6, 26, 58, 0.18); font-size: 13px;
+    }
+    .mbar strong { display: block; color: #fff; font-size: 22px; line-height: 1.1; font-weight: 750; font-variant-numeric: tabular-nums; }
+    .mbar a { flex: none; padding: 11px 16px; border-radius: 999px; background: var(--gold); color: var(--navy-900); font-weight: 750; font-size: 14px; text-decoration: none; }
+    body { padding-bottom: 76px; }
+    .mbar[hidden] { display: none; }
+
+    @media (min-width: 640px) {
+      .pair { grid-template-columns: 1fr 1fr; }
+      .panel { padding: 30px; }
+    }
+    @media (min-width: 960px) {
+      .head { padding: 56px 0 32px; }
+      .layout { grid-template-columns: 1fr 380px; gap: 24px; }
+      .side { position: sticky; top: 88px; }
+      .mbar { display: none; }
+      body { padding-bottom: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  </style>
+</head>
+<body>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.2 4.2L19 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </svg>
+
+  <header class="header">
+    <div class="wrap">
+      <a class="logo" href="/" aria-label="TapReview — на главную">
+        <span class="logo-mark">TR<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 5.2a4 4 0 0 1 4 4M2 1.6a7.6 7.6 0 0 1 7.6 7.6" fill="none" stroke="#e5aa0c" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+        TapReview
+      </a>
+      <a class="back" href="/">← На главную</a>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="head">
+      <p class="kicker">Заказ</p>
+      <h1>Рассчитать и заказать</h1>
+      <p>Выберите тариф и количество карт — цена посчитается сразу. Отправьте расчёт нам, и мы свяжемся с вами, чтобы всё подтвердить. Оплата — только после этого.</p>
+    </div>
+
+    <noscript>
+      <div class="panel" style="margin-bottom:16px">Калькулятору нужен JavaScript. Можно просто написать нам в Telegram — <a href="https://t.me/tapreview_ru">@tapreview_ru</a>.</div>
+    </noscript>
+
+    <div class="layout">
+      <div>
+        <form id="order-form" novalidate>
+          <section class="panel" aria-labelledby="calc-title">
+            <h2 id="calc-title">Расчёт</h2>
+            <p class="panel-sub">Подписка оплачивается за каждое заведение, подключение — за каждую карту.</p>
+
+            <div class="seg" role="radiogroup" aria-label="Тариф">
+              <input type="radio" name="plan" id="plan-month" value="month" checked>
+              <label for="plan-month"><b>Месяц</b><span>200 ₽ в месяц</span></label>
+              <input type="radio" name="plan" id="plan-year" value="year">
+              <label for="plan-year"><b>Год <span class="save">−2 мес</span></b><span>2 000 ₽ в год</span></label>
+            </div>
+
+            <div class="counter">
+              <div class="counter-text"><b id="venues-label">Заведений</b><span>Точек, где будут стоять карты</span></div>
+              <div class="stepper">
+                <button type="button" data-step="venues" data-dir="-1" aria-label="Меньше заведений">−</button>
+                <input id="venues" name="venues" type="number" inputmode="numeric" min="1" max="50" value="1" aria-labelledby="venues-label">
+                <button type="button" data-step="venues" data-dir="1" aria-label="Больше заведений">+</button>
+              </div>
+            </div>
+
+            <div class="counter">
+              <div class="counter-text"><b id="cards-label">Карт</b><span>Обычно 1–3 на заведение: касса, столики, ресепшен</span></div>
+              <div class="stepper">
+                <button type="button" data-step="cards" data-dir="-1" aria-label="Меньше карт">−</button>
+                <input id="cards" name="cards" type="number" inputmode="numeric" min="1" max="500" value="1" aria-labelledby="cards-label">
+                <button type="button" data-step="cards" data-dir="1" aria-label="Больше карт">+</button>
+              </div>
+            </div>
+            <p class="hint" id="network-hint" hidden>Для сетей от 3 точек можем предложить индивидуальные условия — обсудим после заявки.</p>
+          </section>
+
+          <!-- Пока форма выключена (FORM_ENABLED = false в скрипте ниже): расчёт отправляют в Telegram -->
+          <section class="panel" id="tg-panel" aria-labelledby="tg-title" hidden>
+            <h2 id="tg-title">Отправьте расчёт нам</h2>
+            <p class="panel-sub">Нажмите кнопку — расчёт скопируется, и откроется наш Telegram. Вставьте его в сообщение и добавьте название заведения.</p>
+            <pre class="calc-text" id="calc-text"></pre>
+            <a class="btn submit" id="tg-send" href="https://t.me/tapreview_ru" target="_blank" rel="noopener">Скопировать расчёт и открыть Telegram</a>
+            <p class="alt" id="tg-copied" hidden>Расчёт скопирован — вставьте его в чат.</p>
+            <p class="alt">Telegram: <a href="https://t.me/tapreview_ru" target="_blank" rel="noopener">@tapreview_ru</a></p>
+          </section>
+
+          <section class="panel" id="contacts-panel" aria-labelledby="contact-title">
+            <h2 id="contact-title">Контакты</h2>
+            <p class="panel-sub">Чтобы мы могли связаться и подтвердить заказ.</p>
+
+            <div class="fields">
+              <label class="field"><span>Ваше имя</span><input name="name" autocomplete="name" maxlength="80" required></label>
+              <div class="pair">
+                <label class="field"><span>Телефон</span><input name="phone" type="tel" autocomplete="tel" maxlength="30" placeholder="+7 900 000-00-00"></label>
+                <label class="field"><span>Telegram <i>(если удобнее)</i></span><input name="telegram" autocomplete="off" maxlength="60" placeholder="@username"></label>
+              </div>
+              <p class="contact-note">Достаточно телефона или Telegram.</p>
+              <div class="pair">
+                <label class="field"><span>Название заведения</span><input name="business_name" autocomplete="organization" maxlength="120" required></label>
+                <label class="field"><span>Город <i>(необязательно)</i></span><input name="city" autocomplete="address-level2" maxlength="80"></label>
+              </div>
+              <label class="field"><span>Комментарий <i>(необязательно)</i></span><textarea name="comment" maxlength="1000" placeholder="Например: нужны карты на 5 столиков и кассу"></textarea></label>
+              <label class="trap" aria-hidden="true">Сайт <input name="website" tabindex="-1" autocomplete="off"></label>
+            </div>
+
+            <label class="consent">
+              <input type="checkbox" name="consent" id="consent">
+              <span>Я даю <a href="/consent/" target="_blank">согласие на обработку персональных данных</a> и ознакомлен(а)
+                с <a href="/privacy/" target="_blank">политикой обработки персональных данных</a>.</span>
+            </label>
+
+            <p class="error" id="form-error" role="alert" hidden></p>
+            <button class="btn submit" id="submit" type="submit">Отправить заявку</button>
+            <p class="alt">Не хотите заполнять форму? Напишите в Telegram <a href="https://t.me/tapreview_ru" target="_blank" rel="noopener">@tapreview_ru</a></p>
+          </section>
+        </form>
+
+        <section class="panel done" id="done" hidden tabindex="-1">
+          <div class="done-icon"><svg aria-hidden="true"><use href="#i-check"/></svg></div>
+          <h2 id="done-title">Заявка отправлена!</h2>
+          <p>Мы свяжемся с вами в ближайшее время, чтобы уточнить детали. Оплата — только после подтверждения заказа.</p>
+          <a class="btn btn-light" href="/">Вернуться на главную</a>
+        </section>
+      </div>
+
+      <aside class="side">
+        <section class="panel summary" id="summary" aria-labelledby="sum-title" aria-live="polite">
+          <h2 id="sum-title">Итого</h2>
+          <ul class="sum-rows">
+            <li><span>Подключение<small id="s-conn-note">1 карта × 100 ₽</small></span><span id="s-conn">100 ₽</span></li>
+            <li><span>Подписка<small id="s-sub-note">1 заведение × 200 ₽ в месяц</small></span><span id="s-sub">200 ₽</span></li>
+          </ul>
+          <div class="total"><span>При заказе</span><strong id="s-total">300 ₽</strong></div>
+          <p class="next">Дальше — <b id="s-next">200 ₽ в месяц</b></p>
+          <ul class="sum-notes">
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg>Оплата после подтверждения заказа</li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg>Без автосписаний — продлеваете сами</li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg>Ссылки меняем без перепечатки карт</li>
+          </ul>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <div class="mbar" id="mbar" aria-hidden="true">
+    <div>При заказе<strong id="m-total">300 ₽</strong><span id="m-next">дальше 200 ₽ в месяц</span></div>
+    <a href="#summary">Подробнее</a>
+  </div>
+
+  <footer class="footer">
+    <div class="wrap">
+      <span>© 2026 TapReview</span>
+      <nav aria-label="Документы" id="legal-links">
+        <a href="/privacy/">Политика обработки персональных данных</a>
+        <a href="/consent/">Согласие на обработку данных</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      // Форма заявки включается, когда готовы политика и согласие (privacy/, consent/) — тогда true,
+      // и в src/orders.js тоже ORDERS_OPEN = true. Пока false: расчёт отправляют в Telegram.
+      var FORM_ENABLED = false;
+      // Цены — те же, что на главной и в src/orders.js (сервер пересчитывает итог сам)
+      var PRICES = { card: 100, month: 200, year: 2000 };
+      var form = document.getElementById("order-form");
+      var venuesInput = document.getElementById("venues");
+      var cardsInput = document.getElementById("cards");
+      var startedAt = Date.now();
+
+      function rub(n) { return n.toLocaleString("ru-RU") + " ₽"; }
+      function plural(n, one, few, many) {
+        var n10 = n % 10, n100 = n % 100;
+        if (n10 === 1 && n100 !== 11) return one;
+        if (n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14)) return few;
+        return many;
+      }
+      function clamp(value, min, max) {
+        value = parseInt(value, 10);
+        if (isNaN(value)) value = min;
+        return Math.min(max, Math.max(min, value));
+      }
+      function plan() { return form.plan.value === "year" ? "year" : "month"; }
+
+      function update() {
+        var venues = clamp(venuesInput.value, 1, 50);
+        var cards = clamp(cardsInput.value, venues, 500);
+        venuesInput.value = venues;
+        cardsInput.value = cards;
+        var p = plan();
+        var conn = cards * PRICES.card;
+        var sub = venues * PRICES[p];
+        var per = p === "year" ? "в год" : "в месяц";
+
+        document.getElementById("s-conn-note").textContent = cards + " " + plural(cards, "карта", "карты", "карт") + " × " + rub(PRICES.card);
+        document.getElementById("s-conn").textContent = rub(conn);
+        document.getElementById("s-sub-note").textContent = venues + " " + plural(venues, "заведение", "заведения", "заведений") + " × " + rub(PRICES[p]) + " " + per;
+        document.getElementById("s-sub").textContent = rub(sub);
+        document.getElementById("s-total").textContent = rub(conn + sub);
+        document.getElementById("s-next").textContent = rub(sub) + " " + per;
+        document.getElementById("m-total").textContent = rub(conn + sub);
+        document.getElementById("m-next").textContent = "дальше " + rub(sub) + " " + per;
+        document.getElementById("calc-text").textContent =
+          "Здравствуйте! Хочу заказать TapReview.\n" +
+          "Тариф: " + (p === "year" ? "Год" : "Месяц") + "\n" +
+          "Заведений: " + venues + ", карт: " + cards + "\n" +
+          "При заказе: " + rub(conn + sub) + " (подключение " + rub(conn) + " + подписка " + rub(sub) + ")\n" +
+          "Дальше: " + rub(sub) + " " + per + "\n" +
+          "Заведение: ";
+        document.getElementById("network-hint").hidden = venues < 3;
+
+        document.querySelector('[data-step="venues"][data-dir="-1"]').disabled = venues <= 1;
+        document.querySelector('[data-step="venues"][data-dir="1"]').disabled = venues >= 50;
+        document.querySelector('[data-step="cards"][data-dir="-1"]').disabled = cards <= venues;
+        document.querySelector('[data-step="cards"][data-dir="1"]').disabled = cards >= 500;
+      }
+
+      // Предвыбор с главной: ?plan=month | year | network
+      var q = new URLSearchParams(location.search).get("plan");
+      if (q === "year") document.getElementById("plan-year").checked = true;
+      if (q === "network") { document.getElementById("plan-year").checked = true; venuesInput.value = 3; cardsInput.value = 6; }
+
+      document.querySelectorAll("[data-step]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          var input = button.dataset.step === "venues" ? venuesInput : cardsInput;
+          var before = parseInt(venuesInput.value, 10) || 1;
+          input.value = (parseInt(input.value, 10) || 0) + Number(button.dataset.dir);
+          // Добавили заведение — добавим и карту, чтобы карт было не меньше заведений
+          if (input === venuesInput && Number(button.dataset.dir) > 0 && parseInt(cardsInput.value, 10) <= before) {
+            cardsInput.value = parseInt(cardsInput.value, 10) + 1;
+          }
+          update();
+        });
+      });
+      [venuesInput, cardsInput].forEach(function (input) { input.addEventListener("change", update); });
+      form.querySelectorAll('input[name="plan"]').forEach(function (r) { r.addEventListener("change", update); });
+      update();
+
+      // ---------- Пока без формы: расчёт → Telegram ----------
+      if (!FORM_ENABLED) {
+        document.getElementById("contacts-panel").hidden = true;
+        document.getElementById("legal-links").hidden = true;
+        document.getElementById("tg-panel").hidden = false;
+        document.getElementById("tg-send").addEventListener("click", function () {
+          // Копируем в момент нажатия, а Telegram открывает сама ссылка — так браузер её не блокирует
+          var text = document.getElementById("calc-text").textContent;
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(function () {
+              document.getElementById("tg-copied").hidden = false;
+            }, function () {});
+          }
+        });
+        form.addEventListener("submit", function (e) { e.preventDefault(); });
+        return;
+      }
+
+      // ---------- Отправка ----------
+      var errorBox = document.getElementById("form-error");
+      var submit = document.getElementById("submit");
+
+      function fail(message, field) {
+        errorBox.textContent = message;
+        errorBox.hidden = false;
+        if (field) { field.setAttribute("aria-invalid", "true"); field.focus(); }
+      }
+
+      form.addEventListener("input", function (e) {
+        if (e.target.getAttribute("aria-invalid")) e.target.removeAttribute("aria-invalid");
+      });
+
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        errorBox.hidden = true;
+        update();
+
+        var f = form.elements;
+        if (!f.name.value.trim()) return fail("Укажите, как к вам обращаться.", f.name);
+        if (!f.phone.value.trim() && !f.telegram.value.trim()) return fail("Укажите телефон или Telegram.", f.phone);
+        if (f.phone.value.trim() && f.phone.value.replace(/\D/g, "").length < 10) return fail("Проверьте номер телефона.", f.phone);
+        if (!f.business_name.value.trim()) return fail("Укажите название заведения.", f.business_name);
+        if (!f.consent.checked) return fail("Чтобы отправить заявку, отметьте согласие на обработку персональных данных.", f.consent);
+
+        var payload = {
+          plan: plan(),
+          venues: parseInt(venuesInput.value, 10),
+          cards: parseInt(cardsInput.value, 10),
+          name: f.name.value,
+          phone: f.phone.value,
+          telegram: f.telegram.value,
+          business_name: f.business_name.value,
+          city: f.city.value,
+          comment: f.comment.value,
+          consent: true,
+          website: f.website.value,
+          elapsed: Date.now() - startedAt
+        };
+
+        submit.disabled = true;
+        submit.textContent = "Отправляем…";
+        fetch("/api/order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        })
+          .then(function (response) {
+            return response.json().catch(function () { return {}; }).then(function (data) {
+              if (!response.ok) throw new Error(data.error || "Не удалось отправить заявку.");
+              return data;
+            });
+          })
+          .then(function (data) {
+            form.hidden = true;
+            document.getElementById("mbar").hidden = true;
+            var done = document.getElementById("done");
+            if (data.id) document.getElementById("done-title").textContent = "Заявка №" + data.id + " отправлена!";
+            done.hidden = false;
+            done.focus();
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          })
+          .catch(function (error) {
+            fail((error && error.message) || "Не удалось отправить заявку. Попробуйте ещё раз или напишите нам в Telegram.");
+            submit.disabled = false;
+            submit.textContent = "Отправить заявку";
+          });
+      });
+    })();
+  </script>
+</body>
+</html>

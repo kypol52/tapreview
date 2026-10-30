@@ -413,6 +413,49 @@ input[type="color"]:disabled { opacity: 0.4; }
 
 .badge-free { background: #fef3c7; color: #92400e; }
 
+/* ---------- Заявки ---------- */
+
+.tab-badge {
+  display: inline-block;
+  min-width: 20px;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+.o-tg { background: var(--surface); }
+.o-tg .tg-subs { margin: 6px 0 10px; }
+.o-tg-actions { margin-top: 6px; }
+.o-tg .link-row { margin-top: 10px; }
+.o-list { display: grid; gap: 10px; }
+.o-card {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 14px;
+}
+.o-card.o-new { border-left-color: #dc2626; }
+.o-card.o-in_work { border-left-color: #d97706; }
+.o-card.o-done { border-left-color: #16a34a; }
+.o-card.o-rejected { opacity: 0.7; }
+.o-head { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.o-title { font-weight: 700; overflow-wrap: anywhere; }
+.o-date { flex: none; color: var(--muted); font-size: 13px; }
+.o-contacts { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-bottom: 6px; }
+.o-contacts a { font-weight: 600; }
+.o-sum { color: var(--muted); }
+.o-comment { margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--bg); white-space: pre-wrap; overflow-wrap: anywhere; }
+.o-warn { margin-top: 8px; color: #92400e; font-size: 13px; font-weight: 600; }
+.o-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.o-status { font-size: 13px; padding: 5px 8px; }
+
 /* ---------- Подписка ---------- */
 
 .billing {

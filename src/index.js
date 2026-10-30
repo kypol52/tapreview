@@ -3,6 +3,7 @@
 //   /c/:code             — шаблонная карта: страница привязанного бизнеса или «не активирована»
 //   /g/:slug           — страница группы: список заведений, ведёт на их /b/:slug (public-page.js)
 //   /go/:slug/:platform — учёт клика и переход на Google / Яндекс / 2ГИС (public-page.js)
+//   /api/order           — заявка с сайта: калькулятор и форма на /order/ (orders.js)
 //   /api/...             — API админ-панели (admin-api.js)
 //   /tg/webhook          — сообщения Telegram-боту для владельцев (telegram.js)
 //   /s/:token            — статистика для владельца по личной ссылке (stats-page.js)
@@ -12,6 +13,7 @@ import { handleBusinessPage, handleCardPage, handleGroupPage, handleGo } from ".
 import { handleApi } from "./admin-api.js";
 import { handleTelegramWebhook, weeklyReports } from "./telegram.js";
 import { handleStatsPage } from "./stats-page.js";
+import { handleOrder } from "./orders.js";
 import { db } from "./supabase.js";
 
 // Должно совпадать с расписанием в wrangler.jsonc ("crons")
@@ -40,6 +42,10 @@ export default {
     const goMatch = url.pathname.match(/^\/go\/([^/]+)\/([a-z0-9]+)\/?$/);
     if (goMatch && isRead) {
       return handleGo(request, env, ctx, goMatch[1], goMatch[2]);
+    }
+
+    if (url.pathname === "/api/order") {
+      return handleOrder(request, env, ctx);
     }
 
     if (url.pathname.startsWith("/api/")) {

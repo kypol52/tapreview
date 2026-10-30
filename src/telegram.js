@@ -99,6 +99,7 @@ async function onMessage(env, message) {
     const name = command[1].toLowerCase();
     const arg = command[2] || "";
     if (name === "start") return arg ? connectChat(env, chat, arg) : greet(env, chat);
+    if (name === "orders_off") return disconnectOrders(env, chat);
     if (name === "today" || name === "week" || name === "month") return sendReports(env, chat, name);
     if (name === "stats") return sendReports(env, chat, "week");
     if (name === "report_off" || name === "report_on") return setWeekly(env, chat, name === "report_on");
@@ -170,9 +171,28 @@ async function connectChat(env, chat, code) {
   const bad = () =>
     send(env, chat.id, "⚠️ Ссылка недействительна: она уже использована или устарела. Попросите новую ссылку.");
   if (!INVITE_RE.test(code)) return bad();
+  const nowIso = new Date().toISOString();
+
+  // Ссылка из админ-панели «Получать заявки в Telegram» — для владельца TapReview, не для заведений
+  const orderInvite = await db(
+    env,
+    `order_invites?code=eq.${code}&used_at=is.null&expires_at=gt.${encodeURIComponent(nowIso)}&select=code`,
+    { method: "PATCH", body: { used_at: nowIso }, prefer: "return=representation" }
+  );
+  if (orderInvite.length) {
+    await db(env, "order_recipients?on_conflict=chat_id", {
+      method: "POST",
+      body: { chat_id: chat.id, chat_title: chatTitle(chat) },
+      prefer: "resolution=merge-duplicates,return=minimal"
+    });
+    return send(
+      env,
+      chat.id,
+      "✅ Готово! Сюда будут приходить заявки с сайта tapreview.ru.\n\nОтключить — команда /orders_off"
+    );
+  }
 
   // Отмечаем ссылку использованной; условие used_at=is.null не даст использовать её дважды
-  const nowIso = new Date().toISOString();
   const used = await db(
     env,
     `tg_invites?code=eq.${code}&used_at=is.null&expires_at=gt.${encodeURIComponent(nowIso)}&select=business_id`,
@@ -211,6 +231,18 @@ async function disconnectChat(env, chat) {
   return send(env, chat.id, "Бот отключён, статистика больше не будет приходить. Подключиться снова можно по новой ссылке.", {
     reply_markup: { remove_keyboard: true }
   });
+}
+
+async function disconnectOrders(env, chat) {
+  const rows = await db(env, `order_recipients?chat_id=eq.${chat.id}&select=chat_id`, {
+    method: "DELETE",
+    prefer: "return=representation"
+  });
+  return send(
+    env,
+    chat.id,
+    rows.length ? "Заявки с сайта больше не будут приходить в этот чат." : "Этот чат и так не получает заявки."
+  );
 }
 
 async function setWeekly(env, chat, enabled) {

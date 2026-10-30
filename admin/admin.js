@@ -28,6 +28,8 @@ const state = {
   cardStats: {}, // id карты → { page_views, clicks } за 30 дней
   cardFilter: "all",
   billingFilter: "all", // фильтр списка бизнесов по подписке
+  orders: [],
+  orderFilter: "open",
   editingCard: null,
   pendingCardCode: null, // карта, которую нужно открыть после загрузки (?card=КОД)
   tg: null // состояние Telegram-бота (загружается один раз)
@@ -119,6 +121,20 @@ function bindEvents() {
     const g = state.editingGroup;
     if (g) downloadQrSvg(groupSourceUrl(g, "qr"), `tapreview-qr-group-${g.slug}`);
   });
+
+  // Заявки
+  $("tab-orders").addEventListener("click", () => showTab("orders"));
+  $("o-refresh").addEventListener("click", loadOrders);
+  $("o-tg-invite").addEventListener("click", onOrderTgInvite);
+  for (const chip of document.querySelectorAll("#orders-section .chip")) {
+    chip.addEventListener("click", () => {
+      state.orderFilter = chip.dataset.ostatus;
+      for (const other of document.querySelectorAll("#orders-section .chip")) {
+        other.classList.toggle("active", other === chip);
+      }
+      renderOrders();
+    });
+  }
 
   // Карты
   $("tab-cards").addEventListener("click", () => showTab("cards"));
@@ -347,9 +363,187 @@ function showApp() {
 
   showTab(state.pendingCardCode ? "cards" : "businesses");
   loadBusinesses();
+  // Счётчик новых заявок на вкладке; если API заявок ещё не обновлён — просто молчим
+  api("/api/admin/orders")
+    .then((rows) => {
+      state.orders = rows;
+      renderOrdersBadge();
+    })
+    .catch(() => {});
 }
 
-const TABS = ["businesses", "groups", "cards"];
+// ================= Заявки с сайта =================
+
+const ORDER_STATUS_LABELS = { new: "Новая", in_work: "В работе", done: "Готово", rejected: "Отказ" };
+
+async function loadOrders() {
+  $("o-loading").hidden = false;
+  hideError("o-error");
+  loadOrderRecipients();
+  try {
+    state.orders = await api("/api/admin/orders");
+    renderOrders();
+  } catch (error) {
+    showError("o-error", error.message);
+  } finally {
+    $("o-loading").hidden = true;
+  }
+}
+
+function renderOrdersBadge() {
+  const fresh = state.orders.filter((o) => o.status === "new").length;
+  $("orders-badge").textContent = String(fresh);
+  $("orders-badge").hidden = fresh === 0;
+}
+
+function renderOrders() {
+  renderOrdersBadge();
+  const items = state.orders.filter(
+    (o) => state.orderFilter === "all" || o.status === "new" || o.status === "in_work"
+  );
+  $("o-count").textContent = state.orders.length
+    ? `Всего: ${state.orders.length}, новых: ${state.orders.filter((o) => o.status === "new").length}`
+    : "Заявки со страницы tapreview.ru/order/ — калькулятор и форма.";
+  $("o-list").replaceChildren(...items.map(renderOrder));
+  $("o-empty").hidden = items.length !== 0;
+  $("o-empty").textContent = state.orders.length ? "Нет заявок с таким статусом." : "Заявок пока нет.";
+}
+
+function renderOrder(order) {
+  const card = el("article", `o-card o-${order.status}`);
+  const rub = (n) => `${Number(n).toLocaleString("ru-RU")} ₽`;
+
+  const head = el("div", "o-head");
+  const title = el("div", "o-title", `№${order.id} · ${order.business_name}${order.city ? `, ${order.city}` : ""}`);
+  const date = el(
+    "span",
+    "o-date",
+    new Date(order.created_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+  );
+  head.append(title, date);
+
+  const contacts = el("div", "o-contacts");
+  contacts.append(el("b", "", order.name));
+  if (order.phone) {
+    const a = el("a", "", order.phone);
+    a.href = `tel:${order.phone}`;
+    contacts.append(a);
+  }
+  if (order.telegram) {
+    const a = el("a", "", `@${order.telegram}`);
+    a.href = `https://t.me/${order.telegram}`;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    contacts.append(a);
+  }
+
+  const per = order.plan === "year" ? "в год" : "в месяц";
+  const sum = el(
+    "div",
+    "o-sum",
+    `Карт: ${order.cards} · заведений: ${order.venues} · тариф «${order.plan === "year" ? "Год" : "Месяц"}» · ` +
+      `при заказе ${rub(order.total_now)}, дальше ${rub(order.total_next)} ${per}`
+  );
+
+  card.append(head, contacts, sum);
+  if (order.comment) card.append(el("p", "o-comment", order.comment));
+  if (!order.tg_delivered) card.append(el("div", "o-warn", "Не доставлена в Telegram — подключите уведомления выше"));
+
+  const actions = el("div", "o-actions");
+  const select = el("select", "o-status");
+  for (const [value, label] of Object.entries(ORDER_STATUS_LABELS)) {
+    const option = el("option", "", label);
+    option.value = value;
+    option.selected = order.status === value;
+    select.append(option);
+  }
+  select.addEventListener("change", () => onOrderStatus(order, select));
+  const remove = el("button", "btn btn-danger btn-small", "Удалить");
+  remove.type = "button";
+  remove.addEventListener("click", () => onOrderDelete(order, remove));
+  actions.append(select, remove);
+  card.append(actions);
+  return card;
+}
+
+async function onOrderStatus(order, select) {
+  hideError("o-error");
+  select.disabled = true;
+  try {
+    const saved = await api(`/api/admin/orders/${order.id}`, { method: "PATCH", body: { status: select.value } });
+    Object.assign(order, saved);
+    renderOrders();
+  } catch (error) {
+    showError("o-error", error.message);
+    select.value = order.status;
+    select.disabled = false;
+  }
+}
+
+async function onOrderDelete(order, button) {
+  if (!confirm(`Удалить заявку №${order.id}? Данные человека будут удалены без возможности восстановления.`)) return;
+  hideError("o-error");
+  button.disabled = true;
+  try {
+    await api(`/api/admin/orders/${order.id}`, { method: "DELETE" });
+    state.orders = state.orders.filter((o) => o.id !== order.id);
+    renderOrders();
+  } catch (error) {
+    showError("o-error", error.message);
+    button.disabled = false;
+  }
+}
+
+async function loadOrderRecipients() {
+  hideError("o-tg-error");
+  try {
+    const rows = await api("/api/admin/order-recipients");
+    $("o-tg-status").textContent = rows.length
+      ? "Новые заявки приходят в эти чаты:"
+      : "Telegram не подключён — заявки видны только здесь. Нажмите кнопку ниже, чтобы получать их в Telegram.";
+    $("o-tg-list").replaceChildren(
+      ...rows.map((row) => {
+        const li = document.createElement("li");
+        const off = el("button", "btn btn-ghost btn-small", "Отключить");
+        off.type = "button";
+        off.addEventListener("click", async () => {
+          if (!confirm("Перестать присылать заявки в этот чат?")) return;
+          off.disabled = true;
+          try {
+            await api(`/api/admin/order-recipients/${row.chat_id}`, { method: "DELETE" });
+            loadOrderRecipients();
+          } catch (error) {
+            showError("o-tg-error", error.message);
+            off.disabled = false;
+          }
+        });
+        li.append(el("span", "tg-sub-name", row.chat_title || String(row.chat_id)), off);
+        return li;
+      })
+    );
+  } catch (error) {
+    $("o-tg-status").textContent = "";
+    showError("o-tg-error", error.message);
+  }
+}
+
+async function onOrderTgInvite() {
+  hideError("o-tg-error");
+  $("o-tg-invite").disabled = true;
+  try {
+    const data = await api("/api/admin/order-recipients/invite", { method: "POST", body: {} });
+    $("o-tg-link").value = data.link;
+    $("o-tg-open").href = data.link;
+    $("o-tg-link-box").hidden = false;
+    $("o-tg-hint").hidden = false;
+  } catch (error) {
+    showError("o-tg-error", error.message);
+  } finally {
+    $("o-tg-invite").disabled = false;
+  }
+}
+
+const TABS = ["businesses", "groups", "cards", "orders"];
 
 function showTab(name) {
   for (const tab of TABS) {
@@ -358,6 +552,7 @@ function showTab(name) {
   }
   if (name === "groups" && !state.groupsLoaded) loadGroups();
   if (name === "cards" && !state.cardsLoaded) loadCards();
+  if (name === "orders") loadOrders();
 }
 
 // ================= Список бизнесов =================

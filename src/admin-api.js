@@ -20,6 +20,12 @@
 //   POST   /api/admin/businesses/:id/telegram-invite — одноразовая ссылка для владельца
 //   GET    /api/admin/businesses/:id/telegram        — чаты, подключённые к бизнесу
 //   DELETE /api/admin/telegram/subscribers/:id       — отключить чат
+//   GET    /api/admin/orders                         — заявки с сайта (/order/)
+//   PATCH  /api/admin/orders/:id                     — сменить статус { status }
+//   DELETE /api/admin/orders/:id                     — удалить заявку (и персональные данные в ней)
+//   GET    /api/admin/order-recipients               — чаты, куда приходят заявки
+//   POST   /api/admin/order-recipients/invite        — ссылка «получать заявки в Telegram»
+//   DELETE /api/admin/order-recipients/:chat_id      — перестать присылать заявки в чат
 //   GET    /api/admin/businesses/:id/stats-links     — ссылки на страницу статистики (/s/...)
 //   POST   /api/admin/businesses/:id/stats-links     — создать ссылку
 //   PATCH  /api/admin/stats-links/:token             — какие заведения показывает ссылка { business_ids }
@@ -145,6 +151,25 @@ export async function handleApi(request, env, url) {
       const tgSubMatch = path.match(/^\/api\/admin\/telegram\/subscribers\/(\d{1,18})$/);
       if (tgSubMatch && method === "DELETE") {
         return await deleteTelegramSubscriber(env, tgSubMatch[1]);
+      }
+
+      if (path === "/api/admin/orders" && method === "GET") {
+        return await listOrders(env);
+      }
+      const orderMatch = path.match(/^\/api\/admin\/orders\/(\d{1,18})$/);
+      if (orderMatch) {
+        if (method === "PATCH") return await updateOrder(request, env, orderMatch[1]);
+        if (method === "DELETE") return await deleteOrder(env, orderMatch[1]);
+      }
+      if (path === "/api/admin/order-recipients" && method === "GET") {
+        return json(await db(env, "order_recipients?select=chat_id,chat_title,created_at&order=created_at.asc"));
+      }
+      if (path === "/api/admin/order-recipients/invite" && method === "POST") {
+        return await createOrderInvite(env);
+      }
+      const recipientMatch = path.match(/^\/api\/admin\/order-recipients\/(-?\d{1,18})$/);
+      if (recipientMatch && method === "DELETE") {
+        return await deleteOrderRecipient(env, recipientMatch[1]);
       }
 
       const statsLinksMatch = path.match(/^\/api\/admin\/businesses\/(\d{1,18})\/stats-links$/);
@@ -662,6 +687,56 @@ async function deleteTelegramSubscriber(env, id) {
   if (!rows.length) {
     throw new HttpError(404, "Чат не найден");
   }
+  return json({ deleted: true });
+}
+
+// ---------- Заявки с сайта (/order/) ----------
+
+const ORDER_STATUSES = ["new", "in_work", "done", "rejected"];
+
+async function listOrders(env) {
+  const rows = await db(env, "orders?select=*&order=created_at.desc&limit=300");
+  return json(rows);
+}
+
+async function updateOrder(request, env, id) {
+  const data = await readJson(request);
+  if (!ORDER_STATUSES.includes(data.status)) {
+    throw new HttpError(400, "Неизвестный статус");
+  }
+  const rows = await db(env, `orders?id=eq.${id}&select=*`, {
+    method: "PATCH",
+    body: { status: data.status },
+    prefer: "return=representation"
+  });
+  if (!rows.length) throw new HttpError(404, "Заявка не найдена");
+  return json(rows[0]);
+}
+
+// Удаление — по просьбе человека или когда данные больше не нужны (см. политику /privacy/)
+async function deleteOrder(env, id) {
+  const rows = await db(env, `orders?id=eq.${id}&select=id`, { method: "DELETE", prefer: "return=representation" });
+  if (!rows.length) throw new HttpError(404, "Заявка не найдена");
+  return json({ deleted: true });
+}
+
+async function createOrderInvite(env) {
+  const me = await tg(env, "getMe");
+  const code = randomString(SLUG_ALPHABET, TG_INVITE_LENGTH);
+  const rows = await db(env, "order_invites?select=code,expires_at", {
+    method: "POST",
+    body: { code },
+    prefer: "return=representation"
+  });
+  return json({ link: `https://t.me/${me.username}?start=${code}`, expires_at: rows[0].expires_at }, 201);
+}
+
+async function deleteOrderRecipient(env, chatId) {
+  const rows = await db(env, `order_recipients?chat_id=eq.${chatId}&select=chat_id`, {
+    method: "DELETE",
+    prefer: "return=representation"
+  });
+  if (!rows.length) throw new HttpError(404, "Чат не найден");
   return json({ deleted: true });
 }
 

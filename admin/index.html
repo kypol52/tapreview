@@ -48,6 +48,7 @@
         <button id="tab-businesses" class="tab active" type="button">Бизнесы</button>
         <button id="tab-groups" class="tab" type="button">Группы заведений</button>
         <button id="tab-cards" class="tab" type="button">Карты</button>
+        <button id="tab-orders" class="tab" type="button">Заявки <span id="orders-badge" class="tab-badge" hidden></span></button>
       </nav>
 
       <section id="businesses-section">
@@ -168,6 +169,50 @@
 
         <p id="c-empty" class="empty" hidden>Пока нет ни одной карты. Нажмите «+ Выпустить карты».</p>
         <p id="c-nothing" class="empty" hidden>Ничего не найдено.</p>
+      </section>
+
+      <!-- Заявки с сайта (tapreview.ru/order/) -->
+      <section id="orders-section" hidden>
+        <div class="page-head">
+          <div>
+            <h1>Заявки</h1>
+            <p id="o-count" class="muted">Заявки со страницы tapreview.ru/order/ — калькулятор и форма.</p>
+          </div>
+          <div class="head-buttons">
+            <button id="o-refresh" class="btn btn-secondary" type="button">Обновить</button>
+          </div>
+        </div>
+
+        <div class="stats-box o-tg">
+          <div class="link-label">Уведомления в Telegram</div>
+          <p id="o-tg-status" class="muted">Загрузка…</p>
+          <ul id="o-tg-list" class="tg-subs"></ul>
+          <div class="o-tg-actions">
+            <button id="o-tg-invite" class="btn btn-secondary btn-small" type="button">Получать заявки в Telegram</button>
+          </div>
+          <div id="o-tg-link-box" class="link-row" hidden>
+            <input id="o-tg-link" type="text" readonly>
+            <a id="o-tg-open" class="btn btn-primary" target="_blank" rel="noopener noreferrer">Открыть в Telegram</a>
+          </div>
+          <p id="o-tg-hint" class="muted qr-text" hidden>Откройте ссылку на телефоне или компьютере, где у вас Telegram, и нажмите «Запустить». Ссылка одноразовая и действует сутки.</p>
+          <p id="o-tg-error" class="error" hidden></p>
+        </div>
+
+        <div class="toolbar">
+          <div class="filters" role="group" aria-label="Статус заявок">
+            <button class="chip active" type="button" data-ostatus="open">Новые и в работе</button>
+            <button class="chip" type="button" data-ostatus="all">Все</button>
+          </div>
+        </div>
+
+        <p id="o-error" class="error" hidden></p>
+        <p id="o-loading" class="muted" hidden>Загрузка…</p>
+        <div id="o-list" class="o-list"></div>
+        <p id="o-empty" class="empty" hidden>Заявок пока нет.</p>
+        <p class="muted stats-note">
+          Это персональные данные. Удаляйте заявку, если человек попросил удалить данные или договор не заключён
+          и прошло 12 месяцев (так написано в политике /privacy/).
+        </p>
       </section>
     </main>
   </div>
