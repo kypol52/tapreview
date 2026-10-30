@@ -438,6 +438,20 @@
             <input id="f-bonus-conditions" type="text" maxlength="200" placeholder="При заказе от 500 ₽, один код на чек">
           </label>
           <p id="f-bonus-stats" class="billing-status"></p>
+
+          <div id="staff-box" class="staff-box" hidden>
+            <div class="link-label">Ссылка для персонала (касса)</div>
+            <p class="muted qr-text">
+              Официант или кассир по этой ссылке может только проверить и погасить код подарка этого заведения —
+              без статистики, настроек и админ-панели. Сделайте отдельную ссылку на смену или сотрудника; если человек ушёл — отключите её.
+            </p>
+            <div class="staff-new">
+              <input id="staff-label" type="text" maxlength="60" placeholder="Подпись, например «Касса» или «Анна»">
+              <button id="staff-create" class="btn btn-secondary" type="button">Создать ссылку</button>
+            </div>
+            <p id="staff-error" class="error" hidden></p>
+            <ul id="staff-list" class="tg-subs sl-list"></ul>
+          </div>
         </div>
         <p class="muted field-hint">
           Кнопка подарка появляется через несколько секунд после скана карты (NFC или QR), ниже кнопок отзывов.

@@ -116,11 +116,15 @@ export async function handleBonus(request, env) {
     const existing = await db(
       env,
       `bonus_codes?business_id=eq.${business.id}&visitor_key=eq.${visitorKey}` +
-        `&created_at=gt.${encodeURIComponent(since)}&select=code,prize,conditions,valid_from,valid_until,redeemed_at` +
+        `&created_at=gt.${encodeURIComponent(since)}&select=code,prize,conditions,valid_from,valid_until,redeemed_at,created_at` +
         `&order=created_at.desc&limit=1`
     );
     if (existing.length) {
-      return withCookie(resultPage(business, existing[0], { repeat: true, backUrl }), setCookie);
+      // Для колеса показываем его уже остановленным на выпавшем призе — так понятно, что розыгрыш был
+      const prizes = prizesOf(business);
+      const index = business.bonus_mode === "wheel" ? prizes.findIndex((p) => p.label === existing[0].prize) : -1;
+      const wheel = index >= 0 ? { prizes, index } : null;
+      return withCookie(resultPage(business, existing[0], { repeat: true, backUrl, wheel }), setCookie);
     }
 
     const prizes = prizesOf(business);
@@ -193,21 +197,22 @@ const WHEEL_COLORS = [
   { bg: "#ffffff", fg: "#0a2a5c" }
 ];
 
-function wheelHtml(prizes, index) {
+// still = колесо уже остановлено на призе (повторный заход — без нового розыгрыша)
+function wheelHtml(prizes, index, still = false) {
   const n = prizes.length;
   const seg = 360 / n;
   const colors = prizes.map((_, i) => WHEEL_COLORS[(n % 4 === 1 && i === n - 1) ? 1 : i % 4]);
   const gradient = colors.map((c, i) => `${c.bg} ${i * seg}deg ${(i + 1) * seg}deg`).join(", ");
   // Указатель сверху: сектор index должен остановиться под ним
-  const jitter = (crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32 - 0.5) * seg * 0.6;
-  const end = 360 * 6 - (index * seg + seg / 2) + jitter;
+  const jitter = still ? 0 : (crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32 - 0.5) * seg * 0.6;
+  const end = (still ? 360 : 360 * 6) - (index * seg + seg / 2) + jitter;
   const labels = prizes
     .map((p, i) => `<span class="w-label" style="transform: rotate(${(i * seg + seg / 2).toFixed(2)}deg) translateY(-84px); color: ${colors[i].fg}">${escapeHtml(p.label)}</span>`)
     .join("");
   return `
     <div class="wheel-wrap" aria-hidden="true">
       <div class="w-pointer"></div>
-      <div class="wheel" style="--end: ${end.toFixed(2)}deg; background: conic-gradient(${gradient});">${labels}</div>
+      <div class="wheel${still ? " wheel-still" : ""}" style="--end: ${end.toFixed(2)}deg; background: conic-gradient(${gradient});">${labels}</div>
       <div class="w-hub">TR</div>
     </div>`;
 }
@@ -231,8 +236,13 @@ function resultPage(business, c, { repeat, backUrl, wheel = null }) {
   const status = c.redeemed_at
     ? `<p class="br-warn">Этот код уже использован ${escapeHtml(dayLabel(Date.parse(c.redeemed_at)))}. Новый подарок можно будет получить позже.</p>`
     : "";
+  // Когда этот телефон сможет получить новый подарок (крутить колесо снова)
+  const nextAt = c.created_at ? Date.parse(c.created_at) + business.bonus_cooldown_days * DAY : null;
+  const next = repeat && nextAt
+    ? `<p class="br-next">${business.bonus_mode === "wheel" ? "Крутить колесо снова" : "Получить новый подарок"} можно с ${escapeHtml(dayLabel(nextAt))}</p>`
+    : "";
   const result = `
-    <div class="br ${wheel ? "br-after-spin" : "br-fade"}">
+    <div class="br ${wheel && !repeat ? "br-after-spin" : "br-fade"}">
       <p class="br-kicker">${repeat ? "Ваш подарок уже ждёт вас" : wheel ? "Ваш приз" : "Ваш подарок"}</p>
       <p class="br-prize">${escapeHtml(c.prize)}</p>
       <p class="br-code" aria-label="Код ${escapeHtml(c.code.split("").join(" "))}">${escapeHtml(formatCode(c.code))}</p>
@@ -240,6 +250,7 @@ function resultPage(business, c, { repeat, backUrl, wheel = null }) {
       ${c.conditions ? `<p class="br-cond">Условия: ${escapeHtml(c.conditions)}</p>` : ""}
       ${status}
       <p class="br-hint">Покажите код на кассе. Сделайте скриншот, чтобы не потерять.</p>
+      ${next}
     </div>`;
 
   return renderPage({
@@ -250,7 +261,7 @@ function resultPage(business, c, { repeat, backUrl, wheel = null }) {
     body: `
       <h1 class="name name-long">${escapeHtml(business.name)}</h1>
       <div class="divider"></div>
-      ${wheel && !repeat ? wheelHtml(wheel.prizes, wheel.index) : `<div class="br-gift" aria-hidden="true">${GIFT}</div>`}
+      ${wheel ? wheelHtml(wheel.prizes, wheel.index, repeat) : `<div class="br-gift" aria-hidden="true">${GIFT}</div>`}
       ${result}
       <p class="br-rules">Подарок не зависит от отзыва. Один подарок на устройство за ${business.bonus_cooldown_days} ${plural(business.bonus_cooldown_days, "день", "дня", "дней")}.</p>
       <a class="br-back" href="${escapeHtml(backUrl)}">← Вернуться к странице заведения</a>`
@@ -274,6 +285,8 @@ const BONUS_PAGE_CSS = `
     animation: w-spin 4.2s cubic-bezier(0.12, 0.7, 0.1, 1) 0.3s both;
   }
   @keyframes w-spin { from { transform: rotate(0deg); } to { transform: rotate(var(--end)); } }
+  .wheel-still { animation: none; transform: rotate(var(--end)); }
+  .br-next { margin: 8px 0 0; font-size: 13px; font-weight: 600; color: #0a2a5c; }
   .w-label {
     position: absolute; left: 50%; top: 50%; width: 92px; margin: -0.65em 0 0 -46px;
     transform-origin: 50% 50%; font-size: 11.5px; font-weight: 700; line-height: 1.15; text-align: center;
@@ -341,10 +354,11 @@ export async function findCode(env, code, businessIds) {
   return { row, state };
 }
 
-export async function redeemCode(env, id) {
+// by — кто погасил: «владелец» или «персонал: <подпись ссылки>» (видно в админке)
+export async function redeemCode(env, id, by = null) {
   const rows = await db(env, `bonus_codes?id=eq.${id}&redeemed_at=is.null&select=id,redeemed_at`, {
     method: "PATCH",
-    body: { redeemed_at: new Date().toISOString() },
+    body: { redeemed_at: new Date().toISOString(), redeemed_by: by ? String(by).slice(0, 80) : null },
     prefer: "return=representation"
   });
   return rows.length > 0;

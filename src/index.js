@@ -7,14 +7,15 @@
 //   /api/...             — API админ-панели (admin-api.js)
 //   /tg/webhook          — сообщения Telegram-боту для владельцев (telegram.js)
 //   /s/:token            — статистика для владельца по личной ссылке (stats-page.js)
-//   /s/:token/bonus      — касса: проверить и погасить код подарка (stats-page.js)
+//   /s/:token/bonus      — касса владельца: проверить и погасить код подарка + счётчики (stats-page.js)
+//   /k/:token            — касса для персонала: только проверить и погасить код (stats-page.js)
 //   POST /bonus          — выдать гостю код подарка, колесо призов (bonus.js)
 // Все остальные адреса отдаются как обычные файлы (index.html, admin/, 404.html и т.д.).
 
 import { handleBusinessPage, handleCardPage, handleGroupPage, handleGo } from "./public-page.js";
 import { handleApi } from "./admin-api.js";
 import { handleTelegramWebhook, weeklyReports } from "./telegram.js";
-import { handleStatsPage, handleBonusDesk } from "./stats-page.js";
+import { handleStatsPage, handleBonusDesk, handleStaffDesk } from "./stats-page.js";
 import { handleBonus } from "./bonus.js";
 import { handleOrder } from "./orders.js";
 import { db } from "./supabase.js";
@@ -54,6 +55,11 @@ export default {
     const deskMatch = url.pathname.match(/^\/s\/([^/]+)\/bonus\/?$/);
     if (deskMatch) {
       return handleBonusDesk(request, env, deskMatch[1]);
+    }
+
+    const staffMatch = url.pathname.match(/^\/k\/([^/]+)\/?$/);
+    if (staffMatch) {
+      return handleStaffDesk(request, env, staffMatch[1]);
     }
 
     if (url.pathname === "/api/order") {

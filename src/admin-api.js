@@ -20,6 +20,10 @@
 //   POST   /api/admin/businesses/:id/telegram-invite — одноразовая ссылка для владельца
 //   GET    /api/admin/businesses/:id/telegram        — чаты, подключённые к бизнесу
 //   DELETE /api/admin/telegram/subscribers/:id       — отключить чат
+//   GET    /api/admin/businesses/:id/staff-links     — ссылки для персонала (/k/...): только касса подарков
+//   POST   /api/admin/businesses/:id/staff-links     — создать { label }
+//   DELETE /api/admin/staff-links/:token             — отключить
+//   GET    /api/admin/businesses/:id/bonus-stats     — подарки за 30 дней: выдано / погашено
 //   GET    /api/admin/orders                         — заявки с сайта (/order/)
 //   PATCH  /api/admin/orders/:id                     — сменить статус { status }
 //   DELETE /api/admin/orders/:id                     — удалить заявку (и персональные данные в ней)
@@ -155,6 +159,21 @@ export async function handleApi(request, env, url) {
       const tgSubMatch = path.match(/^\/api\/admin\/telegram\/subscribers\/(\d{1,18})$/);
       if (tgSubMatch && method === "DELETE") {
         return await deleteTelegramSubscriber(env, tgSubMatch[1]);
+      }
+
+      const staffLinksMatch = path.match(/^\/api\/admin\/businesses\/(\d{1,18})\/staff-links$/);
+      if (staffLinksMatch) {
+        if (method === "GET") return await listStaffLinks(env, staffLinksMatch[1]);
+        if (method === "POST") return await createStaffLink(request, env, staffLinksMatch[1]);
+      }
+      const staffLinkMatch = path.match(/^\/api\/admin\/staff-links\/([A-Za-z0-9]{24})$/);
+      if (staffLinkMatch && method === "DELETE") {
+        const rows = await db(env, `staff_links?token=eq.${staffLinkMatch[1]}&select=token`, {
+          method: "DELETE",
+          prefer: "return=representation"
+        });
+        if (!rows.length) throw new HttpError(404, "Ссылка не найдена");
+        return json({ deleted: true });
       }
 
       const bonusStatsMatch = path.match(/^\/api\/admin\/businesses\/(\d{1,18})\/bonus-stats$/);
@@ -732,6 +751,42 @@ async function deleteTelegramSubscriber(env, id) {
     throw new HttpError(404, "Чат не найден");
   }
   return json({ deleted: true });
+}
+
+// ---------- Ссылки для персонала (/k/...): только проверка и погашение кодов подарков ----------
+
+const MAX_STAFF_LINKS = 20;
+
+function staffLinkUrl(env, token) {
+  return `${String(env.PUBLIC_BASE_URL || "").replace(/\/+$/, "")}/k/${token}`;
+}
+
+async function listStaffLinks(env, businessId) {
+  const rows = await db(
+    env,
+    `staff_links?business_id=eq.${businessId}&select=token,label,created_at,last_used_at&order=created_at.asc`
+  );
+  return json(rows.map((row) => ({ ...row, url: staffLinkUrl(env, row.token) })));
+}
+
+async function createStaffLink(request, env, businessId) {
+  const data = await readJson(request);
+  const found = await db(env, `businesses?id=eq.${businessId}&select=id`);
+  if (!found.length) throw new HttpError(404, "Бизнес не найден");
+  const existing = await db(env, `staff_links?business_id=eq.${businessId}&select=token`);
+  if (existing.length >= MAX_STAFF_LINKS) {
+    throw new HttpError(400, `У заведения уже ${MAX_STAFF_LINKS} ссылок для персонала — отключите ненужные`);
+  }
+  const rows = await db(env, "staff_links?select=token,label,created_at,last_used_at", {
+    method: "POST",
+    body: {
+      token: randomString(STATS_TOKEN_ALPHABET, STATS_TOKEN_LENGTH),
+      business_id: Number(businessId),
+      label: cleanText(data.label, 60, "Подпись") || null
+    },
+    prefer: "return=representation"
+  });
+  return json({ ...rows[0], url: staffLinkUrl(env, rows[0].token) }, 201);
 }
 
 // ---------- Заявки с сайта (/order/) ----------

@@ -94,8 +94,10 @@ async function statsPage(request, env, ctx, token) {
   return html(200, `Статистика · ${view.title}`, renderBody(view, daily, page));
 }
 
-// ---------- Касса: проверка и погашение кода подарка (/s/:token/bonus) ----------
-// GET ?code=ABC123 — проверить; POST code=ABC123 — погасить. Только коды заведений этой ссылки.
+// ---------- Касса: проверка и погашение кода подарка ----------
+//   /s/:token/bonus — владелец (ссылка статистики): касса + счётчики подарков, ссылка «← Статистика»
+//   /k/:token       — персонал (ссылка для кассы): ТОЛЬКО проверка и погашение кода своего заведения
+// GET ?code=ABC123 — проверить; ?code=ABC123&redeem=1 — погасить. Только коды заведений этой ссылки.
 
 export async function handleBonusDesk(request, env, token) {
   try {
@@ -104,6 +106,41 @@ export async function handleBonusDesk(request, env, token) {
     if (!links.length) return notFound();
     const link = links[0];
     const ids = [...new Set(link.business_ids && link.business_ids.length ? link.business_ids : [link.business_id])];
+    return await renderDesk(request, env, { ids, base: `/s/${token}/bonus`, owner: true, token, by: "владелец" });
+  } catch (error) {
+    return deskError(error);
+  }
+}
+
+export async function handleStaffDesk(request, env, token) {
+  try {
+    if (!TOKEN_RE.test(token)) return notFound();
+    const links = await db(env, `staff_links?token=eq.${token}&select=business_id,label`);
+    if (!links.length) return notFound();
+    const link = links[0];
+    return await renderDesk(request, env, {
+      ids: [link.business_id],
+      base: `/k/${token}`,
+      owner: false,
+      by: link.label ? `персонал: ${link.label}` : "персонал",
+      onRedeem: () =>
+        db(env, `staff_links?token=eq.${token}`, {
+          method: "PATCH",
+          body: { last_used_at: new Date().toISOString() },
+          prefer: "return=minimal"
+        }).catch(() => {})
+    });
+  } catch (error) {
+    return deskError(error);
+  }
+}
+
+function deskError(error) {
+  console.error(`Bonus desk error: ${error.message}\n${error.stack}`);
+  return html(500, "Ошибка", `<main class="wrap wrap-center"><section class="panel"><h1 class="lost">Не удалось проверить код</h1><p>Попробуйте ещё раз через минуту.</p></section></main>`);
+}
+
+async function renderDesk(request, env, { ids, base, owner, token, by, onRedeem }) {
     const businesses = await db(env, `businesses?id=in.(${ids.join(",")})&select=id,name`);
     if (!businesses.length) return notFound();
     const names = new Map(businesses.map((b) => [b.id, b.name]));
@@ -120,41 +157,27 @@ export async function handleBonusDesk(request, env, token) {
       const code = normalizeCode(input);
       const found = code ? await findCode(env, code, ids) : null;
       if (wantRedeem && found && found.state === "ok") {
-        const done = await redeemCode(env, found.row.id);
+        const done = await redeemCode(env, found.row.id, by);
+        if (done && onRedeem) await onRedeem();
         result = done
           ? deskResult("done", found.row, names, "Код погашен — можно выдавать подарок")
           : deskResult("used", found.row, names, "Код уже погашен");
       } else if (wantRedeem && found && found.state === "used" && Date.now() - Date.parse(found.row.redeemed_at) < 2 * 60 * 1000) {
         result = deskResult("done", found.row, names, "Код погашен — можно выдавать подарок");
       } else {
-        result = deskState(found, input, names, token);
+        result = deskState(found, input, names, base);
       }
     }
 
-    const counts = await bonusCounts(env, ids, 30);
-    const prizeRows = Object.entries(counts.byPrize)
-      .sort((a, b) => b[1].issued - a[1].issued)
-      .map(([prize, c]) => `<tr><td>${esc(prize)}</td><td>${num(c.issued)}</td><td>${num(c.redeemed)}</td></tr>`)
-      .join("");
-
-    const body = `
-  <header class="top">
-    <div class="top-inner">
-      <div class="brand">TapReview <span>· касса</span></div>
-      <a class="back" href="/s/${token}">← Статистика</a>
-      <h1 class="name">Проверка подарка</h1>
-      <p class="range">Введите код с экрана гостя: 6 букв и цифр, например ABC-123</p>
-    </div>
-  </header>
-  <main class="wrap">
-    <section class="panel">
-      <form class="desk-form" method="get" action="/s/${token}/bonus">
-        <input name="code" value="${esc(input)}" maxlength="12" autocomplete="off" autocapitalize="characters"
-          spellcheck="false" placeholder="ABC-123" aria-label="Код подарка" required>
-        <button type="submit">Проверить</button>
-      </form>
-      ${result}
-    </section>
+    // Счётчики подарков видит только владелец
+    let statsPanel = "";
+    if (owner) {
+      const counts = await bonusCounts(env, ids, 30);
+      const prizeRows = Object.entries(counts.byPrize)
+        .sort((a, b) => b[1].issued - a[1].issued)
+        .map(([prize, c]) => `<tr><td>${esc(prize)}</td><td>${num(c.issued)}</td><td>${num(c.redeemed)}</td></tr>`)
+        .join("");
+      statsPanel = `
     <section class="panel">
       <h2>Подарки за 30 дней</h2>
       <div class="kpis desk-kpis">
@@ -162,25 +185,45 @@ export async function handleBonusDesk(request, env, token) {
         <div class="kpi"><div class="kpi-label">Погашено</div><div class="kpi-value">${num(counts.redeemed)}</div></div>
       </div>
       ${prizeRows ? `<table class="desk-table"><thead><tr><th>Подарок</th><th>Выдано</th><th>Погашено</th></tr></thead><tbody>${prizeRows}</tbody></table>` : ""}
+    </section>`;
+    }
+
+    const venueName = businesses.length === 1 ? businesses[0].name : "";
+    const body = `
+  <header class="top">
+    <div class="top-inner">
+      <div class="brand">TapReview <span>· касса</span></div>
+      ${owner ? `<a class="back" href="/s/${token}">← Статистика</a>` : ""}
+      <h1 class="name">Проверка подарка</h1>
+      ${venueName ? `<p class="sub">${esc(venueName)}</p>` : ""}
+      <p class="range">Введите код с экрана гостя: 6 букв и цифр, например ABC-123</p>
+    </div>
+  </header>
+  <main class="wrap">
+    <section class="panel">
+      <form class="desk-form" method="get" action="${base}">
+        <input name="code" value="${esc(input)}" maxlength="12" autocomplete="off" autocapitalize="characters"
+          spellcheck="false" placeholder="ABC-123" aria-label="Код подарка" required>
+        <button type="submit">Проверить</button>
+      </form>
+      ${result}
     </section>
+    ${statsPanel}
     <section class="note">
       <p>Код действует один раз. Гость получает его, только когда сканирует карту в заведении, и не чаще раза в несколько недель.
         Подарок не зависит от отзыва — так требуют правила Яндекс Карт и 2ГИС.</p>
+      ${owner ? "" : "<p>Это рабочая ссылка кассы. Не передавайте её гостям.</p>"}
     </section>
   </main>`;
     return html(200, "Проверка подарка", body);
-  } catch (error) {
-    console.error(`Bonus desk error: ${error.message}\n${error.stack}`);
-    return html(500, "Ошибка", `<main class="wrap wrap-center"><section class="panel"><h1 class="lost">Не удалось проверить код</h1><p>Попробуйте ещё раз через минуту.</p></section></main>`);
-  }
 }
 
-function deskState(found, input, names, token) {
+function deskState(found, input, names, base) {
   if (!found) return `<div class="desk-res desk-bad"><p class="desk-title">Такого кода нет</p><p>Проверьте, правильно ли введён код «${esc(input)}».</p></div>`;
   const { row, state } = found;
   if (state === "ok") {
     return `${deskResult("ok", row, names, "Код действует")}
-      <a class="desk-redeem" href="/s/${token}/bonus?code=${esc(row.code)}&amp;redeem=1" rel="nofollow">Погасить код и выдать подарок</a>`;
+      <a class="desk-redeem" href="${base}?code=${esc(row.code)}&amp;redeem=1" rel="nofollow">Погасить код и выдать подарок</a>`;
   }
   if (state === "soon") {
     return deskResult("soon", row, names, `Код начнёт действовать ${formatDayTime(row.valid_from)}`);

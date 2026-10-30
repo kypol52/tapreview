@@ -82,6 +82,7 @@ function bindEvents() {
   });
   $("f-paid-until").addEventListener("input", showBillingStatus);
   $("f-bonus-mode").addEventListener("change", showBonusMode);
+  $("staff-create").addEventListener("click", onCreateStaffLink);
   $("f-prize-add").addEventListener("click", () => {
     if ($("f-prizes").children.length < 8) $("f-prizes").append(prizeRow({ label: "", weight: 10 }));
     updatePrizeShares();
@@ -1149,6 +1150,86 @@ function fillBonus(business) {
   showBonusMode();
   updatePrizeShares();
   if (business && business.bonus_mode && business.bonus_mode !== "off") loadBonusStats(business);
+  loadStaffLinks(business);
+}
+
+// ---------- Ссылки для персонала (/k/...) ----------
+
+async function loadStaffLinks(business) {
+  $("staff-box").hidden = !business;
+  if (!business) return;
+  hideError("staff-error");
+  $("staff-list").replaceChildren();
+  try {
+    const rows = await api(`/api/admin/businesses/${business.id}/staff-links`);
+    if (state.editing === business) renderStaffLinks(business, rows);
+  } catch (error) {
+    if (state.editing === business) showError("staff-error", error.message);
+  }
+}
+
+function renderStaffLinks(business, rows) {
+  const shortDate = (iso) =>
+    new Date(iso).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  $("staff-list").replaceChildren(
+    ...rows.map((link) => {
+      const li = document.createElement("li");
+      const row = el("div", "link-row");
+      const input = el("input");
+      input.type = "text";
+      input.readOnly = true;
+      input.value = link.url;
+      const copy = el("button", "btn btn-secondary", "Копировать");
+      copy.type = "button";
+      copy.addEventListener("click", () => copyText(link.url));
+      const open = el("a", "btn btn-secondary", "Открыть");
+      open.href = link.url;
+      open.target = "_blank";
+      open.rel = "noopener noreferrer";
+      row.append(input, copy, open);
+
+      const meta = el(
+        "span",
+        "sl-meta",
+        `${link.label ? `${link.label} · ` : ""}создана ${shortDate(link.created_at)} · ` +
+          (link.last_used_at ? `последнее погашение ${shortDate(link.last_used_at)}` : "ещё не гасили коды")
+      );
+      const remove = el("button", "btn btn-danger btn-small", "Отключить");
+      remove.type = "button";
+      remove.addEventListener("click", async () => {
+        if (!confirm("Отключить эту ссылку? По ней больше нельзя будет гасить коды.")) return;
+        remove.disabled = true;
+        try {
+          await api(`/api/admin/staff-links/${link.token}`, { method: "DELETE" });
+          loadStaffLinks(business);
+        } catch (error) {
+          showError("staff-error", error.message);
+          remove.disabled = false;
+        }
+      });
+      li.append(row, meta, remove);
+      return li;
+    })
+  );
+}
+
+async function onCreateStaffLink() {
+  const business = state.editing;
+  if (!business) return;
+  hideError("staff-error");
+  $("staff-create").disabled = true;
+  try {
+    await api(`/api/admin/businesses/${business.id}/staff-links`, {
+      method: "POST",
+      body: { label: $("staff-label").value }
+    });
+    $("staff-label").value = "";
+    await loadStaffLinks(business);
+  } catch (error) {
+    showError("staff-error", error.message);
+  } finally {
+    $("staff-create").disabled = false;
+  }
 }
 
 function showBonusMode() {
