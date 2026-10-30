@@ -168,19 +168,85 @@
     .hero-price b { color: var(--ink); font-weight: 700; }
     .hero-price a { color: var(--navy); font-weight: 650; }
 
-    /* Карта + телефон */
-    /* Карта + телефон: телефон — в пропорциях настоящего смартфона (≈ 9 : 19,5) */
-    .visual { position: relative; display: flex; justify-content: center; align-items: center; min-height: 560px; padding: 10px 0 44px; }
-    .card-img {
-      position: absolute; z-index: 1; left: 50%; top: 50%; width: min(200px, 46vw); height: auto; border-radius: 16px;
-      transform: translate(-100%, -48%) rotate(-8deg); box-shadow: var(--shadow-lg);
+    /* ---------- Сцена: карта в акриловой подставке на стойке + телефон с NFC-касанием ----------
+       Сцена рисуется в «своих» 480×540 px и масштабируется под ширину экрана (--s). */
+    .visual { position: relative; display: flex; justify-content: center; min-width: 0; padding: 0 0 8px; }
+    .hero .wrap > * { min-width: 0; }
+    .scene-wrap { --s: 0.68; width: 100%; height: calc(540px * var(--s)); display: flex; justify-content: center; }
+    .scene { position: relative; flex: none; width: 480px; height: 540px; transform: scale(var(--s)); transform-origin: top center; }
+
+    /* Стойка: светлое дерево, края растворяются в фоне */
+    .counter {
+      position: absolute; left: -40px; right: -40px; bottom: 0; height: 196px;
+      -webkit-mask-image: linear-gradient(90deg, transparent, #000 16%, #000 84%, transparent);
+      mask-image: linear-gradient(90deg, transparent, #000 16%, #000 84%, transparent);
     }
+    .counter-top {
+      position: absolute; left: 0; right: 0; top: 0; bottom: 30px;
+      clip-path: polygon(9% 0, 91% 0, 100% 100%, 0 100%);
+      background:
+        repeating-linear-gradient(91deg, rgba(120, 78, 36, 0.045) 0 2px, transparent 2px 11px),
+        linear-gradient(180deg, #efe4d3 0%, #e4d3ba 100%);
+    }
+    .counter-top::after { content: ""; position: absolute; inset: 0; background: radial-gradient(60% 70% at 40% 30%, rgba(255, 255, 255, 0.55), transparent 70%); }
+    .counter-edge {
+      position: absolute; left: 0; right: 0; bottom: 0; height: 30px;
+      background: linear-gradient(180deg, #d6c09f 0%, #c3a882 100%);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 18px 30px -12px rgba(60, 40, 15, 0.25);
+    }
+
+    /* Подставка с картой */
+    .stand { position: absolute; z-index: 2; left: 64px; bottom: 112px; width: 194px; transform: perspective(1100px) rotateY(16deg) rotateX(2deg); transform-origin: bottom center; }
+    .stand-shadow { position: absolute; left: -26px; right: -40px; bottom: -36px; height: 34px; border-radius: 50%; background: radial-gradient(closest-side, rgba(70, 45, 15, 0.32), transparent); filter: blur(2px); }
+    .card-img { position: relative; display: block; width: 100%; height: auto; border-radius: 12px; box-shadow: 0 2px 6px rgba(10, 42, 92, 0.12), 0 24px 40px -12px rgba(10, 42, 92, 0.3); }
+    /* Акриловое стекло поверх карты: блик и тонкая кромка */
+    .stand-glass {
+      position: absolute; inset: -7px -7px -2px -7px; border-radius: 16px; pointer-events: none;
+      background: linear-gradient(112deg, rgba(255, 255, 255, 0) 28%, rgba(255, 255, 255, 0.5) 40%, rgba(255, 255, 255, 0.08) 48%, rgba(255, 255, 255, 0) 60%);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85) inset, 0 0 0 1.5px rgba(150, 165, 190, 0.35);
+    }
+    /* Акриловое основание */
+    .stand-base {
+      position: absolute; left: -18px; right: -18px; bottom: -24px; height: 28px; border-radius: 6px 6px 8px 8px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(222, 230, 242, 0.75));
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.95) inset, 0 -1px 0 rgba(150, 165, 190, 0.4) inset, 0 10px 16px -6px rgba(40, 30, 15, 0.3);
+    }
+    .stand-base::before { content: ""; position: absolute; left: 14px; right: 14px; top: 5px; height: 3px; border-radius: 3px; background: rgba(150, 165, 190, 0.35); }
+
+    /* NFC-волны в точке касания */
+    .nfc { position: absolute; z-index: 5; left: 232px; top: 262px; width: 0; height: 0; pointer-events: none; }
+    .nfc i { position: absolute; left: -46px; top: -46px; width: 92px; height: 92px; border-radius: 50%; border: 2px solid var(--gold); box-shadow: 0 0 14px rgba(229, 170, 12, 0.45), 0 0 6px rgba(229, 170, 12, 0.35) inset; opacity: 0; }
+
+    /* Телефон (≈ 9 : 19,5) */
     .phone {
-      position: relative; z-index: 2; width: min(232px, 54vw); aspect-ratio: 9 / 19.5;
-      transform: translateX(22%) rotate(4deg);
-      padding: 8px; border-radius: 42px; background: #0d1424;
-      box-shadow: 0 0 0 1.5px #2a3245 inset, 0 0 0 3px #1a2233, 0 40px 80px rgba(6, 26, 58, 0.28), 0 8px 20px rgba(6, 26, 58, 0.18);
+      position: absolute; z-index: 4; right: 6px; top: 22px; width: 196px; aspect-ratio: 9 / 19.5;
+      transform: rotate(7deg); transform-origin: 50% 80%;
+      padding: 7px; border-radius: 38px; background: #0d1424;
+      box-shadow: 0 0 0 1.5px #2a3245 inset, 0 0 0 3px #1a2233, 0 40px 70px rgba(6, 26, 58, 0.28), 0 8px 20px rgba(6, 26, 58, 0.18);
     }
+    /* Экран до касания */
+    .s-idle {
+      position: absolute; z-index: 2; inset: 34px 0 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+      background: #fff; color: #8a91a1; font-size: 11px; font-weight: 650;
+    }
+    .s-idle span { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 50%; background: var(--soft); color: var(--navy); }
+    .s-idle svg { width: 26px; height: 26px; }
+
+    /* Анимация: телефон подносят к карте → волны NFC → открывается страница отзывов (цикл 6 с) */
+    @keyframes tap-phone {
+      0%, 12% { transform: translate(0, 0) rotate(7deg); }
+      32% { transform: translate(-78px, 36px) rotate(-12deg); }
+      36% { transform: translate(-73px, 33px) rotate(-12deg) scale(0.985); }
+      48% { transform: translate(-78px, 36px) rotate(-12deg); }
+      68%, 100% { transform: translate(0, 0) rotate(7deg); }
+    }
+    @keyframes tap-idle { 0%, 34% { opacity: 1; } 42%, 92% { opacity: 0; } 100% { opacity: 1; } }
+    @keyframes tap-ring { 0%, 33% { opacity: 0; transform: scale(0.25); } 35% { opacity: 0.95; } 58%, 100% { opacity: 0; transform: scale(1.9); } }
+    .phone { animation: tap-phone 6s var(--ease) infinite; }
+    .s-idle { animation: tap-idle 6s linear infinite; }
+    .nfc i { animation: tap-ring 6s ease-out infinite; }
+    .nfc i:nth-child(2) { animation-delay: 0.18s; }
+    .nfc i:nth-child(3) { animation-delay: 0.36s; }
     /* Боковые кнопки */
     .phone::before { content: ""; position: absolute; left: -4px; top: 21%; width: 3px; height: 12%; border-radius: 3px 0 0 3px; background: #1a2233; box-shadow: 0 -40px 0 -0.5px #1a2233; }
     .phone::after { content: ""; position: absolute; right: -4px; top: 27%; width: 3px; height: 15%; border-radius: 0 3px 3px 0; background: #1a2233; }
@@ -212,7 +278,7 @@
     .s-foot { margin: 6px auto 8px; padding: 4px 10px; border-radius: 99px; background: var(--soft); font-size: 9px; font-weight: 650; color: #8a91a1; }
     .s-home { width: 34%; height: 4px; margin: 0 auto; border-radius: 4px; background: #0d1424; opacity: 0.85; }
     .tap-chip {
-      position: absolute; z-index: 3; left: 50%; bottom: 0; translate: -50% 0;
+      position: absolute; z-index: 5; left: 50%; bottom: 0; translate: -50% 0;
       display: flex; align-items: center; gap: 10px; white-space: nowrap;
       padding: 10px 16px 10px 10px; border-radius: 16px; background: #fff; box-shadow: var(--shadow);
       font-size: 13.5px; font-weight: 650; color: var(--navy);
@@ -390,9 +456,7 @@
       .nav { display: flex; }
       .hero { padding: 64px 0 96px; }
       .hero .wrap { grid-template-columns: 1.08fr 0.92fr; gap: 40px; }
-      .visual { min-height: 620px; }
-      .card-img { width: 230px; transform: translate(-122%, -46%) rotate(-8deg); }
-      .phone { width: 252px; transform: translateX(26%) rotate(4deg); }
+      .scene-wrap { --s: 1.08; }
       section { padding: 112px 0; }
       .section-head { margin-bottom: 56px; }
       .benefits { grid-template-columns: repeat(3, 1fr); }
@@ -403,13 +467,19 @@
       .header .btn span { display: none; }
       .header .btn { width: 42px; padding: 0; }
       .actions .btn { width: 100%; }
-      .visual { min-height: 500px; }
     }
+    @media (min-width: 441px) and (max-width: 979px) { .scene-wrap { --s: 0.9; } }
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
       *, *::before, *::after { transition: none !important; animation: none !important; }
       .js .reveal { opacity: 1; transform: none; }
       .js .dash .bar { transform: none; }
+      /* Без анимации: телефон уже приложен к карте, страница открыта */
+      .phone { transform: translate(-78px, 36px) rotate(-12deg); }
+      .s-idle { opacity: 0; }
+      .nfc i { opacity: 0.5; transform: scale(1); }
+      .nfc i:nth-child(2) { opacity: 0.3; transform: scale(1.4); }
+      .nfc i:nth-child(3) { opacity: 0.15; transform: scale(1.8); }
     }
   </style>
 </head>
@@ -494,10 +564,20 @@
         </div>
 
         <div class="visual reveal" style="--d:.1s" aria-hidden="true">
-          <img class="card-img" src="/assets/card-front.png" width="640" height="1015" alt="">
+         <div class="scene-wrap">
+          <div class="scene">
+          <div class="counter"><div class="counter-top"></div><div class="counter-edge"></div></div>
+          <div class="stand">
+            <div class="stand-shadow"></div>
+            <div class="stand-base"></div>
+            <img class="card-img" src="/assets/card-front.png" width="640" height="1015" alt="">
+            <div class="stand-glass"></div>
+          </div>
+          <div class="nfc"><i></i><i></i><i></i></div>
           <div class="phone">
             <div class="screen">
               <div class="s-island"></div>
+              <div class="s-idle"><span><svg><use href="#i-nfc"/></svg></span>Поднесите к карте</div>
               <div class="s-status">
                 <span>9:41</span>
                 <span class="s-icons">
@@ -521,6 +601,8 @@
               <div class="s-home"></div>
             </div>
           </div>
+          </div>
+         </div>
           <div class="tap-chip"><span><svg><use href="#i-nfc"/></svg></span>Приложили — и отзыв</div>
         </div>
       </div>
