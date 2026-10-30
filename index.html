@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>TapReview — отзывы в одно касание</title>
-  <meta name="description" content="NFC и QR-карты для сбора отзывов на Яндекс Картах, 2ГИС и Google. Гость прикладывает телефон — и оставляет отзыв за минуту.">
+  <meta name="description" content="NFC и QR-карты для сбора отзывов на Яндекс Картах, 2ГИС и Google. Гость прикладывает телефон — и сразу попадает в форму отзыва. Статистика по каждой карте.">
   <meta name="theme-color" content="#0a2a5c">
   <link rel="canonical" href="https://tapreview.ru/">
   <link rel="icon" type="image/png" href="/assets/favicon.png">
@@ -16,157 +16,428 @@
   <meta property="og:image" content="https://tapreview.ru/assets/og.png">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="preload" href="/fonts/montserrat-var-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
+  <script>
+    // Включаем анимацию появления заранее, чтобы блоки не «мигали» при загрузке
+    if (window.matchMedia && !matchMedia("(prefers-reduced-motion: reduce)").matches && "IntersectionObserver" in window) {
+      document.documentElement.classList.add("js");
+    }
+  </script>
 
   <style>
-    /* Montserrat (OFL, см. fonts/OFL-Montserrat.txt) — один вариативный файл на алфавит */
+    /* Montserrat и Playfair Display (OFL, см. fonts/OFL-Montserrat.txt и fonts/OFL.txt) */
     @font-face {
       font-family: "Montserrat";
       src: url("/fonts/montserrat-var-cyrillic.woff2") format("woff2");
-      font-weight: 500 700;
+      font-weight: 100 900;
       font-display: swap;
       unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
     }
     @font-face {
       font-family: "Montserrat";
       src: url("/fonts/montserrat-var-latin.woff2") format("woff2");
-      font-weight: 500 700;
+      font-weight: 100 900;
       font-display: swap;
-      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+20BD, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+    }
+    @font-face {
+      font-family: "Playfair Display";
+      src: url("/fonts/playfair-display-600-cyrillic.woff2") format("woff2");
+      font-weight: 600;
+      font-display: swap;
+      unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+    }
+    @font-face {
+      font-family: "Playfair Display";
+      src: url("/fonts/playfair-display-600-latin.woff2") format("woff2");
+      font-weight: 600;
+      font-display: swap;
+      unicode-range: U+0000-00FF, U+2000-206F;
     }
 
     :root {
+      /* Бренд */
       --navy: #0a2a5c;
-      --navy-deep: #071e44;
+      --navy-700: #0d3574;
+      --navy-900: #061a3a;
       --gold: #e5aa0c;
-      --ink: #1b2236;
-      --muted: #5d6475;
-      --line: #e3e6ee;
-      --soft: #f4f6fa;
-      --radius: 22px;
+      --gold-600: #c99208;
+      --gold-50: #fdf7e6;
+      /* Нейтральные */
+      --ink: #0f1728;
+      --text: #2b3346;
+      --muted: #646d80;
+      --line: #e7eaf0;
+      --line-strong: #d6dbe5;
+      --soft: #f6f7fa;
+      --white: #fff;
+      /* Форма */
+      --r-sm: 12px;
+      --r: 20px;
+      --r-lg: 28px;
+      --shadow-sm: 0 1px 2px rgba(15, 23, 40, 0.05);
+      --shadow: 0 1px 2px rgba(15, 23, 40, 0.04), 0 12px 32px rgba(15, 23, 40, 0.07);
+      --shadow-lg: 0 2px 6px rgba(10, 42, 92, 0.06), 0 30px 70px rgba(10, 42, 92, 0.16);
+      --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
     }
 
     * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
+    html { scroll-behavior: smooth; scroll-padding-top: 76px; -webkit-text-size-adjust: 100%; }
     body {
       margin: 0;
-      background: #fff;
-      color: var(--ink);
+      background: var(--white);
+      color: var(--text);
       font-family: "Montserrat", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
       font-weight: 500;
-      line-height: 1.5;
+      font-size: 16px;
+      line-height: 1.6;
       -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
     }
     a { color: inherit; }
-    .wrap { width: min(1120px, 100%); margin: 0 auto; padding: 0 20px; }
+    img, svg { display: block; }
+    .wrap { width: min(1160px, 100%); margin: 0 auto; padding: 0 20px; }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-    /* ---------- header ---------- */
-    .header { position: sticky; top: 0; z-index: 10; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid transparent; }
-    .header .wrap { display: flex; align-items: center; justify-content: space-between; height: 68px; }
-    .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 700; font-size: 20px; color: var(--navy); }
-    .logo-mark { position: relative; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: var(--navy); color: #fff; font-size: 14px; font-weight: 700; letter-spacing: 0.02em; }
-    .logo-mark svg { position: absolute; top: 5px; right: 4px; width: 11px; height: 11px; }
-
-    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 26px; border-radius: 999px; font: inherit; font-weight: 600; font-size: 16px; text-decoration: none; transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease; -webkit-tap-highlight-color: transparent; }
+    /* ---------- кнопки ---------- */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+      min-height: 54px; padding: 0 28px; border: 0; border-radius: 999px;
+      font: inherit; font-size: 16px; font-weight: 650; letter-spacing: -0.005em; text-decoration: none; cursor: pointer;
+      transition: transform 0.2s var(--ease), background-color 0.2s var(--ease), border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+      -webkit-tap-highlight-color: transparent;
+    }
     .btn svg { width: 20px; height: 20px; flex: none; }
-    .btn-primary { background: var(--navy); color: #fff; box-shadow: 0 10px 24px rgba(10, 42, 92, 0.22); }
-    .btn-primary:hover { background: #0d3574; transform: translateY(-1px); }
-    .btn-ghost { border: 1.5px solid var(--line); color: var(--navy); background: #fff; }
-    .btn-ghost:hover { border-color: #c5cbd8; transform: translateY(-1px); }
-    .btn-gold { background: var(--gold); color: var(--navy-deep); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18); }
+    .btn-primary { background: var(--navy); color: #fff; box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset, 0 10px 24px rgba(10, 42, 92, 0.22); }
+    .btn-primary:hover { background: var(--navy-700); transform: translateY(-1px); }
+    .btn-ghost { background: #fff; color: var(--navy); box-shadow: 0 0 0 1.5px var(--line-strong) inset; }
+    .btn-ghost:hover { box-shadow: 0 0 0 1.5px #b9c1d0 inset; transform: translateY(-1px); }
+    .btn-gold { background: var(--gold); color: var(--navy-900); }
     .btn-gold:hover { background: #f0b519; transform: translateY(-1px); }
-    .btn:focus-visible { outline: 3px solid #9fb3d9; outline-offset: 3px; }
+    .btn:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid #9fb3d9; outline-offset: 3px; border-radius: 10px; }
+    .btn:focus-visible { border-radius: 999px; }
+
+    /* ---------- шапка ---------- */
+    .header {
+      position: sticky; top: 0; z-index: 20;
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: saturate(180%) blur(14px); -webkit-backdrop-filter: saturate(180%) blur(14px);
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.2s var(--ease);
+    }
+    .header.scrolled { border-bottom-color: var(--line); }
+    .header .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 68px; }
+    .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 750; font-size: 19px; letter-spacing: -0.01em; color: var(--navy); }
+    .logo-mark { position: relative; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--navy); color: #fff; font-size: 13px; font-weight: 750; letter-spacing: 0.02em; }
+    .logo-mark svg { position: absolute; top: 5px; right: 4px; width: 10px; height: 10px; }
+    .nav { display: none; gap: 30px; font-size: 15px; font-weight: 600; }
+    .nav a { color: var(--muted); text-decoration: none; transition: color 0.15s; }
+    .nav a:hover { color: var(--navy); }
     .header .btn { min-height: 42px; padding: 0 18px; font-size: 14px; }
+    .header .btn svg { width: 18px; height: 18px; }
 
-    /* ---------- hero ---------- */
-    .hero { padding: 40px 0 72px; overflow: hidden; }
-    .hero .wrap { display: grid; gap: 44px; align-items: center; }
-    .eyebrow { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 18px; padding: 6px 14px; border-radius: 999px; background: var(--soft); color: var(--navy); font-size: 13px; font-weight: 600; }
-    .stars { display: inline-flex; gap: 2px; color: var(--gold); }
-    .stars svg { width: 14px; height: 14px; }
-    h1 { margin: 0; font-size: clamp(36px, 8vw, 60px); line-height: 1.08; font-weight: 700; color: var(--navy); letter-spacing: -0.015em; }
-    h1 em { font-style: normal; color: var(--gold); }
-    .lead { margin: 20px 0 30px; max-width: 520px; font-size: 18px; color: var(--muted); }
+    /* ---------- первый экран ---------- */
+    .hero { position: relative; padding: 36px 0 64px; }
+    .hero::before {
+      content: ""; position: absolute; inset: 0 0 auto; height: 620px; z-index: -1; pointer-events: none;
+      background:
+        radial-gradient(60% 55% at 85% 20%, rgba(10, 42, 92, 0.07), transparent 70%),
+        radial-gradient(40% 40% at 70% 70%, rgba(229, 170, 12, 0.07), transparent 70%);
+    }
+    .hero .wrap { display: grid; gap: 48px; align-items: center; }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 10px; margin: 0 0 22px; padding: 7px 14px 7px 10px;
+      border-radius: 999px; background: #fff; box-shadow: 0 0 0 1px var(--line) inset, var(--shadow-sm);
+      color: var(--navy); font-size: 13px; font-weight: 650;
+    }
+    .eyebrow .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 4px var(--gold-50); }
+    h1 {
+      margin: 0; color: var(--ink);
+      font-size: clamp(40px, 10.5vw, 72px); line-height: 1.02; font-weight: 750; letter-spacing: -0.035em;
+    }
+    h1 .accent {
+      color: var(--navy); white-space: nowrap;
+      background: linear-gradient(transparent 84%, rgba(229, 170, 12, 0.85) 84%, rgba(229, 170, 12, 0.85) 96%, transparent 96%);
+    }
+    .lead { margin: 22px 0 32px; max-width: 540px; font-size: clamp(17px, 2.2vw, 19px); line-height: 1.6; color: var(--muted); }
+    .lead b { color: var(--text); font-weight: 650; }
     .actions { display: flex; flex-wrap: wrap; gap: 12px; }
-    .platforms { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 30px; color: var(--muted); font-size: 14px; }
-    .platforms b { color: var(--ink); font-weight: 600; }
-    .platforms i { width: 4px; height: 4px; border-radius: 50%; background: var(--gold); }
+    .hero-meta { display: flex; flex-wrap: wrap; gap: 10px 22px; margin: 28px 0 0; padding: 0; list-style: none; font-size: 14px; font-weight: 600; color: var(--text); }
+    .hero-meta li { display: flex; align-items: center; gap: 8px; }
+    .hero-meta svg { width: 18px; height: 18px; color: var(--gold-600); }
+    .hero-price { margin: 18px 0 0; font-size: 14px; color: var(--muted); }
+    .hero-price b { color: var(--ink); font-weight: 700; }
+    .hero-price a { color: var(--navy); font-weight: 650; }
 
-    .visual { position: relative; display: grid; place-items: center; min-height: 420px; }
-    .visual::before { content: ""; position: absolute; width: 380px; height: 380px; border-radius: 50%; background: radial-gradient(circle, #e9eef8 0%, rgba(233, 238, 248, 0) 70%); }
-    .card-img { position: relative; width: min(270px, 70vw); height: auto; border-radius: 20px; transform: rotate(6deg); box-shadow: 0 30px 60px rgba(10, 42, 92, 0.22), 0 6px 16px rgba(10, 42, 92, 0.12); }
-    .visual { padding-bottom: 64px; }
-    .phone-tap { position: absolute; left: 50%; bottom: 0; translate: -50% 0; white-space: nowrap; display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 16px; background: #fff; box-shadow: 0 14px 34px rgba(10, 42, 92, 0.16); font-size: 14px; font-weight: 600; color: var(--navy); transform: rotate(-3deg); }
-    .phone-tap span { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--navy); color: var(--gold); }
-    .phone-tap svg { width: 18px; height: 18px; }
+    /* Карта + телефон */
+    .visual { position: relative; display: flex; justify-content: center; align-items: center; min-height: 440px; padding: 10px 0 20px; }
+    .card-img {
+      position: relative; z-index: 1; width: min(230px, 54vw); height: auto; border-radius: 18px;
+      transform: translateX(-34%) rotate(-7deg); box-shadow: var(--shadow-lg);
+    }
+    .phone {
+      position: absolute; z-index: 2; left: 50%; top: 50%; width: min(230px, 56vw);
+      transform: translate(-8%, -46%) rotate(4deg);
+      padding: 9px; border-radius: 40px; background: #0d1424;
+      box-shadow: 0 0 0 1px #2a3245 inset, 0 40px 80px rgba(6, 26, 58, 0.28), 0 8px 20px rgba(6, 26, 58, 0.18);
+    }
+    .screen { position: relative; overflow: hidden; border-radius: 32px; background: #fff; padding: 34px 16px 18px; text-align: center; }
+    .screen::before { content: ""; position: absolute; top: 10px; left: 50%; width: 64px; height: 18px; translate: -50% 0; border-radius: 99px; background: #0d1424; }
+    .s-name { margin: 6px 0 2px; font-family: "Playfair Display", Georgia, serif; font-size: 21px; font-weight: 600; line-height: 1.15; color: var(--ink); }
+    .s-tag { margin: 0; font-size: 8.5px; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; color: #8a91a1; }
+    .s-line { width: 34px; height: 2px; margin: 12px auto; border-radius: 2px; background: var(--gold); }
+    .s-thanks { margin: 0 0 4px; font-size: 13px; font-weight: 600; color: var(--ink); }
+    .s-stars { display: flex; justify-content: center; gap: 3px; margin: 6px 0 14px; color: var(--gold); }
+    .s-stars svg { width: 14px; height: 14px; }
+    .s-btn {
+      display: flex; align-items: center; gap: 9px; margin: 0 0 8px; padding: 9px 12px; border-radius: 999px;
+      box-shadow: 0 0 0 1px var(--line) inset; font-size: 11.5px; font-weight: 650; color: var(--ink); text-align: left;
+    }
+    .s-btn svg { width: 20px; height: 20px; flex: none; }
+    .s-btn span { flex: 1; }
+    .s-btn i { color: #a3aab8; font-style: normal; }
+    .tap-chip {
+      position: absolute; z-index: 3; left: 50%; bottom: 0; translate: -50% 0;
+      display: flex; align-items: center; gap: 10px; white-space: nowrap;
+      padding: 10px 16px 10px 10px; border-radius: 16px; background: #fff; box-shadow: var(--shadow);
+      font-size: 13.5px; font-weight: 650; color: var(--navy);
+    }
+    .tap-chip span { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--navy); color: var(--gold); }
+    .tap-chip svg { width: 18px; height: 18px; }
 
-    /* ---------- sections ---------- */
-    section { padding: 76px 0; }
+    /* ---------- площадки ---------- */
+    .platforms { padding: 26px 0; border-block: 1px solid var(--line); }
+    .platforms .wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 14px 40px; }
+    .platforms p { margin: 0; width: 100%; text-align: center; font-size: 13px; font-weight: 600; color: var(--muted); }
+    .platform { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; color: var(--ink); }
+    .platform svg { width: 28px; height: 28px; }
+
+    /* ---------- секции ---------- */
+    section { padding: 80px 0; }
     .section-soft { background: var(--soft); }
-    .kicker { margin: 0 0 10px; color: var(--gold); font-size: 13px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; }
-    h2 { margin: 0 0 40px; max-width: 640px; font-size: clamp(28px, 5vw, 40px); line-height: 1.15; font-weight: 700; color: var(--navy); letter-spacing: -0.01em; }
+    .section-head { max-width: 680px; margin: 0 0 44px; }
+    .kicker { margin: 0 0 14px; color: var(--gold-600); font-size: 12.5px; font-weight: 750; letter-spacing: 0.16em; text-transform: uppercase; }
+    h2 { margin: 0; color: var(--ink); font-size: clamp(30px, 6vw, 46px); line-height: 1.1; font-weight: 750; letter-spacing: -0.03em; }
+    .section-head p:not(.kicker) { margin: 16px 0 0; font-size: 17px; color: var(--muted); }
+    h3 { margin: 0 0 8px; color: var(--ink); font-size: 19px; line-height: 1.3; font-weight: 700; letter-spacing: -0.01em; }
 
-    .steps { display: grid; gap: 18px; margin: 0; padding: 0; list-style: none; counter-reset: step; }
-    .step { position: relative; padding: 28px 26px; border-radius: var(--radius); background: #fff; border: 1px solid var(--line); }
-    .step-num { display: grid; place-items: center; width: 46px; height: 46px; margin-bottom: 18px; border-radius: 50%; background: var(--navy); color: #fff; font-weight: 700; font-size: 18px; box-shadow: 0 0 0 4px #fff, 0 0 0 5.5px var(--gold); }
-    .step h3, .feature h3 { margin: 0 0 8px; font-size: 19px; font-weight: 700; color: var(--navy); }
-    .step p, .feature p { margin: 0; color: var(--muted); font-size: 15.5px; }
+    /* Как работает */
+    .steps { display: grid; gap: 16px; margin: 0; padding: 0; list-style: none; }
+    .step { position: relative; padding: 28px 26px 30px; border-radius: var(--r); background: #fff; box-shadow: 0 0 0 1px var(--line) inset; }
+    .step-num { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; font-size: 13px; font-weight: 700; color: var(--muted); letter-spacing: 0.04em; }
+    .step-num b { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--navy); color: #fff; font-size: 16px; }
+    .step p { margin: 0; color: var(--muted); font-size: 15.5px; }
 
-    .features { display: grid; gap: 18px; }
-    .feature { padding: 28px 26px; border-radius: var(--radius); background: #fff; border: 1px solid var(--line); }
-    .feature-icon { display: grid; place-items: center; width: 50px; height: 50px; margin-bottom: 18px; border-radius: 14px; background: #fdf6e3; color: #b98400; }
-    .feature-icon svg { width: 26px; height: 26px; }
+    /* Что получает бизнес */
+    .benefits { display: grid; gap: 16px; }
+    .benefit { padding: 26px; border-radius: var(--r); background: #fff; box-shadow: 0 0 0 1px var(--line) inset; }
+    .benefit-icon { display: grid; place-items: center; width: 44px; height: 44px; margin-bottom: 18px; border-radius: 12px; background: var(--gold-50); color: var(--gold-600); }
+    .benefit-icon svg { width: 22px; height: 22px; }
+    .benefit p { margin: 0; color: var(--muted); font-size: 15px; }
 
+    .stats-block { display: grid; gap: 32px; align-items: center; margin-top: 56px; padding: 28px; border-radius: var(--r-lg); background: var(--soft); }
+    .stats-copy h3 { font-size: clamp(22px, 3.4vw, 28px); letter-spacing: -0.02em; }
+    .stats-copy p { margin: 0 0 18px; color: var(--muted); }
+    .checks { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+    .checks li { display: flex; gap: 10px; font-size: 15px; font-weight: 600; color: var(--text); }
+    .checks svg { width: 20px; height: 20px; flex: none; margin-top: 2px; color: var(--navy); }
+
+    .dash { position: relative; padding: 20px; border-radius: 22px; background: #fff; box-shadow: var(--shadow); }
+    .dash-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 16px; }
+    .dash-title { font-size: 14px; font-weight: 700; color: var(--ink); }
+    .dash-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #9aa1b0; }
+    .dash-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+    .kpi { padding: 14px; border-radius: 14px; background: var(--soft); }
+    .kpi small { display: block; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+    .kpi strong { display: block; margin: 4px 0 2px; font-size: 28px; line-height: 1; font-weight: 750; color: var(--ink); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+    .kpi em { font-style: normal; font-size: 12px; font-weight: 700; color: #15803d; }
+    .bars { display: flex; align-items: flex-end; gap: 7px; height: 120px; padding: 0 2px; }
+    .bar { position: relative; flex: 1; border-radius: 7px 7px 3px 3px; background: var(--navy); transform-origin: bottom; }
+    .bar i { position: absolute; left: 22%; right: 22%; bottom: 0; border-radius: 5px 5px 2px 2px; background: var(--gold); }
+    .bar-days { display: flex; gap: 7px; margin-top: 8px; padding: 0 2px; font-size: 10.5px; font-weight: 600; color: #9aa1b0; }
+    .bar-days span { flex: 1; text-align: center; }
+    .dash-cards { margin: 16px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+    .dash-cards li { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13px; font-weight: 600; color: var(--text); }
+    .dash-cards li:last-child { border-bottom: 0; padding-bottom: 0; }
+    .dash-cards b { font-variant-numeric: tabular-nums; color: var(--ink); }
+
+    /* Для кого */
     .who { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; list-style: none; }
-    .who li { padding: 12px 20px; border-radius: 999px; background: #fff; border: 1px solid var(--line); font-weight: 600; color: var(--navy); }
+    .who li {
+      display: flex; align-items: center; gap: 10px; padding: 12px 18px 12px 12px; border-radius: 999px;
+      background: #fff; box-shadow: 0 0 0 1px var(--line) inset; font-weight: 650; font-size: 15px; color: var(--ink);
+    }
+    .who svg { width: 30px; height: 30px; padding: 6px; border-radius: 50%; background: var(--soft); color: var(--navy); }
 
-    /* ---------- CTA ---------- */
-    .cta { position: relative; overflow: hidden; padding: 64px 28px; border-radius: 28px; background: linear-gradient(135deg, var(--navy), var(--navy-deep)); color: #fff; text-align: center; }
-    .cta::after { content: ""; position: absolute; left: -10%; right: -10%; bottom: -150px; height: 220px; border-top: 3px solid rgba(229, 170, 12, 0.75); border-radius: 50%; }
-    .cta h2 { margin: 0 auto 14px; color: #fff; }
-    .cta p { position: relative; margin: 0 auto 30px; max-width: 520px; color: #c5d0e6; font-size: 17px; }
-    .cta .btn { position: relative; z-index: 1; }
+    /* Цены */
+    .plans { display: grid; gap: 16px; align-items: stretch; }
+    .plan { position: relative; display: flex; flex-direction: column; padding: 30px 26px 26px; border-radius: var(--r-lg); background: #fff; box-shadow: 0 0 0 1px var(--line) inset; }
+    .plan-featured { background: var(--navy-900); color: #c9d3e6; box-shadow: var(--shadow-lg); }
+    .plan-featured h3, .plan-featured .price strong { color: #fff; }
+    .plan-badge { position: absolute; top: 22px; right: 22px; padding: 5px 11px; border-radius: 999px; background: var(--gold); color: var(--navy-900); font-size: 12px; font-weight: 750; }
+    .plan h3 { font-size: 18px; margin-bottom: 4px; }
+    .plan-sub { margin: 0 0 22px; font-size: 14px; color: var(--muted); }
+    .plan-featured .plan-sub { color: #9fb0cf; }
+    .price { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin: 0 0 6px; }
+    .price strong { font-size: 42px; line-height: 1; font-weight: 750; letter-spacing: -0.03em; color: var(--ink); font-variant-numeric: tabular-nums; }
+    .price-text { font-size: 30px !important; }
+    .price span { font-size: 15px; font-weight: 600; color: var(--muted); }
+    .plan-featured .price span { color: #9fb0cf; }
+    .price-note { margin: 0 0 22px; font-size: 13.5px; color: var(--muted); }
+    .plan-featured .price-note { color: #9fb0cf; }
+    .plan ul { flex: 1; display: grid; align-content: start; gap: 10px; margin: 0 0 26px; padding: 22px 0 0; list-style: none; border-top: 1px solid var(--line); }
+    .plan-featured ul { border-top-color: rgba(255, 255, 255, 0.12); }
+    .plan li { display: flex; gap: 10px; font-size: 14.5px; font-weight: 550; }
+    .plan li svg { width: 18px; height: 18px; flex: none; margin-top: 3px; color: var(--gold-600); }
+    .plan-featured li svg { color: var(--gold); }
+    .plan .btn { width: 100%; }
+    .plan-featured .btn-ghost { background: transparent; color: #fff; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.3) inset; }
+    .pricing-foot { display: grid; gap: 10px; margin-top: 22px; font-size: 14px; color: var(--muted); }
+    .pricing-foot p { margin: 0; display: flex; gap: 10px; }
+    .pricing-foot svg { width: 18px; height: 18px; flex: none; margin-top: 3px; color: var(--navy); }
 
-    /* ---------- footer ---------- */
+    /* Как заказать */
+    .order { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; counter-reset: order; }
+    .order li { position: relative; display: grid; grid-template-columns: 44px 1fr; gap: 0 16px; padding: 0 0 26px; counter-increment: order; }
+    .order li::before {
+      content: counter(order); grid-row: span 2; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%;
+      background: #fff; box-shadow: 0 0 0 1.5px var(--line-strong) inset; font-weight: 750; color: var(--navy);
+    }
+    .order li:not(:last-child)::after { content: ""; position: absolute; left: 21px; top: 50px; bottom: 6px; width: 2px; border-radius: 2px; background: var(--line); }
+    .order h3 { margin: 9px 0 4px; font-size: 17px; }
+    .order p { margin: 0; font-size: 15px; color: var(--muted); }
+
+    /* Вопросы */
+    .faq { display: grid; gap: 10px; max-width: 820px; }
+    .faq details { border-radius: 16px; background: #fff; box-shadow: 0 0 0 1px var(--line) inset; transition: box-shadow 0.2s var(--ease); }
+    .faq details[open] { box-shadow: 0 0 0 1px var(--line-strong) inset, var(--shadow-sm); }
+    .faq summary {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 22px;
+      list-style: none; cursor: pointer; font-weight: 700; font-size: 16.5px; color: var(--ink);
+    }
+    .faq summary::-webkit-details-marker { display: none; }
+    .faq summary::after {
+      content: ""; flex: none; width: 12px; height: 12px; margin-right: 4px;
+      border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
+      transform: rotate(45deg) translateY(-3px); transition: transform 0.25s var(--ease);
+    }
+    .faq details[open] summary::after { transform: rotate(-135deg) translateY(-3px); }
+    .faq details p { margin: -4px 22px 20px; color: var(--muted); font-size: 15.5px; max-width: 680px; }
+
+    /* Призыв */
+    .cta { position: relative; overflow: hidden; padding: 56px 24px; border-radius: var(--r-lg); background: var(--navy-900); color: #fff; text-align: center; isolation: isolate; }
+    .cta::before {
+      content: ""; position: absolute; inset: 0; z-index: -1;
+      background: radial-gradient(55% 80% at 50% 0%, rgba(41, 84, 160, 0.55), transparent 70%);
+    }
+    .cta::after { content: ""; position: absolute; left: 50%; bottom: 0; width: 120px; height: 3px; translate: -50% 0; border-radius: 3px 3px 0 0; background: var(--gold); }
+    .cta h2 { margin: 0 auto 14px; max-width: 640px; color: #fff; }
+    .cta p { margin: 0 auto 30px; max-width: 520px; color: #b8c5df; font-size: 17px; }
+    .cta p b { color: #fff; font-weight: 650; }
+    .cta .actions { justify-content: center; }
+    .cta .btn-ghost { background: transparent; color: #fff; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.28) inset; }
+    .cta .btn-ghost:hover { box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.5) inset; }
+
+    /* Подвал */
     .footer { padding: 36px 0 44px; color: var(--muted); font-size: 14px; }
-    .footer .wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; }
+    .footer .wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px; }
+    .footer nav { display: flex; flex-wrap: wrap; gap: 10px 22px; }
     .footer a { color: var(--navy); font-weight: 600; text-decoration: none; }
     .footer a:hover { text-decoration: underline; }
 
-    @media (min-width: 760px) {
+    /* Мягкое появление при прокрутке (только если работает JS и пользователь не отключил анимации) */
+    .js .reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.7s var(--ease), transform 0.7s var(--ease); transition-delay: var(--d, 0s); }
+    .js .reveal.in { opacity: 1; transform: none; }
+    .js .dash .bar { transform: scaleY(0.04); transition: transform 0.9s var(--ease); transition-delay: calc(var(--i) * 60ms + 0.15s); }
+    .js .dash.in .bar { transform: none; }
+
+    /* ---------- планшет и десктоп ---------- */
+    @media (min-width: 720px) {
+      .wrap { padding: 0 32px; }
       .steps { grid-template-columns: repeat(3, 1fr); }
-      .features { grid-template-columns: repeat(2, 1fr); }
+      .benefits { grid-template-columns: repeat(2, 1fr); }
+      .plans { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .order { grid-template-columns: repeat(4, 1fr); gap: 20px; }
+      .order li { display: block; padding: 0; }
+      .order li::before { margin-bottom: 14px; }
+      .order li:not(:last-child)::after { left: 54px; right: -14px; top: 21px; bottom: auto; width: auto; height: 2px; }
+      .cta { padding: 76px 40px; }
+      .stats-block { padding: 40px; }
     }
-    @media (min-width: 960px) {
+    @media (min-width: 980px) {
+      .nav { display: flex; }
       .hero { padding: 64px 0 96px; }
-      .hero .wrap { grid-template-columns: 1.1fr 0.9fr; }
-      .visual { min-height: 520px; }
-      .visual::before { width: 480px; height: 480px; }
-      .card-img { width: 300px; }
-      .features { grid-template-columns: repeat(4, 1fr); }
-      section { padding: 96px 0; }
+      .hero .wrap { grid-template-columns: 1.08fr 0.92fr; gap: 40px; }
+      .visual { min-height: 560px; }
+      .card-img { width: 270px; }
+      .phone { width: 250px; }
+      section { padding: 112px 0; }
+      .section-head { margin-bottom: 56px; }
+      .benefits { grid-template-columns: repeat(3, 1fr); }
+      .stats-block { grid-template-columns: 0.9fr 1.1fr; gap: 56px; padding: 56px; margin-top: 72px; }
+      .dash { padding: 26px; }
     }
-    @media (max-width: 420px) {
+    @media (max-width: 440px) {
       .header .btn span { display: none; }
-      .header .btn { padding: 0 13px; }
+      .header .btn { width: 42px; padding: 0; }
       .actions .btn { width: 100%; }
+      .visual { min-height: 400px; }
     }
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
-      .btn { transition: none; }
+      *, *::before, *::after { transition: none !important; animation: none !important; }
+      .js .reveal { opacity: 1; transform: none; }
+      .js .dash .bar { transform: none; }
     }
   </style>
 </head>
 <body>
 
-  <header class="header">
+  <!-- Логотипы площадок и значки: объявлены один раз, дальше используются через <use> -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-yandex" viewBox="0 0 40 40">
+      <circle cx="20" cy="20" r="20" fill="#fc3f1d"/>
+      <path fill="#fff" d="M22.4 31h3.9V9h-5.7c-5.7 0-8.7 2.9-8.7 7.2 0 3.4 1.6 5.5 4.6 7.6L11.3 31h4.2l5.7-8.5-2-1.3c-2.4-1.6-3.6-2.9-3.6-5.6 0-2.4 1.7-4 4.9-4h1.9V31z"/>
+    </symbol>
+    <symbol id="i-google" viewBox="0 0 40 40">
+      <defs><clipPath id="gm-pin"><path d="M20 2c-7.2 0-13 5.6-13 12.6 0 9.4 13 23.4 13 23.4s13-14 13-23.4C33 7.6 27.2 2 20 2z"/></clipPath></defs>
+      <g clip-path="url(#gm-pin)">
+        <rect width="40" height="40" fill="#34a853"/>
+        <path d="M0 0h20v16L0 30z" fill="#fbbc04"/>
+        <path d="M0 0h40v8L20 16 7 6z" fill="#4285f4"/>
+        <path d="M20 0h20v22L20 16z" fill="#ea4335"/>
+        <path d="M7 0h22L20 14z" fill="#1a73e8"/>
+      </g>
+      <circle cx="20" cy="14.6" r="4.8" fill="#fff"/>
+    </symbol>
+    <symbol id="i-twogis" viewBox="0 0 40 40">
+      <rect width="40" height="40" rx="10" fill="#19aa1e"/>
+      <path d="M0 10a10 10 0 0 1 10-10h20a10 10 0 0 1 10 10v8H0z" fill="#ffd200"/>
+      <path d="M0 16h40v6H0z" fill="#fff" opacity=".9"/>
+      <path d="M20 8.5c-5.2 0-9.3 3.9-9.3 8.8 0 6.6 9.3 14.2 9.3 14.2s9.3-7.6 9.3-14.2c0-4.9-4.1-8.8-9.3-8.8z" fill="#fff"/>
+      <path d="M20 10.8c-3.9 0-7 2.9-7 6.5 0 4.8 7 10.9 7 10.9s7-6.1 7-10.9c0-3.6-3.1-6.5-7-6.5z" fill="#1ba1f2"/>
+    </symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 2.5 2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z" fill="currentColor"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.2 4.2L19 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-tg" viewBox="0 0 24 24"><path d="M21.5 4.2 2.9 11.4c-1 .4-1 1.4 0 1.7l4.6 1.4 1.8 5.4c.2.6.9.8 1.4.4l2.6-2.1 4.8 3.5c.6.4 1.4.1 1.6-.6l3.2-15.3c.2-.9-.6-1.6-1.4-1.6zM9.6 14.3l8.6-7.6-6.7 8.6-.3 3-1.6-4z" fill="currentColor"/></symbol>
+    <symbol id="i-nfc" viewBox="0 0 24 24"><path d="M8 9.5a4 4 0 0 1 0 5M11 7a7.5 7.5 0 0 1 0 10M14 4.5a11 11 0 0 1 0 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </svg>
+
+  <header class="header" id="top">
     <div class="wrap">
       <a class="logo" href="/" aria-label="TapReview — на главную">
         <span class="logo-mark">TR<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 5.2a4 4 0 0 1 4 4M2 1.6a7.6 7.6 0 0 1 7.6 7.6" fill="none" stroke="#e5aa0c" stroke-width="1.8" stroke-linecap="round"/></svg></span>
         TapReview
       </a>
-      <a class="btn btn-primary" href="https://t.me/tapreview_ru" target="_blank" rel="noopener">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 4.2 2.9 11.4c-1 .4-1 1.4 0 1.7l4.6 1.4 1.8 5.4c.2.6.9.8 1.4.4l2.6-2.1 4.8 3.5c.6.4 1.4.1 1.6-.6l3.2-15.3c.2-.9-.6-1.6-1.4-1.6zM9.6 14.3l8.6-7.6-6.7 8.6-.3 3-1.6-4z" fill="currentColor"/></svg>
-        <span>Связаться</span>
+      <nav class="nav" aria-label="Разделы">
+        <a href="#how">Как работает</a>
+        <a href="#benefits">Возможности</a>
+        <a href="#pricing">Цены</a>
+        <a href="#faq">Вопросы</a>
+      </nav>
+      <a class="btn btn-primary" href="https://t.me/tapreview_ru" target="_blank" rel="noopener" aria-label="Заказать карту в Telegram">
+        <svg aria-hidden="true"><use href="#i-tg"/></svg>
+        <span>Заказать</span>
       </a>
     </div>
   </header>
@@ -176,116 +447,315 @@
     <div class="hero">
       <div class="wrap">
         <div>
-          <p class="eyebrow">
-            <span class="stars" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="m12 2.5 2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z" fill="currentColor"/></svg><svg viewBox="0 0 24 24"><path d="m12 2.5 2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z" fill="currentColor"/></svg><svg viewBox="0 0 24 24"><path d="m12 2.5 2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z" fill="currentColor"/></svg><svg viewBox="0 0 24 24"><path d="m12 2.5 2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z" fill="currentColor"/></svg><svg viewBox="0 0 24 24"><path d="m12 2.5 2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z" fill="currentColor"/></svg>
-            </span>
-            NFC + QR-карты для отзывов
+          <p class="eyebrow reveal"><span class="dot" aria-hidden="true"></span>NFC + QR-карты для отзывов на картах</p>
+          <h1 class="reveal" style="--d:.05s">Отзывы <span class="accent">в одно</span> касание</h1>
+          <p class="lead reveal" style="--d:.1s">
+            Карта стоит на столе или у кассы. Гость прикладывает телефон или сканирует QR-код —
+            и сразу попадает в форму отзыва на <b>Яндекс Картах, 2ГИС или Google</b>. А вы видите, сколько людей дошли до отзыва.
           </p>
-          <h1>Отзывы <em>в одно</em> касание</h1>
-          <p class="lead">Карта на столе или кассе: гость прикладывает телефон или сканирует QR-код — и сразу попадает на страницу отзыва в Яндекс Картах, 2ГИС или Google.</p>
-          <div class="actions">
-            <a class="btn btn-primary" href="https://t.me/tapreview_ru" target="_blank" rel="noopener">Заказать карту</a>
+          <div class="actions reveal" style="--d:.15s">
+            <a class="btn btn-primary" href="https://t.me/tapreview_ru" target="_blank" rel="noopener">
+              <svg aria-hidden="true"><use href="#i-tg"/></svg>
+              Заказать карту
+            </a>
             <a class="btn btn-ghost" href="/b/yarik">Посмотреть пример</a>
           </div>
-          <div class="platforms" aria-label="Площадки">
-            <b>Яндекс Карты</b><i></i><b>2ГИС</b><i></i><b>Google</b>
-          </div>
+          <!-- ЦЕНЫ: подключение 100 ₽ за карту, подписка 200 ₽/мес или 2 000 ₽/год (меняются здесь и в разделе «Цены») -->
+          <p class="hero-price reveal" style="--d:.2s">Подключение <b>100&nbsp;₽</b>, подписка от <b>167&nbsp;₽/мес</b> · <a href="#pricing">все цены</a></p>
+          <ul class="hero-meta reveal" style="--d:.25s">
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg>Без приложений</li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg>Любой смартфон</li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg>Ссылки меняем без перепечатки</li>
+          </ul>
         </div>
 
-        <div class="visual">
-          <img class="card-img" src="/assets/card-front.png" width="640" height="1015" alt="Карта TapReview: «Оставьте отзыв о нашей компании», QR-код и подсказка приложить телефон">
-          <div class="phone-tap" aria-hidden="true">
-            <span><svg viewBox="0 0 24 24"><path d="M8 9.5a4 4 0 0 1 0 5M11 7a7.5 7.5 0 0 1 0 10M14 4.5a11 11 0 0 1 0 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
-            Одно касание — и отзыв
+        <div class="visual reveal" style="--d:.1s" aria-hidden="true">
+          <img class="card-img" src="/assets/card-front.png" width="640" height="1015" alt="">
+          <div class="phone">
+            <div class="screen">
+              <p class="s-tag">Кофейня</p>
+              <p class="s-name">Утро</p>
+              <div class="s-line"></div>
+              <p class="s-thanks">Спасибо за ваш визит!</p>
+              <div class="s-stars"><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg></div>
+              <div class="s-btn"><svg><use href="#i-yandex"/></svg><span>Яндекс Карты</span><i>›</i></div>
+              <div class="s-btn"><svg><use href="#i-google"/></svg><span>Google Карты</span><i>›</i></div>
+              <div class="s-btn"><svg><use href="#i-twogis"/></svg><span>2ГИС</span><i>›</i></div>
+            </div>
           </div>
+          <div class="tap-chip"><span><svg><use href="#i-nfc"/></svg></span>Приложили — и отзыв</div>
         </div>
       </div>
     </div>
 
-    <!-- ---------- как это работает ---------- -->
-    <section class="section-soft" id="how">
+    <!-- ---------- площадки ---------- -->
+    <div class="platforms">
       <div class="wrap">
-        <p class="kicker">Как это работает</p>
-        <h2>Гостю не нужно ничего искать и скачивать</h2>
+        <p>Ведём гостей прямо в форму отзыва</p>
+        <span class="platform"><svg aria-hidden="true"><use href="#i-yandex"/></svg>Яндекс Карты</span>
+        <span class="platform"><svg aria-hidden="true"><use href="#i-twogis"/></svg>2ГИС</span>
+        <span class="platform"><svg aria-hidden="true"><use href="#i-google"/></svg>Google Карты</span>
+      </div>
+    </div>
+
+    <!-- ---------- как это работает ---------- -->
+    <section id="how">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <p class="kicker">Как это работает</p>
+          <h2>Три шага — и гость уже пишет отзыв</h2>
+          <p>Не нужно искать заведение на карте, скачивать приложения или вводить ссылку.</p>
+        </div>
         <ol class="steps">
-          <li class="step">
-            <div class="step-num">1</div>
+          <li class="step reveal">
+            <div class="step-num"><b>1</b>Касание</div>
             <h3>Прикладывает телефон</h3>
-            <p>Или наводит камеру на QR-код — подходит любой современный смартфон, без приложений.</p>
+            <p>Или наводит камеру на QR-код. Работает на iPhone и Android, без приложений.</p>
           </li>
-          <li class="step">
-            <div class="step-num">2</div>
+          <li class="step reveal" style="--d:.08s">
+            <div class="step-num"><b>2</b>Ваша страница</div>
             <h3>Видит страницу заведения</h3>
-            <p>Название, пара тёплых слов и кнопки площадок, где вы хотите получать отзывы.</p>
+            <p>Название, пара тёплых слов и кнопки только тех площадок, которые нужны вам.</p>
           </li>
-          <li class="step">
-            <div class="step-num">3</div>
+          <li class="step reveal" style="--d:.16s">
+            <div class="step-num"><b>3</b>Отзыв</div>
             <h3>Оставляет отзыв</h3>
-            <p>Одно нажатие — и он сразу в форме отзыва на Яндекс Картах, в 2ГИС или Google.</p>
+            <p>Одно нажатие — и открывается форма отзыва на Яндекс Картах, в 2ГИС или Google.</p>
           </li>
         </ol>
       </div>
     </section>
 
-    <!-- ---------- преимущества ---------- -->
-    <section id="features">
+    <!-- ---------- что получает бизнес ---------- -->
+    <section class="section-soft" id="benefits">
       <div class="wrap">
-        <p class="kicker">Что вы получаете</p>
-        <h2>Больше отзывов — без уговоров и инструкций</h2>
-        <div class="features">
-          <div class="feature">
-            <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM10 18h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="section-head reveal">
+          <p class="kicker">Что получает бизнес</p>
+          <h2>Больше гостей доходят до отзыва</h2>
+          <p>Довольные гости часто хотят оставить отзыв, но не доходят до него. TapReview убирает лишние шаги.</p>
+        </div>
+
+        <div class="benefits">
+          <div class="benefit reveal">
+            <div class="benefit-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM10 18h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
             <h3>NFC и QR на одной карте</h3>
-            <p>Кто-то приложит телефон, кто-то отсканирует код — сработает у всех.</p>
+            <p>Кто-то приложит телефон, кто-то отсканирует код — сработает у всех гостей.</p>
           </div>
-          <div class="feature">
-            <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></div>
-            <h3>Три площадки</h3>
-            <p>Яндекс Карты, 2ГИС и Google — показываем только те, что нужны вам.</p>
+          <div class="benefit reveal" style="--d:.06s">
+            <div class="benefit-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></div>
+            <h3>Ваши площадки</h3>
+            <p>Яндекс Карты, 2ГИС и Google — показываем только те, где вам важны отзывы.</p>
           </div>
-          <div class="feature">
-            <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
-            <h3>Статистика</h3>
-            <p>Сколько людей открыли страницу и на какую площадку перешли — отдельно по NFC и по QR.</p>
-          </div>
-          <div class="feature">
-            <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="benefit reveal" style="--d:.12s">
+            <div class="benefit-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
             <h3>Без перепечатки</h3>
-            <p>Изменилась ссылка на Яндекс, 2ГИС или Google? Карта продолжает работать — меняем ссылку у себя.</p>
+            <p>Сменилась ссылка или переехали? Карта продолжает работать — меняем всё у себя.</p>
+          </div>
+          <div class="benefit reveal">
+            <div class="benefit-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+            <h3>Статистика по каждой карте</h3>
+            <p>Видно, какая карта работает лучше: у кассы, на столике или у мастера.</p>
+          </div>
+          <div class="benefit reveal" style="--d:.06s">
+            <div class="benefit-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21V9l9-6 9 6v12M9 21v-6h6v6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <h3>Несколько точек — одна ссылка</h3>
+            <p>Владелец сети видит общую сводку и каждое заведение отдельно.</p>
+          </div>
+          <div class="benefit reveal" style="--d:.12s">
+            <div class="benefit-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-tg"/></svg></div>
+            <h3>Отчёт в Telegram</h3>
+            <p>Каждый понедельник — итоги недели. И статистика по ссылке в любой момент.</p>
+          </div>
+        </div>
+
+        <div class="stats-block">
+          <div class="stats-copy reveal">
+            <h3>Вы видите, как работают карты</h3>
+            <p>Личная ссылка на статистику открывается в любом браузере — без входа и паролей.</p>
+            <ul class="checks">
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Сколько раз открыли страницу отзывов</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Сколько человек перешли к отзыву и куда</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>NFC или QR — что используют чаще</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Сравнение с прошлой неделей и месяцем</li>
+            </ul>
+          </div>
+          <div class="dash reveal" style="--d:.08s" role="img" aria-label="Пример страницы статистики: открытия и переходы к отзыву по дням и по картам">
+            <div class="dash-top"><span class="dash-title">Кофейня «Утро» · 7 дней</span><span class="dash-label">Пример</span></div>
+            <div class="dash-kpis">
+              <div class="kpi"><small>Открыли страницу</small><strong>184</strong><em>▲ +23</em></div>
+              <div class="kpi"><small>Перешли к отзыву</small><strong>71</strong><em>▲ +12</em></div>
+            </div>
+            <div class="bars" aria-hidden="true">
+              <div class="bar" style="--i:0;height:52%"><i style="height:38%"></i></div>
+              <div class="bar" style="--i:1;height:64%"><i style="height:40%"></i></div>
+              <div class="bar" style="--i:2;height:48%"><i style="height:36%"></i></div>
+              <div class="bar" style="--i:3;height:72%"><i style="height:42%"></i></div>
+              <div class="bar" style="--i:4;height:88%"><i style="height:39%"></i></div>
+              <div class="bar" style="--i:5;height:100%"><i style="height:41%"></i></div>
+              <div class="bar" style="--i:6;height:80%"><i style="height:37%"></i></div>
+            </div>
+            <div class="bar-days" aria-hidden="true"><span>пн</span><span>вт</span><span>ср</span><span>чт</span><span>пт</span><span>сб</span><span>вс</span></div>
+            <ul class="dash-cards" aria-hidden="true">
+              <li><span>Стойка у кассы</span><b>96 · 41</b></li>
+              <li><span>Столик у окна</span><b>58 · 19</b></li>
+              <li><span>Терраса</span><b>30 · 11</b></li>
+            </ul>
           </div>
         </div>
       </div>
     </section>
 
     <!-- ---------- для кого ---------- -->
-    <section class="section-soft" id="who">
+    <section id="who">
       <div class="wrap">
-        <p class="kicker">Для кого</p>
-        <h2>Для любого бизнеса, где важны отзывы на картах</h2>
-        <ul class="who">
-          <li>Кафе и рестораны</li>
-          <li>Кофейни</li>
-          <li>Салоны красоты</li>
-          <li>Барбершопы</li>
-          <li>Магазины</li>
-          <li>Автосервисы</li>
-          <li>Отели</li>
-          <li>Клиники</li>
+        <div class="section-head reveal">
+          <p class="kicker">Для кого</p>
+          <h2>Для бизнеса, которого выбирают по отзывам на картах</h2>
+        </div>
+        <ul class="who reveal">
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 11h12v3a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5zM17 12h1.5a2.5 2.5 0 0 1 0 5H16M8 4c0 1.5 1 1.5 1 3M12 4c0 1.5 1 1.5 1 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Кафе и кофейни</li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v8M5 3v4a2 2 0 0 0 4 0V3M7 11v10M17 21V3c-2 0-3.5 2-3.5 6v4H17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Рестораны</li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="7" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="6" cy="17" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 8.5 20 18M8.5 15.5 20 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Барбершопы</li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c2 3 5 5 5 9a5 5 0 0 1-10 0c0-4 3-6 5-9zM12 21v-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Салоны красоты</li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14l-1 12H6zM9 8V6a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Магазины</li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 16V12l2-5h10l2 5v4M3 16h18v3H3zM7 19v1.5M17 19v1.5M5 12h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Автосервисы</li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20V8M3 14h18v6M21 14v-2a3 3 0 0 0-3-3h-7v5M7 11.5a1.5 1.5 0 1 0 0-.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Отели</li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Клиники и другие</li>
         </ul>
+      </div>
+    </section>
+
+    <!-- ---------- цены ---------- -->
+    <!-- ЦЕНЫ: если меняете — поменяйте и строку «Подключение …» в первом экране -->
+    <section class="section-soft" id="pricing">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <p class="kicker">Цены</p>
+          <h2>Понятная цена без сюрпризов</h2>
+          <p>Один раз оплачиваете подключение — карты и настройку. Дальше — подписка на работу страницы и статистику.</p>
+        </div>
+
+        <div class="plans">
+          <article class="plan reveal">
+            <h3>Месяц</h3>
+            <p class="plan-sub">Чтобы попробовать</p>
+            <p class="price"><strong>200&nbsp;₽</strong><span>в месяц</span></p>
+            <p class="price-note">+&nbsp;подключение 100&nbsp;₽ за&nbsp;карту</p>
+            <ul>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Карта NFC + QR</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Страница отзывов под ваше заведение</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Статистика по ссылке и в Telegram</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Смена ссылок без перепечатки</li>
+            </ul>
+            <a class="btn btn-ghost" href="https://t.me/tapreview_ru" target="_blank" rel="noopener">Заказать</a>
+          </article>
+
+          <article class="plan plan-featured reveal" style="--d:.06s">
+            <span class="plan-badge">Выгоднее</span>
+            <h3>Год</h3>
+            <p class="plan-sub">Для тех, кто уже решил</p>
+            <p class="price"><strong>2&nbsp;000&nbsp;₽</strong><span>в год</span></p>
+            <p class="price-note">≈&nbsp;167&nbsp;₽ в&nbsp;месяц · +&nbsp;подключение 100&nbsp;₽ за&nbsp;карту</p>
+            <ul>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Всё, что в тарифе «Месяц»</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Два месяца бесплатно</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Не нужно продлевать каждый месяц</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Цена не изменится весь год</li>
+            </ul>
+            <a class="btn btn-gold" href="https://t.me/tapreview_ru" target="_blank" rel="noopener">Заказать</a>
+          </article>
+
+          <article class="plan reveal" style="--d:.12s">
+            <h3>Сеть</h3>
+            <p class="plan-sub">Несколько точек или много карт</p>
+            <p class="price"><strong class="price-text">Индивидуально</strong></p>
+            <p class="price-note">Каждая карта — 100&nbsp;₽ за подключение</p>
+            <ul>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Карты на каждый стол или мастера</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Статистика по каждой карте</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Все точки в одной ссылке</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Один QR на несколько заведений</li>
+            </ul>
+            <a class="btn btn-ghost" href="https://t.me/tapreview_ru" target="_blank" rel="noopener">Рассчитать</a>
+          </article>
+        </div>
+
+        <div class="pricing-foot reveal">
+          <p><svg aria-hidden="true"><use href="#i-check"/></svg>Без автосписаний — каждый период вы оплачиваете сами, за 5 дней до конца напомним.</p>
+          <p><svg aria-hidden="true"><use href="#i-check"/></svg>Если не продлить — карта не превратится в мусор: гости попадут сразу на Яндекс Карты или 2ГИС.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- как заказать ---------- -->
+    <section id="order">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <p class="kicker">Как заказать</p>
+          <h2>От сообщения до первого отзыва</h2>
+        </div>
+        <ol class="order">
+          <li class="reveal"><h3>Напишите нам</h3><p>В Telegram — название заведения и сколько нужно карт.</p></li>
+          <li class="reveal" style="--d:.06s"><h3>Настроим страницу</h3><p>Найдём ваши карточки на площадках и пришлём ссылку на проверку.</p></li>
+          <li class="reveal" style="--d:.12s"><h3>Оплата и карты</h3><p>После оплаты передадим готовые карты — они уже работают.</p></li>
+          <li class="reveal" style="--d:.18s"><h3>Смотрите результат</h3><p>Поставьте карту на видное место и следите за статистикой.</p></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ---------- вопросы ---------- -->
+    <section class="section-soft" id="faq">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <p class="kicker">Вопросы</p>
+          <h2>Частые вопросы</h2>
+        </div>
+        <div class="faq reveal">
+          <details>
+            <summary>Гостю нужно что-то устанавливать?</summary>
+            <p>Нет. Карта открывает обычную страницу в браузере. Достаточно приложить телефон или навести камеру на QR-код.</p>
+          </details>
+          <details>
+            <summary>Что если в телефоне нет NFC?</summary>
+            <p>На той же карте есть QR-код — его считывает камера любого смартфона. На некоторых Android NFC нужно включить в настройках.</p>
+          </details>
+          <details>
+            <summary>Это не накрутка отзывов?</summary>
+            <p>Нет. Гость сам решает, писать ли отзыв и что в нём сказать, — мы только сокращаем путь до формы на площадке. Поэтому и количество отзывов мы не обещаем: мы показываем, сколько людей дошли до отзыва.</p>
+          </details>
+          <details>
+            <summary>Можно поменять ссылки или площадки потом?</summary>
+            <p>Да, в любой момент и без перепечатки. Карту можно даже перенести на другое заведение.</p>
+          </details>
+          <details>
+            <summary>Что показывает статистика?</summary>
+            <p>Сколько раз открыли страницу отзывов, с NFC или по QR, сколько человек нажали на Яндекс Карты, 2ГИС или Google — по дням, по каждой карте и каждой точке. Смотреть можно по личной ссылке или получать отчёт в Telegram.</p>
+          </details>
+          <details>
+            <summary>Что будет, если не продлить подписку?</summary>
+            <p>Мы напомним заранее. Если всё же не продлить, через 3 дня карта продолжит работать, но будет вести гостей сразу на площадку отзывов, а статистика встанет на паузу. После оплаты всё вернётся.</p>
+          </details>
+          <details>
+            <summary>У меня несколько заведений. Это удобно?</summary>
+            <p>Да. Все точки и карты можно собрать в одну ссылку: видно общую сводку и каждое заведение отдельно. А один QR-код может вести на список ваших заведений.</p>
+          </details>
+        </div>
       </div>
     </section>
 
     <!-- ---------- призыв ---------- -->
     <section id="contact">
       <div class="wrap">
-        <div class="cta">
-          <h2>Хотите карту для своего заведения?</h2>
-          <p>Напишите в Telegram <b>@tapreview_ru</b> — расскажем, как всё устроено, и подготовим карту под ваш бизнес.</p>
-          <a class="btn btn-gold" href="https://t.me/tapreview_ru" target="_blank" rel="noopener">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.5 4.2 2.9 11.4c-1 .4-1 1.4 0 1.7l4.6 1.4 1.8 5.4c.2.6.9.8 1.4.4l2.6-2.1 4.8 3.5c.6.4 1.4.1 1.6-.6l3.2-15.3c.2-.9-.6-1.6-1.4-1.6zM9.6 14.3l8.6-7.6-6.7 8.6-.3 3-1.6-4z" fill="currentColor"/></svg>
-            Написать в Telegram
-          </a>
+        <div class="cta reveal">
+          <h2>Попробуйте TapReview в своём заведении</h2>
+          <p>Напишите в Telegram <b>@tapreview_ru</b> — ответим на вопросы и подготовим карту под ваш бизнес.</p>
+          <div class="actions">
+            <a class="btn btn-gold" href="https://t.me/tapreview_ru" target="_blank" rel="noopener">
+              <svg aria-hidden="true"><use href="#i-tg"/></svg>
+              Написать в Telegram
+            </a>
+            <a class="btn btn-ghost" href="/b/yarik">Посмотреть пример</a>
+          </div>
         </div>
       </div>
     </section>
@@ -294,10 +764,32 @@
   <footer class="footer">
     <div class="wrap">
       <span>© 2026 TapReview · Отзывы в одно касание</span>
-      <a href="https://t.me/tapreview_ru" target="_blank" rel="noopener">Telegram @tapreview_ru ↗</a>
-      <a href="https://t.me/tapreviewru" target="_blank" rel="noopener">Канал ↗</a>
+      <nav aria-label="Контакты">
+        <a href="https://t.me/tapreview_ru" target="_blank" rel="noopener">Telegram @tapreview_ru ↗</a>
+        <a href="https://t.me/tapreviewru" target="_blank" rel="noopener">Канал ↗</a>
+      </nav>
     </div>
   </footer>
 
+  <script>
+    // Мягкое появление блоков и тонкая линия под шапкой при прокрутке.
+    // Без JS или при «уменьшить движение» всё просто видно сразу.
+    (function () {
+      var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var header = document.getElementById("top");
+      var onScroll = function () { header.classList.toggle("scrolled", window.scrollY > 8); };
+      onScroll();
+      window.addEventListener("scroll", onScroll, { passive: true });
+
+      if (reduce || !document.documentElement.classList.contains("js")) return;
+      var targets = document.querySelectorAll(".reveal, .dash");
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+        });
+      }, { rootMargin: "0px 0px -8% 0px", threshold: 0.12 });
+      targets.forEach(function (el) { io.observe(el); });
+    })();
+  </script>
 </body>
 </html>
