@@ -169,32 +169,48 @@
     .hero-price a { color: var(--navy); font-weight: 650; }
 
     /* Карта + телефон */
-    .visual { position: relative; display: flex; justify-content: center; align-items: center; min-height: 440px; padding: 10px 0 20px; }
+    /* Карта + телефон: телефон — в пропорциях настоящего смартфона (≈ 9 : 19,5) */
+    .visual { position: relative; display: flex; justify-content: center; align-items: center; min-height: 560px; padding: 10px 0 44px; }
     .card-img {
-      position: relative; z-index: 1; width: min(230px, 54vw); height: auto; border-radius: 18px;
-      transform: translateX(-34%) rotate(-7deg); box-shadow: var(--shadow-lg);
+      position: absolute; z-index: 1; left: 50%; top: 50%; width: min(200px, 46vw); height: auto; border-radius: 16px;
+      transform: translate(-100%, -48%) rotate(-8deg); box-shadow: var(--shadow-lg);
     }
     .phone {
-      position: absolute; z-index: 2; left: 50%; top: 50%; width: min(230px, 56vw);
-      transform: translate(-8%, -46%) rotate(4deg);
-      padding: 9px; border-radius: 40px; background: #0d1424;
-      box-shadow: 0 0 0 1px #2a3245 inset, 0 40px 80px rgba(6, 26, 58, 0.28), 0 8px 20px rgba(6, 26, 58, 0.18);
+      position: relative; z-index: 2; width: min(232px, 54vw); aspect-ratio: 9 / 19.5;
+      transform: translateX(22%) rotate(4deg);
+      padding: 8px; border-radius: 42px; background: #0d1424;
+      box-shadow: 0 0 0 1.5px #2a3245 inset, 0 0 0 3px #1a2233, 0 40px 80px rgba(6, 26, 58, 0.28), 0 8px 20px rgba(6, 26, 58, 0.18);
     }
-    .screen { position: relative; overflow: hidden; border-radius: 32px; background: #fff; padding: 34px 16px 18px; text-align: center; }
-    .screen::before { content: ""; position: absolute; top: 10px; left: 50%; width: 64px; height: 18px; translate: -50% 0; border-radius: 99px; background: #0d1424; }
-    .s-name { margin: 6px 0 2px; font-family: "Playfair Display", Georgia, serif; font-size: 21px; font-weight: 600; line-height: 1.15; color: var(--ink); }
-    .s-tag { margin: 0; font-size: 8.5px; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; color: #8a91a1; }
-    .s-line { width: 34px; height: 2px; margin: 12px auto; border-radius: 2px; background: var(--gold); }
-    .s-thanks { margin: 0 0 4px; font-size: 13px; font-weight: 600; color: var(--ink); }
-    .s-stars { display: flex; justify-content: center; gap: 3px; margin: 6px 0 14px; color: var(--gold); }
-    .s-stars svg { width: 14px; height: 14px; }
+    /* Боковые кнопки */
+    .phone::before { content: ""; position: absolute; left: -4px; top: 21%; width: 3px; height: 12%; border-radius: 3px 0 0 3px; background: #1a2233; box-shadow: 0 -40px 0 -0.5px #1a2233; }
+    .phone::after { content: ""; position: absolute; right: -4px; top: 27%; width: 3px; height: 15%; border-radius: 0 3px 3px 0; background: #1a2233; }
+    .screen {
+      position: relative; display: flex; flex-direction: column; height: 100%; overflow: hidden;
+      border-radius: 34px; background: #fff; padding: 0 14px 10px; text-align: center;
+    }
+    .s-status { display: flex; align-items: center; justify-content: space-between; height: 34px; padding: 0 8px; font-size: 10.5px; font-weight: 700; color: var(--ink); }
+    .s-island { position: absolute; top: 9px; left: 50%; width: 30%; height: 17px; translate: -50% 0; border-radius: 99px; background: #0d1424; }
+    .s-icons { display: flex; align-items: center; gap: 4px; }
+    .s-icons svg { height: 9px; width: auto; }
+    .s-body { flex: 1; display: flex; flex-direction: column; justify-content: center; padding-bottom: 4px; }
+    .s-name { margin: 4px 0 2px; font-family: "Playfair Display", Georgia, serif; font-size: 22px; font-weight: 600; line-height: 1.15; color: var(--ink); }
+    .s-tag { margin: 0; font-size: 8px; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; color: #8a91a1; }
+    .s-line { width: 30px; height: 2px; margin: 11px auto; border-radius: 2px; background: var(--gold); }
+    .s-thanks { margin: 0; font-size: 12.5px; font-weight: 650; color: var(--ink); }
+    .s-stars { display: flex; justify-content: center; gap: 3px; margin: 7px 0 4px; color: var(--gold); }
+    .s-stars svg { width: 13px; height: 13px; }
+    .s-lead { margin: 0 0 12px; font-size: 9.5px; line-height: 1.4; color: #8a91a1; }
     .s-btn {
-      display: flex; align-items: center; gap: 9px; margin: 0 0 8px; padding: 9px 12px; border-radius: 999px;
-      box-shadow: 0 0 0 1px var(--line) inset; font-size: 11.5px; font-weight: 650; color: var(--ink); text-align: left;
+      display: flex; align-items: center; gap: 8px; margin: 0 0 7px; padding: 8px 11px; border-radius: 999px;
+      box-shadow: 0 0 0 1px var(--line) inset; font-size: 11px; font-weight: 650; color: var(--ink); text-align: left;
     }
-    .s-btn svg { width: 20px; height: 20px; flex: none; }
+    .s-btn svg { width: 19px; height: 19px; flex: none; }
     .s-btn span { flex: 1; }
     .s-btn i { color: #a3aab8; font-style: normal; }
+    .s-gift { justify-content: center; margin-top: 3px; box-shadow: 0 0 0 1px #f0d48a inset; background: var(--gold-50); color: #8a6300; }
+    .s-gift svg { width: 15px; height: 15px; }
+    .s-foot { margin: 6px auto 8px; padding: 4px 10px; border-radius: 99px; background: var(--soft); font-size: 9px; font-weight: 650; color: #8a91a1; }
+    .s-home { width: 34%; height: 4px; margin: 0 auto; border-radius: 4px; background: #0d1424; opacity: 0.85; }
     .tap-chip {
       position: absolute; z-index: 3; left: 50%; bottom: 0; translate: -50% 0;
       display: flex; align-items: center; gap: 10px; white-space: nowrap;
@@ -374,9 +390,9 @@
       .nav { display: flex; }
       .hero { padding: 64px 0 96px; }
       .hero .wrap { grid-template-columns: 1.08fr 0.92fr; gap: 40px; }
-      .visual { min-height: 560px; }
-      .card-img { width: 270px; }
-      .phone { width: 250px; }
+      .visual { min-height: 620px; }
+      .card-img { width: 230px; transform: translate(-122%, -46%) rotate(-8deg); }
+      .phone { width: 252px; transform: translateX(26%) rotate(4deg); }
       section { padding: 112px 0; }
       .section-head { margin-bottom: 56px; }
       .benefits { grid-template-columns: repeat(3, 1fr); }
@@ -387,7 +403,7 @@
       .header .btn span { display: none; }
       .header .btn { width: 42px; padding: 0; }
       .actions .btn { width: 100%; }
-      .visual { min-height: 400px; }
+      .visual { min-height: 500px; }
     }
     @media (prefers-reduced-motion: reduce) {
       html { scroll-behavior: auto; }
@@ -481,14 +497,28 @@
           <img class="card-img" src="/assets/card-front.png" width="640" height="1015" alt="">
           <div class="phone">
             <div class="screen">
-              <p class="s-tag">Кофейня</p>
-              <p class="s-name">Утро</p>
-              <div class="s-line"></div>
-              <p class="s-thanks">Спасибо за ваш визит!</p>
-              <div class="s-stars"><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg></div>
-              <div class="s-btn"><svg><use href="#i-yandex"/></svg><span>Яндекс Карты</span><i>›</i></div>
-              <div class="s-btn"><svg><use href="#i-google"/></svg><span>Google Карты</span><i>›</i></div>
-              <div class="s-btn"><svg><use href="#i-twogis"/></svg><span>2ГИС</span><i>›</i></div>
+              <div class="s-island"></div>
+              <div class="s-status">
+                <span>9:41</span>
+                <span class="s-icons">
+                  <svg viewBox="0 0 17 11"><rect x="0" y="7" width="3" height="4" rx="1" fill="currentColor"/><rect x="4.5" y="5" width="3" height="6" rx="1" fill="currentColor"/><rect x="9" y="2.5" width="3" height="8.5" rx="1" fill="currentColor"/><rect x="13.5" y="0" width="3" height="11" rx="1" fill="currentColor"/></svg>
+                  <svg viewBox="0 0 25 12"><rect x="0.5" y="0.5" width="21" height="11" rx="3" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="16" height="8" rx="1.8" fill="currentColor"/><path d="M23 4v4a2 2 0 0 0 0-4z" fill="currentColor" opacity=".4"/></svg>
+                </span>
+              </div>
+              <div class="s-body">
+                <p class="s-tag">Кофейня</p>
+                <p class="s-name">Утро</p>
+                <div class="s-line"></div>
+                <p class="s-thanks">Спасибо за ваш визит!</p>
+                <div class="s-stars"><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg></div>
+                <p class="s-lead">Поделитесь впечатлениями —<br>это займёт минуту</p>
+                <div class="s-btn"><svg><use href="#i-yandex"/></svg><span>Яндекс Карты</span><i>›</i></div>
+                <div class="s-btn"><svg><use href="#i-google"/></svg><span>Google Карты</span><i>›</i></div>
+                <div class="s-btn"><svg><use href="#i-twogis"/></svg><span>2ГИС</span><i>›</i></div>
+                <div class="s-btn s-gift"><svg viewBox="0 0 24 24"><path d="M4 11h16v9H4zM3 7h18v4H3zM12 7v13M12 7c-1.5-3-6-3.5-6-1 0 1.5 2.5 1 6 1zM12 7c1.5-3 6-3.5 6-1 0 1.5-2.5 1-6 1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Получить скидку</div>
+              </div>
+              <span class="s-foot">♡ TapReview</span>
+              <div class="s-home"></div>
             </div>
           </div>
           <div class="tap-chip"><span><svg><use href="#i-nfc"/></svg></span>Приложили — и отзыв</div>
