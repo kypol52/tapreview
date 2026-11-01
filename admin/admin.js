@@ -1337,6 +1337,8 @@ const XLINK_TYPES = {
   booking: "Онлайн-запись",
   delivery: "Доставка",
   site: "Наш сайт",
+  tips: "Оставить чаевые",
+  pay: "Оплатить счёт",
   custom: "Своя подпись…"
 };
 const XLINK_MAX = 6;

@@ -58,7 +58,7 @@ const ADMIN_COLUMNS =
   "referred_by,ref_reward_at,theme,extra_links," +
   "created_at,updated_at";
 
-const EXTRA_LINK_TYPES = ["menu", "catalog", "services", "booking", "delivery", "site", "custom"];
+const EXTRA_LINK_TYPES = ["menu", "catalog", "services", "booking", "delivery", "site", "tips", "pay", "custom"];
 const EXTRA_LINK_MAX = 6;
 
 const GROUP_COLUMNS = "id,slug,name,tagline,logo_url,business_ids,is_active,created_at,updated_at";
