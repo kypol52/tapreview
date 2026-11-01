@@ -717,7 +717,10 @@ async function statsSummary(env, url) {
 
 const TG_INVITE_LENGTH = 20;
 
+// TG_WEBHOOK_URL — если Telegram не может достучаться до сервера напрямую (сервер в РФ),
+// вебхук указывает на посредника: https://<worker>.workers.dev/tg-hook
 function webhookUrl(env) {
+  if (env.TG_WEBHOOK_URL) return env.TG_WEBHOOK_URL;
   return `${String(env.PUBLIC_BASE_URL || "").replace(/\/+$/, "")}/tg/webhook`;
 }
 

@@ -33,15 +33,54 @@ export const BOT_COMMANDS = [
   { command: "help", description: "Как пользоваться ботом" }
 ];
 
+// ---------- Посредник для Telegram (работает на Cloudflare Worker, за рубежом) ----------
+// Включается переменными Worker: TG_RELAY_KEY (секрет, тот же, что на сервере) и TG_HOOK_TARGET.
+//   POST /tg-api/bot<токен>/<метод> — сервер → Telegram (только с заголовком X-Relay-Key)
+//   POST /tg-hook                   — Telegram → сервер: пересылаем на TG_HOOK_TARGET (https://tapreview.ru/tg/webhook)
+//                                     вместе с заголовком секрета вебхука, который проверяет уже сам сервер
+// Открытым прокси для посторонних не является: /tg-api без ключа → 403, /tg-hook ходит только на TG_HOOK_TARGET.
+
+export async function handleTelegramRelay(request, env, path) {
+  if (!env.TG_RELAY_KEY || request.method !== "POST") return new Response("Not found", { status: 404 });
+
+  if (path.startsWith("/tg-api/")) {
+    const key = request.headers.get("X-Relay-Key") || "";
+    if (!sameString(key, env.TG_RELAY_KEY)) return new Response("Forbidden", { status: 403 });
+    const rest = path.slice("/tg-api".length);
+    if (!/^\/bot\d+:[A-Za-z0-9_-]+\/[A-Za-z]+$/.test(rest)) return new Response("Bad request", { status: 400 });
+    const response = await fetch(`https://api.telegram.org${rest}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: await request.text()
+    });
+    return new Response(response.body, { status: response.status, headers: { "Content-Type": "application/json" } });
+  }
+
+  if (path === "/tg-hook" && env.TG_HOOK_TARGET) {
+    const headers = { "Content-Type": "application/json" };
+    const secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token");
+    if (secret) headers["X-Telegram-Bot-Api-Secret-Token"] = secret;
+    const response = await fetch(env.TG_HOOK_TARGET, { method: "POST", headers, body: await request.text() });
+    return new Response(await response.text(), { status: response.status });
+  }
+
+  return new Response("Not found", { status: 404 });
+}
+
 // ---------- Запросы к Telegram ----------
 
 export async function tg(env, method, body = {}) {
   if (!env.TG_BOT_TOKEN) {
     throw new Error("Не задан TG_BOT_TOKEN (на сервере — /etc/tapreview.env)");
   }
-  const response = await fetch(`https://api.telegram.org/bot${env.TG_BOT_TOKEN}/${method}`, {
+  // На сервере в РФ Telegram закрыт на уровне дата-центра — запросы идут через посредника
+  // (наш Cloudflare Worker, см. handleTelegramRelay): TG_API_BASE + ключ TG_RELAY_KEY.
+  const base = String(env.TG_API_BASE || "https://api.telegram.org").replace(/\/+$/, "");
+  const headers = { "Content-Type": "application/json" };
+  if (env.TG_RELAY_KEY) headers["X-Relay-Key"] = env.TG_RELAY_KEY;
+  const response = await fetch(`${base}/bot${env.TG_BOT_TOKEN}/${method}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(body)
   });
   const data = await response.json().catch(() => ({ ok: false, description: `HTTP ${response.status}` }));

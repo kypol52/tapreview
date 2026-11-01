@@ -15,7 +15,7 @@
 
 import { handleBusinessPage, handleCardPage, handleGroupPage, handleGo } from "./public-page.js";
 import { handleApi } from "./admin-api.js";
-import { handleTelegramWebhook, weeklyReports } from "./telegram.js";
+import { handleTelegramWebhook, handleTelegramRelay, weeklyReports } from "./telegram.js";
 import { handleStatsPage, handleBonusDesk, handleStaffDesk } from "./stats-page.js";
 import { handleBonus } from "./bonus.js";
 import { handleRef } from "./referral.js";
@@ -80,6 +80,11 @@ export default {
     const statsMatch = url.pathname.match(/^\/s\/([^/]+)\/?$/);
     if (statsMatch && isRead) {
       return handleStatsPage(request, env, ctx, statsMatch[1]);
+    }
+
+    // Посредник для Telegram — работает только там, где задан TG_RELAY_KEY (Cloudflare Worker)
+    if (url.pathname.startsWith("/tg-api/") || url.pathname === "/tg-hook") {
+      return handleTelegramRelay(request, env, url.pathname);
     }
 
     if (url.pathname === "/tg/webhook" && request.method === "POST") {
