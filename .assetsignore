@@ -5,3 +5,6 @@ wrangler.jsonc
 src
 supabase
 functions
+yandex-function
+strategy
+server
