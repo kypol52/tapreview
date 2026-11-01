@@ -593,11 +593,16 @@ function chartSection(daily, period) {
         `${d.clicks} ${plural(d.clicks, "переход", "перехода", "переходов")} к отзыву`;
       const hv = Math.round((d.views / max) * 100);
       const hc = Math.round((d.clicks / max) * 100);
+      // Числа в кружках над столбиками (только «за неделю»). Высота поля 130px, кружок ~17px:
+      // синий сразу над синим столбиком (над полем есть запас 20px), жёлтый всегда под синим, чтобы не наезжали
+      const navyAt = Math.round(hv * 1.3) + 3;
+      const goldAt = Math.max(2, Math.min(Math.round(hc * 1.3) + 3, navyAt - 19));
+      const pins = month
+        ? ""
+        : (d.views ? `<span class="col-pin col-pin-navy" style="bottom:${navyAt}px">${d.views}</span>` : "") +
+          (d.clicks ? `<span class="col-pin col-pin-gold" style="bottom:${goldAt}px">${d.clicks}</span>` : "");
       return `<div class="col" title="${esc(title)}">
-          ${month ? "" : `<div class="col-num">${d.views || ""}</div>`}
-          <div class="col-area"><div class="col-views" style="height:${hv}%"></div><div class="col-clicks" style="height:${hc}%"></div>${
-            !month && d.clicks ? `<span class="col-cnum" style="bottom:min(calc(${hc}% + 3px), calc(100% - 19px))">${d.clicks}</span>` : ""
-          }</div>
+          <div class="col-area"><div class="col-views" style="height:${hv}%"></div><div class="col-clicks" style="height:${hc}%"></div>${pins}</div>
           <div class="col-label">${label}</div>
         </div>`;
     })
@@ -821,19 +826,20 @@ const CSS = `
   .chart { display: flex; align-items: flex-end; gap: 6px; }
   .chart-month { gap: 2px; }
   .col { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: stretch; }
-  .col-num { height: 16px; font-size: 11px; font-weight: 600; text-align: center; color: var(--muted); }
-  .col-area { position: relative; height: 130px; background: #f1f3f8; border-radius: 6px; overflow: hidden; }
-  .chart-month .col-area { border-radius: 3px; }
+  .col-area { position: relative; height: 130px; margin-top: 20px; background: #f1f3f8; border-radius: 6px; }
+  .chart-month .col-area { margin-top: 0; overflow: hidden; border-radius: 3px; }
   .col-views, .col-clicks { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 6px 6px 0 0; }
+  .col-views { border-radius: 6px; }
   .col-views { background: var(--navy); }
   .col-clicks { left: 22%; right: 22%; background: var(--gold); }
   .chart-month .col-clicks { left: 0; right: 0; opacity: 0.95; }
-  /* число переходов к отзыву — над жёлтым столбиком */
-  .col-cnum {
+  /* числа над столбиками: открытия (синий кружок) и переходы к отзыву (жёлтый) */
+  .col-pin {
     position: absolute; left: 50%; transform: translateX(-50%); min-width: 20px; padding: 1px 5px; border-radius: 99px;
-    background: var(--gold); color: var(--navy); font-size: 11px; font-weight: 700; line-height: 15px; text-align: center;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    font-size: 11px; font-weight: 700; line-height: 15px; text-align: center; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   }
+  .col-pin-navy { background: var(--navy); color: #fff; box-shadow: 0 0 0 1.5px #fff, 0 1px 3px rgba(0, 0, 0, 0.25); }
+  .col-pin-gold { background: var(--gold); color: var(--navy); }
   .col-label { min-height: 30px; margin-top: 6px; font-size: 11px; line-height: 1.25; text-align: center; color: var(--muted); }
   .rows { list-style: none; margin: 0; padding: 0; }
   .row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: 10px; row-gap: 6px; padding: 8px 0; }
