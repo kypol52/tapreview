@@ -887,6 +887,7 @@ function openEditor(business) {
   fillBonus(business);
   $("f-xlinks").replaceChildren(...((business && business.extra_links) || []).map(xlinkRow));
   updateXlinkAdd();
+  $("f-rating-first").checked = business ? business.rating_first !== false : true;
   $("f-active").checked = business ? business.is_active : true;
   $("f-paid-until").value = business ? business.paid_until || "" : "";
   $("f-price").value = business && business.monthly_price != null ? String(business.monthly_price) : "";
@@ -1324,7 +1325,8 @@ function readForm() {
     billing_note: $("f-billing-note").value,
     referred_by: $("f-referred-by").value || null,
     theme: (document.querySelector('input[name="f-theme"]:checked') || {}).value || "classic",
-    extra_links: readXlinks()
+    extra_links: readXlinks(),
+    rating_first: $("f-rating-first").checked
   };
 }
 

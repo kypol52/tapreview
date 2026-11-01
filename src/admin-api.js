@@ -55,7 +55,7 @@ const ADMIN_COLUMNS =
   "google_url,yandex_url,twogis_url,discount_code,discount_text,is_active," +
   "paid_until,monthly_price,billing_note," +
   "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions," +
-  "referred_by,ref_reward_at,theme,extra_links," +
+  "referred_by,ref_reward_at,theme,extra_links,rating_first," +
   "created_at,updated_at";
 
 const EXTRA_LINK_TYPES = ["menu", "catalog", "services", "booking", "delivery", "site", "tips", "pay", "custom"];
@@ -588,6 +588,7 @@ function validateBusiness(input) {
     referred_by: cleanRefId(input.referred_by),
     theme: ["classic", "dark", "coffee", "fresh", "rose"].includes(input.theme) ? input.theme : "classic",
     extra_links: cleanExtraLinks(input.extra_links),
+    rating_first: input.rating_first !== false,
     ...cleanBonus(input)
   };
 }

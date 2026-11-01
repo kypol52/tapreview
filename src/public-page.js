@@ -9,6 +9,7 @@ import { db } from "./supabase.js";
 import { logEvent, sourceFrom } from "./analytics.js";
 import { isExpired } from "./billing.js";
 import { bonusBlock } from "./bonus.js";
+import { flowFrom, logRating } from "./rating.js";
 
 const SLUG_RE = /^[A-Za-z0-9_-]{3,64}$/;
 const COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
@@ -73,7 +74,7 @@ export const BONUS_COLUMNS =
 
 const BUSINESS_COLUMNS =
   "id,slug,name,tagline,category,logo_url,brand_color,google_url,yandex_url,twogis_url," +
-  "discount_code,discount_text,paid_until,theme,extra_links," + BONUS_COLUMNS;
+  "discount_code,discount_text,paid_until,theme,extra_links,rating_first," + BONUS_COLUMNS;
 
 // Ссылки заведения под кнопками отзывов (миграция 020): меню, каталог, услуги…
 // Значки — тонкие линии в цвете текста темы, чтобы не спорить с логотипами площадок
@@ -92,7 +93,7 @@ export const EXTRA_LINKS = {
   custom: { label: "Ссылка", icon: LINK_ICON("M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1") }
 };
 
-function extraLinksBlock(business) {
+function extraLinksBlock(business, top = false) {
   const links = (Array.isArray(business.extra_links) ? business.extra_links : []).filter((l) => l && isHttpsUrl(l.url));
   if (!links.length) return "";
   const items = links
@@ -106,8 +107,8 @@ function extraLinksBlock(business) {
     })
     .join("");
   return `
-    <div class="xlinks">
-      <p class="xlinks-title">Ещё у нас</p>
+    <div class="xlinks${top ? " xlinks-top" : ""}">
+      ${top ? "" : `<p class="xlinks-title">Ещё у нас</p>`}
       <div class="xlinks-grid${links.length === 1 ? " xlinks-one" : ""}">${items}</div>
     </div>`;
 }
@@ -119,14 +120,19 @@ export async function handleBusinessPage(request, env, ctx, slug) {
   if (result.response) return result.response;
 
   const business = result.business;
-  const source = sourceFrom(new URL(request.url));
+  const url = new URL(request.url);
+  const source = sourceFrom(url);
+  const flow = flowFrom(url);
 
   ctx.waitUntil(
     logEvent(request, env, { businessId: business.id, eventType: "page_view", source })
   );
+  if (business.rating_first && flow.score && !flow.sent && !flow.all) {
+    ctx.waitUntil(logRating(request, env, { businessId: business.id, score: flow.score, source }));
+  }
 
   if (isExpired(business.paid_until)) return pausedResponse(business);
-  return businessPage(business, source);
+  return businessPage(business, source, null, flow);
 }
 
 // Подписка закончилась (после отсрочки): гость не должен упираться в ошибку —
@@ -248,7 +254,9 @@ export async function handleCardPage(request, env, ctx, rawCode) {
     );
   }
 
-  const source = sourceFrom(new URL(request.url));
+  const url = new URL(request.url);
+  const source = sourceFrom(url);
+  const flow = flowFrom(url);
   ctx.waitUntil(
     logEvent(request, env, {
       businessId: business.id,
@@ -257,9 +265,12 @@ export async function handleCardPage(request, env, ctx, rawCode) {
       cardId: card.id
     })
   );
+  if (business.rating_first && flow.score && !flow.sent && !flow.all) {
+    ctx.waitUntil(logRating(request, env, { businessId: business.id, cardId: card.id, score: flow.score, source }));
+  }
 
   if (isExpired(business.paid_until)) return pausedResponse(business);
-  return businessPage(business, source, card.code);
+  return businessPage(business, source, card.code, flow);
 }
 
 // Код карты: только латинские буквы и цифры, регистр и дефисы не важны (K7P-3QX = k7p3qx)
@@ -412,7 +423,7 @@ function redirect(location) {
   });
 }
 
-function businessPage(business, source, cardCode = null) {
+function businessPage(business, source, cardCode = null, flow = { score: null, all: false, sent: false }) {
   // Свой фирменный цвет заведения, иначе — цвет черты выбранной темы
   const accent = COLOR_RE.test(business.brand_color || "") ? business.brand_color : null;
 
@@ -447,15 +458,19 @@ function businessPage(business, source, cardCode = null) {
   const nameLength = [...business.name].length;
   const nameClass = nameLength > 22 ? "name name-long" : nameLength > 12 ? "name name-mid" : "name";
 
+  // Подарок для гостей (bonus.js): только при скане карты, появляется через несколько секунд,
+  // не зависит от отзыва. Без JavaScript — обычная форма.
+  const discount = bonusBlock(business, source, cardCode);
+
+  if (business.rating_first) {
+    return ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, discount });
+  }
+
   const actions = buttons
     ? `<p class="lead">Пожалуйста, поделитесь впечатлением о&nbsp;нашем заведении.</p>
        <div class="stars" role="img" aria-label="Пять звёзд">${STAR.repeat(5)}</div>
        <div class="buttons">${buttons}</div>`
     : `<p class="lead">Ссылки для отзывов скоро появятся.</p>`;
-
-  // Подарок для гостей (bonus.js): только при скане карты, появляется через несколько секунд,
-  // не зависит от отзыва. Без JavaScript — обычная форма.
-  const discount = bonusBlock(business, source, cardCode);
 
   return renderPage({
     status: 200,
@@ -473,6 +488,86 @@ function businessPage(business, source, cardCode = null) {
       ${actions}
       ${extraLinksBlock(business)}
       ${discount}`
+  });
+}
+
+// Сначала оценка (rating.js): карточка заведения → «Как вам у нас?» → площадки (4–5) или сообщение владельцу (1–3).
+// Площадки доступны при любой оценке, подарок — после любой оценки.
+function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, discount }) {
+  const base = new URLSearchParams();
+  if (source !== "direct") base.set("s", source);
+  const link = (extra) => {
+    const p = new URLSearchParams(base);
+    for (const [k, v] of Object.entries(extra)) p.set(k, String(v));
+    return escapeHtml(`?${p}`);
+  };
+  const { score, all, sent } = flow;
+  const chosen = score
+    ? `<div class="stars stars-chosen" role="img" aria-label="Ваша оценка: ${score} из 5">${STAR.repeat(score)}<span class="stars-off">${STAR.repeat(5 - score)}</span></div>`
+    : "";
+  const platforms = buttons ? `<div class="buttons">${buttons}</div>` : `<p class="lead">Ссылки для отзывов скоро появятся.</p>`;
+  const publicLink = (text) =>
+    buttons ? `<a class="rate-public" href="${link({ v: "all", ...(score ? { r: score } : {}) })}">${text}</a>` : "";
+
+  let step;
+  if (!score && !all) {
+    // 1. Вопрос: пять звёзд-ссылок (подсветка при наведении — на CSS)
+    const stars = [5, 4, 3, 2, 1]
+      .map((n) => `<a class="rate-star" href="${link({ r: n })}" rel="nofollow" aria-label="Оценка ${n} из 5">${STAR}</a>`)
+      .join("");
+    step = `
+      <h2 class="thanks">Как вам у нас?</h2>
+      <p class="lead">Оцените визит — это одно касание.</p>
+      <div class="rate" role="group" aria-label="Оценка от 1 до 5">${stars}</div>
+      <div class="rate-scale"><span>Плохо</span><span>Отлично</span></div>
+      ${publicLink("Сразу оставить отзыв на картах →")}`;
+  } else if (all || score >= 4) {
+    // 2а. Довольный гость (или сам выбрал «сразу на картах») — площадки
+    step = `
+      <h2 class="thanks">${score >= 4 ? "Спасибо за высокую оценку!" : "Спасибо за ваш визит!"}</h2>
+      ${chosen}
+      <p class="lead">Поделитесь впечатлением — это очень поможет нам.</p>
+      ${platforms}`;
+  } else if (sent) {
+    // 2б. Сообщение отправлено
+    step = `
+      <h2 class="thanks">Спасибо, что рассказали</h2>
+      ${chosen}
+      <p class="lead">Владелец уже получил ваше сообщение и разберётся. Будем рады видеть вас снова.</p>
+      ${publicLink("Оставить отзыв на картах")}`;
+  } else {
+    // 2в. Оценка 1–3 — сообщение владельцу
+    step = `
+      <h2 class="thanks">Нам жаль, что что-то пошло не так</h2>
+      ${chosen}
+      <p class="lead">Расскажите, что случилось, — владелец получит сообщение сразу и разберётся.</p>
+      <form class="fb" method="post" action="/feedback">
+        <input type="hidden" name="b" value="${escapeHtml(business.slug)}">
+        ${cardCode ? `<input type="hidden" name="c" value="${escapeHtml(cardCode)}">` : ""}
+        ${source !== "direct" ? `<input type="hidden" name="s" value="${escapeHtml(source)}">` : ""}
+        <input type="hidden" name="r" value="${score}">
+        <input class="fb-trap" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <textarea name="text" rows="4" maxlength="1000" required placeholder="Например: долго ждали заказ, остыл кофе…" aria-label="Ваше сообщение"></textarea>
+        <p class="fb-hint">Сообщение анонимное. Не указывайте имя и телефон.</p>
+        <button class="fb-send" type="submit">Отправить владельцу</button>
+      </form>
+      ${publicLink("Оставить отзыв на картах")}`;
+  }
+
+  return renderPage({
+    status: 200,
+    title: `Отзыв — ${business.name}`,
+    accent,
+    theme: business.theme,
+    footer: { href: `/r/${business.slug}?s=card`, text: "Хочу такую карту" },
+    body: `
+      ${logo}
+      <h1 class="${nameClass}">${escapeHtml(business.name)}</h1>
+      ${tagline}
+      ${extraLinksBlock(business, true)}
+      <div class="divider"></div>
+      ${step}
+      ${score || all ? discount : ""}`
   });
 }
 
@@ -674,6 +769,39 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
     .icon svg { display: block; width: 100%; height: 100%; }
     .label { flex: 1; font-size: 16px; line-height: 1.35; }
     .arrow { flex: none; width: 22px; height: 22px; color: var(--muted); }
+
+    /* Сначала оценка: звёзды-ссылки (справа налево — для подсветки «до наведённой» на CSS) */
+    .rate { display: flex; flex-direction: row-reverse; justify-content: center; gap: 6px; margin: 18px 0 6px; }
+    .rate-star {
+      display: grid; place-items: center; width: 52px; height: 52px; border-radius: 14px;
+      -webkit-tap-highlight-color: transparent; transition: transform 0.12s ease;
+    }
+    .rate-star svg { width: 42px; height: 42px; fill: var(--btn-border); stroke: color-mix(in srgb, var(--muted) 35%, transparent); stroke-width: 0.6; transition: fill 0.12s ease; }
+    .rate-star:hover svg, .rate-star:hover ~ .rate-star svg, .rate-star:focus-visible svg, .rate-star:focus-visible ~ .rate-star svg { fill: #f0b43c; stroke: transparent; }
+    .rate-star:active { transform: scale(0.9); }
+    .rate-star:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+    .rate-scale { display: flex; justify-content: space-between; max-width: 290px; margin: 0 auto; color: var(--muted); font-size: 12px; }
+    .rate-public { display: inline-block; margin-top: 18px; color: var(--muted); font-size: 14px; text-underline-offset: 3px; }
+    .stars-chosen { margin: 6px 0 14px; }
+    .stars-chosen svg { width: 24px; height: 24px; }
+    .stars-off svg { fill: var(--btn-border); }
+    .stars-off { display: contents; }
+    /* сообщение владельцу */
+    .fb { margin-top: 14px; text-align: left; }
+    .fb textarea {
+      display: block; width: 100%; min-height: 110px; padding: 12px 14px; border-radius: 14px; resize: vertical;
+      border: 1px solid var(--btn-border); background: var(--btn-bg); color: var(--text); font: inherit; font-size: 16px; line-height: 1.4;
+    }
+    .fb textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .fb-hint { margin: 8px 2px 12px; color: var(--muted); font-size: 12.5px; }
+    .fb-send {
+      display: block; width: 100%; padding: 15px 18px; border: 0; border-radius: 999px; cursor: pointer;
+      background: linear-gradient(135deg, var(--cta1), var(--cta2)); color: #fff; font: inherit; font-size: 16px; font-weight: 700;
+    }
+    .fb-send:active { transform: scale(0.98); }
+    .fb-trap { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+    /* ссылки заведения вверху — как карточка заведения */
+    .xlinks-top { margin: 18px 0 4px; }
 
     /* Ссылки заведения: меню, каталог, услуги… — компактная сетка под кнопками отзывов */
     .xlinks { margin-top: 26px; }

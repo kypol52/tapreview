@@ -7,6 +7,7 @@ import { PERIODS, PLATFORMS, loadReports, loadDaily, sumTotals, formatDateRange,
 import { ICONS } from "./public-page.js";
 import { formatDay } from "./billing.js";
 import { normalizeCode, findCode, redeemCode, bonusCounts, validityText } from "./bonus.js";
+import { ratingStats } from "./rating.js";
 import { refUrl, refStats } from "./referral.js";
 
 const TOKEN_RE = /^[A-Za-z0-9]{24}$/;
@@ -101,7 +102,18 @@ async function statsPage(request, env, ctx, token) {
     invite = inviteSection(refUrl(env, slugs.get(id)), stats);
   }
 
-  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn: bonusRows.length > 0, invite };
+  // Оценки гостей и сообщения владельцу (шаг «Сначала оценка», rating.js)
+  const ratings = await ratingStats(env, view.dailyIds, {
+    from: venues[0].range.from,
+    to: venues[0].range.to,
+    cardId: view.card ? view.card.id : null
+  }).catch((error) => {
+    console.error(`ratingStats: ${error.message}`);
+    return null;
+  });
+  const names = new Map(allVenues.map((v) => [v.id, v.name]));
+
+  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn: bonusRows.length > 0, invite, ratings, names };
   return html(200, `Статистика · ${view.title}`, renderBody(view, daily, page));
 }
 
@@ -515,6 +527,7 @@ function renderBody(view, daily, page) {
         ${conversion}
       </div>
     </section>
+    ${ratingsSection(page.ratings, page.names, view.kind === "all")}
     ${sections}
     ${page.invite || ""}
     <section class="note">
@@ -531,6 +544,36 @@ function renderBody(view, daily, page) {
     <p>Обновлено ${esc(updated)} (МСК). Чтобы увидеть свежие цифры, обновите страницу.</p>
     <p>Сохраните ссылку в закладки или на главный экран телефона. Не пересылайте её посторонним — по ней видна статистика ${multi ? "ваших заведений" : "вашего заведения"}.</p>
   </footer>`;
+}
+
+// Оценки 1–5 и анонимные сообщения гостей с оценкой 1–3
+function ratingsSection(r, names, showVenue) {
+  if (!r || (!r.count && !r.feedback.length)) return "";
+  const avg = r.avg != null ? r.avg.toLocaleString("ru-RU", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "—";
+  const bars = [5, 4, 3, 2, 1]
+    .map((n) => {
+      const v = r.dist[n - 1];
+      const pct = r.count ? Math.round((v / r.count) * 100) : 0;
+      return `<li class="rate-row"><span class="rate-n">${n} ★</span><span class="track"><span class="fill ${n >= 4 ? "bar-gold" : "bar-low"}" style="width:${pct}%"></span></span><span class="rate-v">${num(v)}</span></li>`;
+    })
+    .join("");
+  const items = r.feedback
+    .map((f) => {
+      const when = new Date(f.created_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" });
+      const venue = showVenue && names.get(f.business_id) ? ` · ${esc(names.get(f.business_id))}` : "";
+      return `<li class="fb-item"><div class="fb-meta"><span class="fb-stars">${"★".repeat(f.score)}<span>${"★".repeat(5 - f.score)}</span></span> ${when}${venue}</div><p>${esc(f.text)}</p></li>`;
+    })
+    .join("");
+  return `<section class="panel">
+    <h2>Оценки гостей</h2>
+    <div class="rate-head">
+      <div><div class="rate-avg">${avg}</div><div class="kpi-sub">средняя из ${num(r.count)} ${plural(r.count, "оценки", "оценок", "оценок")}</div></div>
+      <div><div class="rate-avg rate-low">${num(r.low)}</div><div class="kpi-sub">${plural(r.low, "недовольный гость", "недовольных гостя", "недовольных гостей")} (1–3 ★)</div></div>
+    </div>
+    <ul class="rows rate-rows">${bars}</ul>
+    ${items ? `<h3 class="fb-title">Сообщения владельцу</h3><ul class="fb-list">${items}</ul>` : ""}
+    <p class="hint">Гости с оценкой 1–3 пишут вам напрямую — сообщение сразу приходит в Telegram-бот. Кнопки Яндекса и 2ГИС доступны всем гостям.</p>
+  </section>`;
 }
 
 function chartSection(daily, period) {
@@ -739,6 +782,24 @@ const CSS = `
   .wrap { padding: 16px; }
   .wrap-center { padding-top: 18vh; text-align: center; }
   .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: -2px; }
+  .rate-head { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .rate-avg { font-size: 32px; font-weight: 800; color: var(--navy); line-height: 1.1; }
+  .rate-avg::after { content: " ★"; color: var(--gold); font-size: 22px; }
+  .rate-avg.rate-low { color: var(--down); }
+  .rate-avg.rate-low::after { content: ""; }
+  .rate-row { display: grid; grid-template-columns: 38px 1fr 36px; align-items: center; gap: 8px; padding: 4px 0; }
+  .rate-n { font-size: 13px; font-weight: 600; color: var(--muted); }
+  .rate-v { text-align: right; font-weight: 600; }
+  .rate-row .track { display: block; height: 8px; border-radius: 99px; background: var(--bg); overflow: hidden; }
+  .rate-row .fill { display: block; height: 100%; border-radius: 99px; }
+  .bar-low { background: #e7a39b; }
+  .fb-title { margin: 18px 0 8px; font-size: 15px; }
+  .fb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .fb-item { padding: 10px 12px; border-radius: 12px; background: var(--bg); }
+  .fb-item p { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .fb-meta { font-size: 12.5px; color: var(--muted); }
+  .fb-stars { color: var(--gold); letter-spacing: 1px; }
+  .fb-stars span { color: var(--line); }
   .kpi, .panel { background: #fff; border-radius: 18px; padding: 16px;
     box-shadow: 0 1px 2px rgba(20,26,43,0.04), 0 8px 24px rgba(20,26,43,0.06); }
   .kpi-label { font-size: 13px; color: var(--muted); font-weight: 600; }

@@ -20,6 +20,7 @@ import { handleStatsPage, handleBonusDesk, handleStaffDesk } from "./stats-page.
 import { handleBonus } from "./bonus.js";
 import { handleRef } from "./referral.js";
 import { handleOrder, orderReminders } from "./orders.js";
+import { handleFeedback } from "./rating.js";
 import { db } from "./supabase.js";
 
 // Должно совпадать с расписанием в server/server.mjs
@@ -54,6 +55,10 @@ export default {
     const refMatch = url.pathname.match(/^\/r\/([^/]+)\/?$/);
     if (refMatch && isRead) {
       return handleRef(request, env, ctx, refMatch[1]);
+    }
+
+    if (url.pathname === "/feedback") {
+      return handleFeedback(request, env, ctx);
     }
 
     if (url.pathname === "/bonus") {

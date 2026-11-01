@@ -9,6 +9,7 @@
 //   TG_BOT_TOKEN      — токен бота от @BotFather
 //   TG_WEBHOOK_SECRET — любая длинная случайная строка из латинских букв и цифр
 
+import { ratingStats } from "./rating.js";
 import { db } from "./supabase.js";
 import { PERIODS, PLATFORMS, loadReports, formatDateRange } from "./report.js";
 import { formatDay } from "./billing.js";
@@ -331,7 +332,23 @@ export async function weeklyReports(env) {
   }
 
   const ids = [...new Set(subs.map((s) => s.business_id))];
-  const reports = await buildReports(env, ids, "week", Date.now());
+  const now = Date.now();
+  const reports = await buildReports(env, ids, "week", now);
+
+  // Оценки гостей за неделю (шаг «Сначала оценка»): средняя и сколько недовольных
+  for (const id of ids) {
+    const text = reports.get(id);
+    if (!text || text.startsWith("⏸")) continue;
+    try {
+      const r = await ratingStats(env, [id], { from: now - 7 * 24 * 60 * 60 * 1000, to: now });
+      if (!r.count) continue;
+      const avg = r.avg.toLocaleString("ru-RU", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+      reports.set(id, `${text}\n\n🌟 Оценки гостей: <b>${avg}</b> из 5 (${r.count})` +
+        (r.low ? `\n      Недовольных (1–3 ★): ${r.low}, сообщений вам: ${r.feedback.length}` : "\n      Недовольных не было 👏"));
+    } catch (error) {
+      console.error(`Weekly ratings ${id}: ${error.message}`);
+    }
+  }
 
   let sent = 0;
   for (const sub of subs.slice(0, MAX_WEEKLY_MESSAGES)) {

@@ -28,6 +28,16 @@ export function isBot(request) {
   return !userAgent || BOT_RE.test(userAgent);
 }
 
+// Обезличенный отпечаток посетителя: меняется каждые сутки, по нему нельзя установить личность
+export async function visitorHashOf(request, env) {
+  const day = new Date().toISOString().slice(0, 10);
+  const ip = request.headers.get("CF-Connecting-IP") || "";
+  const userAgent = request.headers.get("User-Agent") || "";
+  return sha256(`${day}|${ip}|${userAgent}|${env.HASH_SALT || env.SUPABASE_SECRET_KEY}`);
+}
+
+export { sha256 };
+
 // Записывает событие. Ошибки только логируются — посетитель их не увидит.
 export async function logEvent(request, env, { businessId, eventType, destination, source, cardId }) {
   try {
