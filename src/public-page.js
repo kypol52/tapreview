@@ -564,9 +564,9 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
       ${logo}
       <h1 class="${nameClass}">${escapeHtml(business.name)}</h1>
       ${tagline}
-      ${extraLinksBlock(business, true)}
       <div class="divider"></div>
       ${step}
+      ${extraLinksBlock(business)}
       ${score || all ? discount : ""}`
   });
 }
