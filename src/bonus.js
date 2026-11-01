@@ -16,7 +16,7 @@
 
 import { db } from "./supabase.js";
 import { isBot } from "./analytics.js";
-import { renderPage, escapeHtml, GIFT, DEFAULT_ACCENT, BONUS_COLUMNS } from "./public-page.js";
+import { renderPage, escapeHtml, GIFT, DEFAULT_ACCENT, BONUS_COLUMNS, customDesign } from "./public-page.js";
 import { isExpired } from "./billing.js";
 
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // без 0/O, 1/I/L
@@ -93,7 +93,7 @@ export async function handleBonus(request, env) {
     const rows = await db(
       env,
       `businesses?slug=eq.${encodeURIComponent(slug)}&is_active=eq.true` +
-        `&select=id,slug,name,discount_text,paid_until,theme,${BONUS_COLUMNS}&limit=1`
+        `&select=id,slug,name,discount_text,paid_until,theme,design,${BONUS_COLUMNS}&limit=1`
     );
     const business = rows[0];
     if (!business || isExpired(business.paid_until) || !bonusEnabled(business)) {
@@ -197,7 +197,8 @@ const WHEEL_THEMES = {
   dark: { rim: "#2b3243", a: "#1b2130", b: "#363e53", text: "#f3f4f8", acc: "#e3b25b" },
   coffee: { rim: "#4b3323", a: "#36251a", b: "#5b4030", text: "#fff7ee", acc: "#eab46b" },
   fresh: { rim: "#1c4a37", a: "#143a2b", b: "#23604a", text: "#f2fff8", acc: "#f0c35a" },
-  rose: { rim: "#5a2541", a: "#451a32", b: "#6c2d50", text: "#fff3f8", acc: "#f2c27a" }
+  rose: { rim: "#5a2541", a: "#451a32", b: "#6c2d50", text: "#fff3f8", acc: "#f2c27a" },
+  custom: { rim: "#2e2016", a: "#1e150f", b: "#3d2a1b", text: "#fff3e2", acc: "#f0b45a" }
 };
 const WHEEL_SPIN_S = 7; // длительность вращения; результат появляется сразу после остановки
 
@@ -287,6 +288,7 @@ function resultPage(business, c, { repeat, backUrl, wheel = null }) {
     title: `Подарок — ${business.name}`,
     accent: null,
     theme: business.theme,
+    design: customDesign(business),
     extraCss: BONUS_PAGE_CSS,
     // Как на странице заведения: зелёная кнопка на сайт TapReview (через реферальную ссылку заведения)
     footer: { href: `/r/${business.slug}?s=card`, text: "Хочу такую карту" },

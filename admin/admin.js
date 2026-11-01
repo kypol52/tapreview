@@ -105,6 +105,12 @@ function bindEvents() {
   $("qr-svg").addEventListener("click", () => {
     if (state.editing) downloadQrSvg(sourceUrl(state.editing, "qr"), `tapreview-qr-${state.editing.slug}`);
   });
+  for (const radio of document.querySelectorAll('input[name="f-theme"]')) radio.addEventListener("change", showDesign);
+  $("d-bg-file").addEventListener("change", () => onDesignFile("bg"));
+  $("d-logo-file").addEventListener("change", () => onDesignFile("logo"));
+  $("d-bg-clear").addEventListener("click", () => { designState.bg = null; showDesignPreview(); });
+  $("d-logo-clear").addEventListener("click", () => { designState.logo = null; showDesignPreview(); });
+  $("d-dim").addEventListener("input", () => { $("d-dim-val").textContent = $("d-dim").value; });
   $("f-color-on").addEventListener("change", () => {
     $("f-color").disabled = !$("f-color-on").checked;
   });
@@ -884,6 +890,7 @@ function openEditor(business) {
   $("f-discount-text").value = business ? business.discount_text || "" : "";
   const theme = (business && business.theme) || "classic";
   for (const radio of document.querySelectorAll('input[name="f-theme"]')) radio.checked = radio.value === theme;
+  fillDesign(business);
   fillBonus(business);
   $("f-xlinks").replaceChildren(...((business && business.extra_links) || []).map(xlinkRow));
   updateXlinkAdd();
@@ -1325,9 +1332,132 @@ function readForm() {
     billing_note: $("f-billing-note").value,
     referred_by: $("f-referred-by").value || null,
     theme: (document.querySelector('input[name="f-theme"]:checked') || {}).value || "classic",
+    design: readDesign(),
     extra_links: readXlinks(),
     rating_first: $("f-rating-first").checked
   };
+}
+
+// ================= Свой дизайн: фон-фото и логотип (тема custom, миграция 022) =================
+
+const designState = { bg: null, logo: null };
+
+function fillDesign(business) {
+  const d = (business && business.design) || {};
+  designState.bg = d.bg || null;
+  designState.logo = d.logo || null;
+  $("d-dim").value = String(d.dim || 60);
+  $("d-dim-val").textContent = $("d-dim").value;
+  $("d-glow").checked = d.glow !== false;
+  showDesignPreview();
+  showDesign();
+}
+
+function showDesign() {
+  const theme = (document.querySelector('input[name="f-theme"]:checked') || {}).value;
+  $("f-design").hidden = theme !== "custom";
+}
+
+function showDesignPreview() {
+  for (const kind of ["bg", "logo"]) {
+    const box = $(`d-${kind}-prev`);
+    const id = designState[kind];
+    box.style.backgroundImage = id ? `url(/m/${id})` : "";
+    box.classList.toggle("has-img", Boolean(id));
+    $(`d-${kind}-clear`).hidden = !id;
+  }
+}
+
+function readDesign() {
+  return { bg: designState.bg, logo: designState.logo, dim: Number($("d-dim").value), glow: $("d-glow").checked };
+}
+
+async function onDesignFile(kind) {
+  const input = $(`d-${kind}-file`);
+  const file = input.files && input.files[0];
+  input.value = "";
+  if (!file) return;
+  const status = $("d-status");
+  status.textContent = "Обрабатываю картинку…";
+  try {
+    const data = kind === "bg" ? await compressPhoto(file) : await prepareLogo(file, $("d-logo-light").checked);
+    status.textContent = "Загружаю…";
+    const res = await api("/api/admin/media", { method: "POST", body: { kind, data } });
+    designState[kind] = res.id;
+    showDesignPreview();
+    status.textContent = `Готово (${Math.round((data.length * 3) / 4 / 1024)} КБ). Нажмите «Сохранить».`;
+  } catch (error) {
+    status.textContent = `Не получилось: ${error.message}`;
+  }
+}
+
+async function loadImage(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    return img;
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+}
+
+// Фон: длинная сторона до 1280 px, JPEG; качество снижаем, пока не станет ≤ 300 КБ
+async function compressPhoto(file) {
+  const img = await loadImage(file);
+  const k = Math.min(1, 1280 / Math.max(img.naturalWidth, img.naturalHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(img.naturalWidth * k);
+  canvas.height = Math.round(img.naturalHeight * k);
+  canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+  let data;
+  for (const q of [0.82, 0.74, 0.66, 0.58, 0.5]) {
+    data = canvas.toDataURL("image/jpeg", q);
+    if (data.length * 0.75 <= 300 * 1024) break;
+  }
+  return data;
+}
+
+// Логотип: PNG до 900 px. light — тёмный логотип на светлом фоне превращаем в светлый на прозрачном
+// (для тёмной страницы и неонового свечения). Пустые поля по краям обрезаем.
+async function prepareLogo(file, light) {
+  const img = await loadImage(file);
+  const k = Math.min(1, 900 / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.round(img.naturalWidth * k);
+  const h = Math.round(img.naturalHeight * k);
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0, w, h);
+  const pixels = ctx.getImageData(0, 0, w, h);
+  const p = pixels.data;
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let i = 0; i < p.length; i += 4) {
+    if (light) {
+      const lum = 0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2];
+      // белое → прозрачное, тёмное → тёплый белый; мягкий порог сохраняет сглаженные края
+      const a = Math.max(0, Math.min(255, ((235 - lum) / 175) * 255));
+      p[i + 3] = Math.round((a * p[i + 3]) / 255);
+      p[i] = 255; p[i + 1] = 246; p[i + 2] = 234;
+    }
+    if (p[i + 3] > 16) {
+      const x = (i / 4) % w, y = Math.floor(i / 4 / w);
+      if (x < x0) x0 = x; if (x > x1) x1 = x;
+      if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+  }
+  if (x1 < 0) throw new Error("на картинке не найден логотип");
+  ctx.putImageData(pixels, 0, 0);
+  const pad = 4;
+  const cw = Math.min(w, x1 - x0 + 1 + pad * 2);
+  const ch = Math.min(h, y1 - y0 + 1 + pad * 2);
+  const out = document.createElement("canvas");
+  out.width = cw;
+  out.height = ch;
+  out.getContext("2d").drawImage(canvas, Math.max(0, x0 - pad), Math.max(0, y0 - pad), cw, ch, 0, 0, cw, ch);
+  return out.toDataURL("image/png");
 }
 
 // ================= Меню, каталог, услуги (кнопки «Ещё у нас» на странице отзывов) =================

@@ -502,7 +502,7 @@ input[type="color"]:disabled { opacity: 0.4; }
 .ref-visits { margin: 10px 0 0; font-size: 13px; }
 
 /* Выбор оформления страницы отзывов */
-.themes { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.themes { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
 .theme-opt { display: grid; gap: 6px; justify-items: center; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--muted); }
 .theme-opt input { position: absolute; opacity: 0; pointer-events: none; }
 .theme-prev {
@@ -516,6 +516,23 @@ input[type="color"]:disabled { opacity: 0.4; }
 .theme-opt input:checked ~ .theme-name { color: var(--text); }
 .theme-opt input:focus-visible + .theme-prev { outline: 2px solid var(--primary); outline-offset: 2px; }
 @media (max-width: 480px) { .themes { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.theme-prev-custom { background-image: radial-gradient(circle at 30% 20%, #6b4524, transparent 60%), radial-gradient(circle at 80% 80%, #3a2414, transparent 60%); }
+.theme-prev-custom i { border: 1px solid #f0a43a; }
+
+/* Свой дизайн: фон-фото и логотип */
+.design-box { display: grid; gap: 12px; margin: 0 0 14px; padding: 12px; border: 1px dashed var(--border); border-radius: var(--radius); }
+.design-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.design-slot { display: grid; gap: 8px; align-content: start; }
+.design-title { font-size: 13px; font-weight: 600; }
+.design-prev {
+  display: grid; place-items: center; height: 120px; border-radius: 10px; border: 1px solid var(--border);
+  background: #1a120c center / cover no-repeat; color: #b9a893; font-size: 12px;
+}
+.design-prev-logo { background-size: contain; background-origin: content-box; padding: 14px; }
+.design-prev:not(.has-img)::after { content: "нет"; }
+.design-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.design-actions label.btn { cursor: pointer; }
+@media (max-width: 480px) { .design-grid { grid-template-columns: 1fr; } }
 .staff-box { margin: 14px 0 6px; padding: 12px; border: 1px dashed var(--border); border-radius: var(--radius); }
 .staff-new { display: flex; gap: 8px; flex-wrap: wrap; }
 .staff-new input { flex: 1; min-width: 180px; }

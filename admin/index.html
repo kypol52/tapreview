@@ -569,9 +569,40 @@
             <span class="theme-prev" style="--bg:#edf6f0;--card:#fff;--line:#2f9e5b"><i></i><b></b></span><span class="theme-name">Свежая</span></label>
           <label class="theme-opt"><input type="radio" name="f-theme" value="rose">
             <span class="theme-prev" style="--bg:#f8eef1;--card:#fff;--line:#c2577a"><i></i><b></b></span><span class="theme-name">Бьюти</span></label>
+          <label class="theme-opt"><input type="radio" name="f-theme" value="custom">
+            <span class="theme-prev theme-prev-custom" style="--bg:#1a120c;--card:rgba(20,14,10,.75);--line:#f0a43a"><i></i><b></b></span><span class="theme-name">Свой дизайн</span></label>
         </div>
         <p class="muted field-hint">Фон, карточка и цвет черты под названием. Свой фирменный цвет ниже заменяет цвет черты в любой теме.</p>
       </div>
+
+      <fieldset id="f-design" class="design-box" hidden>
+        <legend>Свой дизайн</legend>
+        <div class="design-grid">
+          <div class="design-slot">
+            <span class="design-title">Фон — фото заведения</span>
+            <div id="d-bg-prev" class="design-prev design-prev-bg"></div>
+            <div class="design-actions">
+              <label class="btn btn-ghost btn-small">Выбрать фото<input id="d-bg-file" type="file" accept="image/*" hidden></label>
+              <button id="d-bg-clear" class="btn btn-ghost btn-small" type="button">Убрать</button>
+            </div>
+          </div>
+          <div class="design-slot">
+            <span class="design-title">Логотип (вместо названия)</span>
+            <div id="d-logo-prev" class="design-prev design-prev-logo"></div>
+            <div class="design-actions">
+              <label class="btn btn-ghost btn-small">Выбрать логотип<input id="d-logo-file" type="file" accept="image/*" hidden></label>
+              <button id="d-logo-clear" class="btn btn-ghost btn-small" type="button">Убрать</button>
+            </div>
+            <label class="check"><input id="d-logo-light" type="checkbox" checked> Тёмный логотип на белом — сделать светлым и убрать фон</label>
+          </div>
+        </div>
+        <label class="field">
+          <span>Затемнение фона: <b id="d-dim-val">60</b>%</span>
+          <input id="d-dim" type="range" min="30" max="85" step="5" value="60">
+        </label>
+        <label class="check"><input id="d-glow" type="checkbox" checked> Неоновое свечение логотипа и названия (цвет — «Фирменный цвет» ниже)</label>
+        <p id="d-status" class="muted field-hint">Фото сжимается до ~200 КБ прямо в браузере. Лучше реальный зал в тёплом свете, без людей крупным планом.</p>
+      </fieldset>
 
       <div class="grid-2">
         <div class="field">

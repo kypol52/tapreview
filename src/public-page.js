@@ -74,7 +74,7 @@ export const BONUS_COLUMNS =
 
 const BUSINESS_COLUMNS =
   "id,slug,name,tagline,category,logo_url,brand_color,google_url,yandex_url,twogis_url," +
-  "discount_code,discount_text,paid_until,theme,extra_links,rating_first," + BONUS_COLUMNS;
+  "discount_code,discount_text,paid_until,theme,design,extra_links,rating_first," + BONUS_COLUMNS;
 
 // Ссылки заведения под кнопками отзывов (миграция 020): меню, каталог, услуги…
 // Значки — тонкие линии в цвете текста темы, чтобы не спорить с логотипами площадок
@@ -447,23 +447,28 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
     )
     .join("");
 
-  const logo = isHttpsUrl(business.logo_url)
-    ? `<img class="logo" src="${escapeHtml(business.logo_url)}" alt="" referrerpolicy="no-referrer">`
-    : "";
+  const design = customDesign(business);
+  const logo = design && design.logo
+    ? `<img class="logo logo-custom" src="/m/${design.logo}" alt="${escapeHtml(business.name)}">`
+    : isHttpsUrl(business.logo_url)
+      ? `<img class="logo" src="${escapeHtml(business.logo_url)}" alt="" referrerpolicy="no-referrer">`
+      : "";
 
   const taglineText = business.tagline || CATEGORY_TAGLINES[business.category] || "";
   const tagline = taglineText ? `<p class="tagline">${escapeHtml(taglineText)}</p>` : "";
 
-  // Длинные названия делаем мельче, чтобы помещались на экран телефона
+  // Длинные названия делаем мельче, чтобы помещались на экран телефона.
+  // Логотип «Своего дизайна» заменяет название — тогда название остаётся только для экранного диктора.
   const nameLength = [...business.name].length;
-  const nameClass = nameLength > 22 ? "name name-long" : nameLength > 12 ? "name name-mid" : "name";
+  const nameClass = (nameLength > 22 ? "name name-long" : nameLength > 12 ? "name name-mid" : "name") +
+    (design && design.logo ? " sr-only" : "");
 
   // Подарок для гостей (bonus.js): только при скане карты, появляется через несколько секунд,
   // не зависит от отзыва. Без JavaScript — обычная форма.
   const discount = bonusBlock(business, source, cardCode);
 
   if (business.rating_first) {
-    return ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, discount });
+    return ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, discount, design });
   }
 
   const actions = buttons
@@ -477,6 +482,7 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
     title: `Отзыв — ${business.name}`,
     accent,
     theme: business.theme,
+    design,
     // «Карта как реклама»: гость-владелец бизнеса переходит на наш сайт, а заведение получает рекомендацию
     footer: { href: `/r/${business.slug}?s=card`, text: "Хочу такую карту" },
     body: `
@@ -493,7 +499,7 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
 
 // Сначала оценка (rating.js): карточка заведения → «Как вам у нас?» → площадки (4–5) или сообщение владельцу (1–3).
 // Площадки доступны при любой оценке, подарок — после любой оценки.
-function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, discount }) {
+function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, discount, design }) {
   const base = new URLSearchParams();
   if (source !== "direct") base.set("s", source);
   const link = (extra) => {
@@ -559,6 +565,7 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
     title: `Отзыв — ${business.name}`,
     accent,
     theme: business.theme,
+    design,
     footer: { href: `/r/${business.slug}?s=card`, text: "Хочу такую карту" },
     body: `
       ${logo}
@@ -590,14 +597,70 @@ export const THEMES = {
   dark: { label: "Тёмная", bg: "#0e131d", blob1: "#161d2b", blob2: "#1b2335", card: "#171e2c", text: "#f1f3f8", muted: "#9aa4b6", accent: "#e5aa0c", cta1: "#22a06b", cta2: "#137a4d", shadow: "rgba(0, 0, 0, 0.35)", btn: "rgba(255, 255, 255, 0.06)", btnBorder: "rgba(255, 255, 255, 0.12)", btnText: "#f1f3f8", gift: "rgba(229, 170, 12, 0.12)", giftBorder: "rgba(229, 170, 12, 0.38)" },
   coffee: { label: "Кофейня", bg: "#f3ebe1", blob1: "#eadfce", blob2: "#efe6da", card: "#fffaf4", text: "#2a1f17", muted: "#7a6a5c", accent: "#a9744a", cta1: "#3c9461", cta2: "#28704a", shadow: "rgba(60, 40, 20, 0.10)", btn: "#f7efe5", btnBorder: "#eadcc9", btnText: "#2a1f17", gift: "#fbf0d9", giftBorder: "#ead29b" },
   fresh: { label: "Свежая", bg: "#edf6f0", blob1: "#dcefe3", blob2: "#e6f3ea", card: "#ffffff", text: "#13261b", muted: "#5f7466", accent: "#2f9e5b", cta1: "#16a34a", cta2: "#0f7a37", shadow: "rgba(15, 60, 35, 0.10)", btn: "#f2f8f4", btnBorder: "#d9ebe0", btnText: "#13261b", gift: "#fff8e8", giftBorder: "#f3dfa9" },
-  rose: { label: "Бьюти", bg: "#f8eef1", blob1: "#f1dde4", blob2: "#f5e6eb", card: "#ffffff", text: "#2a1720", muted: "#80646f", accent: "#c2577a", cta1: "#22a06b", cta2: "#137a4d", shadow: "rgba(90, 30, 50, 0.10)", btn: "#fbf2f5", btnBorder: "#f0dbe3", btnText: "#2a1720", gift: "#fff6ea", giftBorder: "#f1dcb0" }
+  rose: { label: "Бьюти", bg: "#f8eef1", blob1: "#f1dde4", blob2: "#f5e6eb", card: "#ffffff", text: "#2a1720", muted: "#80646f", accent: "#c2577a", cta1: "#22a06b", cta2: "#137a4d", shadow: "rgba(90, 30, 50, 0.10)", btn: "#fbf2f5", btnBorder: "#f0dbe3", btnText: "#2a1720", gift: "#fff6ea", giftBorder: "#f1dcb0" },
+  // «Свой дизайн»: тёмное стекло поверх фото заведения (фон, логотип и свечение — designCss)
+  custom: { label: "Свой дизайн", bg: "#0d0a08", blob1: "#1a130e", blob2: "#22180f", card: "rgba(18, 13, 10, 0.62)", text: "#f7efe4", muted: "#cdbfae", accent: "#f0a43a", cta1: "#22a06b", cta2: "#137a4d", shadow: "rgba(0, 0, 0, 0.5)", btn: "rgba(20, 14, 10, 0.55)", btnBorder: "rgba(255, 236, 214, 0.18)", btnText: "#f7efe4", gift: "rgba(240, 164, 58, 0.12)", giftBorder: "rgba(240, 164, 58, 0.7)" }
 };
+
+// Настройки «Своего дизайна» заведения или null (тема не custom). id картинок проверены (только uuid).
+export function customDesign(business) {
+  if (!business || business.theme !== "custom") return null;
+  const d = business.design && typeof business.design === "object" ? business.design : {};
+  const id = (v) => (/^[0-9a-f-]{36}$/.test(String(v || "")) ? String(v) : null);
+  const dim = Number(d.dim);
+  return { bg: id(d.bg), logo: id(d.logo), dim: Number.isFinite(dim) ? Math.min(85, Math.max(30, dim)) : 60, glow: d.glow !== false };
+}
+
+// Фон-фото под тёмной вуалью, стеклянная карточка с тонкой светящейся рамкой,
+// неоновое свечение логотипа, кнопки площадок с обводкой в их фирменных цветах.
+function designCss(d) {
+  const veil = (k) => `rgba(10, 7, 5, ${Math.min(0.95, (d.dim / 100) * k).toFixed(2)})`;
+  const photo = d.bg ? `, url(/m/${d.bg}) center / cover no-repeat` : "";
+  const glow = (c) => `0 0 0 1px color-mix(in srgb, ${c} 75%, transparent), 0 0 14px color-mix(in srgb, ${c} 35%, transparent), inset 0 0 14px color-mix(in srgb, ${c} 12%, transparent)`;
+  return `
+    body::before {
+      width: auto; height: auto; inset: 0; top: 0; left: 0; right: 0; bottom: 0; border-radius: 0;
+      background: linear-gradient(180deg, ${veil(0.85)} 0%, ${veil(1)} 45%, ${veil(1.15)} 100%)${photo};
+      background-color: #0d0a08;
+    }
+    body::after { display: none; }
+    .card {
+      background: var(--card);
+      -webkit-backdrop-filter: blur(6px) saturate(1.15);
+      backdrop-filter: blur(6px) saturate(1.15);
+      border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+      box-shadow: 0 0 22px color-mix(in srgb, var(--accent) 22%, transparent), 0 24px 60px rgba(0, 0, 0, 0.55);
+    }
+    .logo-custom { max-width: min(250px, 78%); max-height: 130px; margin-bottom: 6px; }
+    ${d.glow ? `.logo-custom { filter: drop-shadow(0 0 1px rgba(255, 244, 228, 0.9)) drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 85%, transparent)) drop-shadow(0 0 18px color-mix(in srgb, var(--accent) 55%, transparent)); }
+    .name { text-shadow: 0 0 6px color-mix(in srgb, var(--accent) 70%, transparent), 0 0 20px color-mix(in srgb, var(--accent) 45%, transparent); }` : ""}
+    .tagline { color: var(--muted); }
+    .divider { box-shadow: 0 0 10px var(--accent); }
+    .thanks { font-weight: 700; }
+    .rate-star svg { fill: rgba(255, 236, 214, 0.14); stroke: rgba(255, 236, 214, 0.35); }
+    .rate-star:hover svg, .rate-star:hover ~ .rate-star svg, .rate-star:focus-visible svg, .rate-star:focus-visible ~ .rate-star svg,
+    .stars svg { filter: drop-shadow(0 0 6px rgba(240, 180, 60, 0.65)); }
+    .stars-off svg { fill: rgba(255, 236, 214, 0.14); filter: none; }
+    .button { border-color: transparent; box-shadow: ${glow("var(--accent)")}; }
+    .button-yandex { box-shadow: ${glow("#fc3f1d")}; }
+    .button-google { box-shadow: ${glow("#4285f4")}; }
+    .button-twogis { box-shadow: ${glow("#2fbf3a")}; }
+    .button:hover { border-color: transparent; filter: brightness(1.12); }
+    .xlink { background: var(--btn-bg); }
+    .xlink:hover { border-color: var(--accent); box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 30%, transparent); }
+    .bonus-button { box-shadow: ${glow("var(--accent)")}; }
+    .fb textarea { background: rgba(0, 0, 0, 0.35); }
+    .footer:not(.footer-cta-btn) { background: rgba(18, 13, 10, 0.6); border-color: rgba(255, 236, 214, 0.2); color: var(--muted); }
+  `;
+}
 
 // footer — { href, text }: зелёная кнопка внизу («Работает на TapReview / Хочу такую карту»).
 // Без footer — скромная подпись «TapReview» со ссылкой на Telegram-канал (служебные страницы).
 // theme — ключ из THEMES.
-export function renderPage({ status, title, accent, body, extraCss = "", footer = null, theme = "classic" }) {
+// design — customDesign(business) для темы «Свой дизайн».
+export function renderPage({ status, title, accent, body, extraCss = "", footer = null, theme = "classic", design = null }) {
   const t = THEMES[theme] || THEMES.classic;
+  if (design) extraCss = designCss(design) + extraCss;
   const footerHtml = footer
     ? `<a class="footer footer-cta-btn" href="${escapeHtml(footer.href)}" rel="nofollow">
         <span class="footer-mark" aria-hidden="true">TR</span>
@@ -706,6 +769,7 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
       letter-spacing: -0.01em;
       overflow-wrap: anywhere;
     }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     .name-mid { font-size: 32px; }
     .name-long { font-size: 26px; }
     .tagline {
@@ -1005,7 +1069,7 @@ ${extraCss}
       "X-Content-Type-Options": "nosniff",
       "Referrer-Policy": "strict-origin-when-cross-origin",
       "Content-Security-Policy":
-        "default-src 'none'; img-src https:; font-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+        "default-src 'none'; img-src 'self' https:; font-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
     }
   });
 }

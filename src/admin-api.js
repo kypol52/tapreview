@@ -6,6 +6,7 @@
 //   DELETE /api/admin/businesses/:id     — удалить бизнес
 //   GET    /api/admin/businesses/:id/stats?days=30&tz=Europe/Moscow — статистика по дням
 //   GET    /api/admin/stats-summary?days=30 — итоги по всем бизнесам (для списка)
+//   POST   /api/admin/media          — загрузить картинку «Своего дизайна» { kind: bg|logo, data: dataURL } → { id }
 //   GET    /api/admin/groups             — список групп (один QR → несколько заведений)
 //   POST   /api/admin/groups             — создать группу
 //   PATCH  /api/admin/groups/:id         — изменить группу
@@ -47,6 +48,7 @@ import { deleteRuOrder, validate as validateOrder, OrderError } from "./orders.j
 import { bonusCounts } from "./bonus.js";
 import { refUrl, refStats } from "./referral.js";
 import { localAuthEnabled, verifyToken, handleLogin } from "./admin-auth.js";
+import { saveMedia, MEDIA_ID_RE } from "./media.js";
 
 const CATEGORIES = ["restaurant", "beauty", "shop", "hotel", "auto", "other"];
 
@@ -55,7 +57,7 @@ const ADMIN_COLUMNS =
   "google_url,yandex_url,twogis_url,discount_code,discount_text,is_active," +
   "paid_until,monthly_price,billing_note," +
   "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions," +
-  "referred_by,ref_reward_at,theme,extra_links,rating_first," +
+  "referred_by,ref_reward_at,theme,design,extra_links,rating_first," +
   "created_at,updated_at";
 
 const EXTRA_LINK_TYPES = ["menu", "catalog", "services", "booking", "delivery", "site", "tips", "pay", "custom"];
@@ -75,6 +77,7 @@ const SLUG_ALPHABET = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const SLUG_LENGTH = 8;
 
 const MAX_BODY_SIZE = 20000;
+const MAX_MEDIA_BODY = 1000000; // картинка «Своего дизайна» в base64
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -121,6 +124,16 @@ export async function handleApi(request, env, url) {
       const statsMatch = path.match(/^\/api\/admin\/businesses\/(\d{1,18})\/stats$/);
       if (statsMatch && method === "GET") {
         return await businessStats(env, statsMatch[1], url);
+      }
+
+      if (path === "/api/admin/media" && method === "POST") {
+        const input = await readJson(request, MAX_MEDIA_BODY);
+        try {
+          return json({ id: await saveMedia(env, input.kind, input.data) }, 201);
+        } catch (error) {
+          if (error.code) throw error;
+          throw new HttpError(400, error.message);
+        }
       }
 
       if (path === "/api/admin/stats-summary" && method === "GET") {
@@ -586,7 +599,8 @@ function validateBusiness(input) {
     monthly_price: cleanPrice(input.monthly_price),
     billing_note: cleanText(input.billing_note, 200, "Заметка об оплате") || null,
     referred_by: cleanRefId(input.referred_by),
-    theme: ["classic", "dark", "coffee", "fresh", "rose"].includes(input.theme) ? input.theme : "classic",
+    theme: ["classic", "dark", "coffee", "fresh", "rose", "custom"].includes(input.theme) ? input.theme : "classic",
+    design: cleanDesign(input.design),
     extra_links: cleanExtraLinks(input.extra_links),
     rating_first: input.rating_first !== false,
     ...cleanBonus(input)
@@ -605,6 +619,19 @@ function cleanExtraLinks(value) {
     if (type === "custom" && !label) throw new HttpError(400, `Ссылка заведения ${i + 1}: напишите подпись кнопки`);
     return label ? { type, url, label } : { type, url };
   });
+}
+
+// «Свой дизайн» (миграция 022): фон-фото, логотип-картинка, затемнение фона, неоновое свечение
+function cleanDesign(value) {
+  const d = value && typeof value === "object" ? value : {};
+  const id = (v) => (MEDIA_ID_RE.test(String(v || "")) ? String(v) : null);
+  const dim = Math.round(Number(d.dim));
+  return {
+    bg: id(d.bg),
+    logo: id(d.logo),
+    dim: Number.isFinite(dim) ? Math.min(85, Math.max(30, dim)) : 60,
+    glow: d.glow !== false
+  };
 }
 
 function cleanRefId(value) {
@@ -1129,9 +1156,9 @@ function randomString(alphabet, length) {
 
 // ---------- Вспомогательные функции ----------
 
-async function readJson(request) {
+async function readJson(request, maxSize = MAX_BODY_SIZE) {
   const text = await request.text();
-  if (text.length > MAX_BODY_SIZE) {
+  if (text.length > maxSize) {
     throw new HttpError(413, "Слишком большой запрос");
   }
   try {
