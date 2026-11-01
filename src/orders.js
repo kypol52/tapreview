@@ -20,7 +20,7 @@ import { tg } from "./telegram.js";
 export const PRICES = { card: 100, month: 200, year: 2000 };
 export const PLAN_LABELS = { month: "Месяц", year: "Год" };
 // Меняется вместе с текстом согласия (consent/index.html)
-const CONSENT_VERSION = "2026-10-30";
+const CONSENT_VERSION = "2026-11-01";
 
 const MAX_BODY = 8000;
 const MIN_FILL_MS = 3000;
@@ -205,7 +205,7 @@ async function notify(env, order) {
       try {
         await tg(env, "sendMessage", {
           chat_id: chatId,
-          text: orderText(order),
+          text: orderText(order, env),
           parse_mode: "HTML",
           disable_web_page_preview: true
         });
@@ -226,23 +226,19 @@ async function notify(env, order) {
   }
 }
 
-export function orderText(o) {
+// Уведомление БЕЗ персональных данных: Telegram (и посредник) за рубежом, а данные заявителя
+// (имя, телефон, Telegram, название заведения, комментарий) остаются только в базе в России —
+// их смотрят в админ-панели. Так нет трансграничной передачи данных заявителей.
+export function orderText(o, env = {}) {
   const rub = (n) => `${Number(n).toLocaleString("ru-RU")} ₽`;
   const t = orderTotals(o);
-  const lines = [
+  const admin = `${String(env.PUBLIC_BASE_URL || "https://tapreview.ru").replace(/\/+$/, "")}/admin/`;
+  return [
     `🆕 <b>Заявка №${o.id}</b>`,
-    "",
-    `👤 ${esc(o.name)}`,
-    o.phone ? `📞 <a href="tel:${esc(o.phone)}">${esc(o.phone)}</a>` : null,
-    o.telegram ? `✈️ <a href="https://t.me/${esc(o.telegram)}">@${esc(o.telegram)}</a>` : null,
-    `🏠 ${esc(o.business_name)}${o.city ? `, ${esc(o.city)}` : ""}`,
-    "",
     `🃏 Карт: <b>${o.cards}</b> · заведений: <b>${o.venues}</b> · тариф: <b>${PLAN_LABELS[o.plan]}</b>`,
-    `💳 Сейчас: <b>${rub(t.now)}</b> (подключение ${rub(t.connection)} + подписка ${rub(t.subscription)})`,
-    `🔁 Дальше: ${rub(t.next)} ${o.plan === "year" ? "в год" : "в месяц"}`,
-    o.comment ? `\n💬 ${esc(o.comment)}` : null
-  ];
-  return lines.filter((line) => line !== null).join("\n");
+    `💳 При заказе: <b>${rub(t.now)}</b> · дальше ${rub(t.next)} ${o.plan === "year" ? "в год" : "в месяц"}`,
+    `👉 Контакты и детали — в админке: <a href="${esc(admin)}">${esc(admin.replace(/^https?:\/\//, ""))}</a> → «Заявки»`
+  ].join("\n");
 }
 
 function esc(text) {
