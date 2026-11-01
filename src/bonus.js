@@ -190,30 +190,40 @@ function pickWeighted(prizes) {
 
 // ---------- Страница результата (без скриптов: колесо крутится на CSS) ----------
 
+// Премиальное колесо: тёмно-синие сектора с золотыми надписями, золотой обод с лампочками
 const WHEEL_COLORS = [
-  { bg: "#0a2a5c", fg: "#ffffff" },
-  { bg: "#fdf3d6", fg: "#3d2c00" },
-  { bg: "#e5aa0c", fg: "#1f1600" },
-  { bg: "#ffffff", fg: "#0a2a5c" }
+  { bg: "#0b2b5e", fg: "#f3d68e" },
+  { bg: "#061b3d", fg: "#f3d68e" },
+  { bg: "#14407f", fg: "#fbe7b0" } // только последнему сектору при нечётном числе, чтобы не слился с первым
 ];
+const WHEEL_BULBS = 18;
+const WHEEL_SPIN_S = 7; // длительность вращения; результат появляется сразу после остановки
 
 // still = колесо уже остановлено на призе (повторный заход — без нового розыгрыша)
 function wheelHtml(prizes, index, still = false) {
   const n = prizes.length;
   const seg = 360 / n;
-  const colors = prizes.map((_, i) => WHEEL_COLORS[(n % 4 === 1 && i === n - 1) ? 1 : i % 4]);
+  const colors = prizes.map((_, i) => WHEEL_COLORS[n % 2 === 1 && i === n - 1 ? 2 : i % 2]);
   const gradient = colors.map((c, i) => `${c.bg} ${i * seg}deg ${(i + 1) * seg}deg`).join(", ");
   // Указатель сверху: сектор index должен остановиться под ним
   const jitter = still ? 0 : (crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32 - 0.5) * seg * 0.6;
-  const end = (still ? 360 : 360 * 6) - (index * seg + seg / 2) + jitter;
+  const end = (still ? 360 : 360 * 10) - (index * seg + seg / 2) + jitter;
   const labels = prizes
-    .map((p, i) => `<span class="w-label" style="transform: rotate(${(i * seg + seg / 2).toFixed(2)}deg) translateY(-84px); color: ${colors[i].fg}">${escapeHtml(p.label)}</span>`)
+    .map((p, i) => `<span class="w-label" style="transform: rotate(${(i * seg + seg / 2).toFixed(2)}deg) translateY(-82px); color: ${colors[i].fg}">${escapeHtml(p.label)}</span>`)
     .join("");
+  const bulbs = Array.from(
+    { length: WHEEL_BULBS },
+    (_, i) => `<span class="w-bulb" style="transform: rotate(${((360 / WHEEL_BULBS) * i).toFixed(2)}deg) translateY(-142px)"></span>`
+  ).join("");
   return `
-    <div class="wheel-wrap" aria-hidden="true">
+    <div class="wheel-wrap${still ? " is-still" : ""}" aria-hidden="true">
+      <div class="w-rim">${bulbs}</div>
+      <div class="wheel${still ? " wheel-still" : ""}" style="--end: ${end.toFixed(2)}deg; background: conic-gradient(${gradient});">
+        <div class="w-lines" style="--seg: ${seg.toFixed(3)}deg"></div>${labels}
+      </div>
+      <div class="w-gloss"></div>
       <div class="w-pointer"></div>
-      <div class="wheel${still ? " wheel-still" : ""}" style="--end: ${end.toFixed(2)}deg; background: conic-gradient(${gradient});">${labels}</div>
-      <div class="w-hub">TR</div>
+      <div class="w-hub"><span>TR</span></div>
     </div>`;
 }
 
@@ -281,35 +291,84 @@ function infoPage(status, text) {
 }
 
 const BONUS_PAGE_CSS = `
-  .wheel-wrap { position: relative; width: 268px; height: 268px; margin: 6px auto 22px; }
+  /* Колесо: обод 300 px, сектора 268 px. Вращение ~7 с с долгим плавным торможением */
+  .wheel-wrap { position: relative; width: 300px; height: 300px; margin: 10px auto 24px; max-width: 100%; }
+  .w-rim {
+    position: absolute; inset: 0; border-radius: 50%;
+    background: conic-gradient(from 20deg, #8a5f06, #f6dc8c, #b98510, #fff1c2, #a87508, #f0cd6a, #8a5f06, #e9c25a, #8a5f06);
+    box-shadow: 0 22px 44px rgba(6, 20, 45, 0.38), 0 6px 14px rgba(6, 20, 45, 0.25), inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  }
+  .w-rim::after {
+    content: ""; position: absolute; inset: 13px; border-radius: 50%;
+    box-shadow: 0 0 0 2px #6e4a04, inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+  }
+  .w-bulb {
+    position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #ffffff, #fff4c9 40%, #f2c14a 75%);
+    box-shadow: 0 0 6px 2px rgba(255, 226, 140, 0.85);
+    animation: w-twinkle 0.35s ease-in-out infinite alternate;
+  }
+  .w-bulb:nth-child(even) { animation-delay: -0.35s; }
+  /* повторный заход (колесо стоит) — лампочки мигают спокойно */
+  .is-still .w-bulb { animation-duration: 1.4s; }
+  .is-still .w-bulb:nth-child(even) { animation-delay: -1.4s; }
+  @keyframes w-twinkle { from { opacity: 0.35; box-shadow: 0 0 2px 0 rgba(255, 226, 140, 0.4); } to { opacity: 1; } }
   .wheel {
-    position: absolute; inset: 0; border-radius: 50%; overflow: hidden;
-    box-shadow: 0 0 0 6px #fff, 0 0 0 8px #e5aa0c, 0 18px 40px rgba(10, 42, 92, 0.25);
-    animation: w-spin 4.2s cubic-bezier(0.12, 0.7, 0.1, 1) 0.3s both;
+    position: absolute; inset: 16px; border-radius: 50%; overflow: hidden;
+    box-shadow: inset 0 0 0 2px rgba(243, 214, 142, 0.55), inset 0 0 26px rgba(0, 0, 0, 0.45);
+    animation: w-spin ${WHEEL_SPIN_S}s cubic-bezier(0.17, 0.67, 0.08, 1) 0.3s both;
   }
   @keyframes w-spin { from { transform: rotate(0deg); } to { transform: rotate(var(--end)); } }
   .wheel-still { animation: none; transform: rotate(var(--end)); }
+  /* тонкие золотые линии между секторами */
+  .w-lines {
+    position: absolute; inset: 0; border-radius: 50%;
+    background: repeating-conic-gradient(from -0.4deg, rgba(243, 214, 142, 0.9) 0deg 0.8deg, transparent 0.8deg var(--seg));
+    -webkit-mask: radial-gradient(circle, transparent 30px, #000 31px);
+    mask: radial-gradient(circle, transparent 30px, #000 31px);
+  }
   .br-next { margin: 8px 0 0; font-size: 13px; font-weight: 600; color: #0a2a5c; }
   .w-label {
-    position: absolute; left: 50%; top: 50%; width: 92px; margin: -0.65em 0 0 -46px;
+    position: absolute; left: 50%; top: 50%; width: 88px; margin: -0.65em 0 0 -44px;
     transform-origin: 50% 50%; font-size: 11.5px; font-weight: 700; line-height: 1.15; text-align: center;
-    overflow-wrap: anywhere;
+    letter-spacing: 0.02em; overflow-wrap: anywhere; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  }
+  /* блик сверху — не вращается */
+  .w-gloss {
+    position: absolute; inset: 16px; border-radius: 50%; pointer-events: none;
+    background: radial-gradient(ellipse 60% 32% at 50% 8%, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0) 70%);
   }
   .w-pointer {
-    position: absolute; z-index: 2; left: 50%; top: -14px; width: 0; height: 0; margin-left: -13px;
-    border-left: 13px solid transparent; border-right: 13px solid transparent; border-top: 24px solid #0a2a5c;
-    filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.25));
+    position: absolute; z-index: 3; left: 50%; top: -10px; width: 34px; height: 44px; margin-left: -17px;
+    filter: drop-shadow(0 4px 5px rgba(6, 20, 45, 0.45));
+  }
+  .w-pointer::before {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(90deg, #a87508, #fff1c2 45%, #e3b23c 60%, #8a5f06);
+    clip-path: polygon(50% 100%, 6% 22%, 18% 6%, 50% 0, 82% 6%, 94% 22%);
+  }
+  .w-pointer::after {
+    content: ""; position: absolute; left: 50%; top: 9px; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #2a5aa3, #061b3d);
+    box-shadow: 0 0 0 1.5px #fbe7b0;
   }
   .w-hub {
-    position: absolute; z-index: 2; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px;
-    display: grid; place-items: center; border-radius: 50%; background: #0a2a5c; color: #fff;
-    font-weight: 700; font-size: 15px; box-shadow: 0 0 0 4px #fff, 0 0 0 6px #e5aa0c;
+    position: absolute; z-index: 2; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px;
+    display: grid; place-items: center; border-radius: 50%;
+    background: radial-gradient(circle at 34% 28%, #fff6d2, #f0cd6a 35%, #c18d14 70%, #8a5f06);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.4), inset 0 -3px 6px rgba(0, 0, 0, 0.25), 0 0 0 3px #061b3d, 0 0 0 4.5px rgba(243, 214, 142, 0.7);
+  }
+  .w-hub span {
+    display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%;
+    background: radial-gradient(circle at 40% 30%, #1b4a8f, #061b3d 75%);
+    box-shadow: inset 0 0 0 1.5px rgba(251, 231, 176, 0.8);
+    color: #f6dc8c; font-weight: 800; font-size: 15px; letter-spacing: 0.04em;
   }
   .br-gift { width: 64px; height: 64px; margin: 4px auto 16px; }
   .br-gift svg { width: 100%; height: 100%; }
   .br { padding: 18px 18px 16px; border: 1px dashed #e2c46e; border-radius: 18px; background: #fffdf6; color: #141a2b; }
   .br-fade { animation: br-in 0.5s ease 0.2s both; }
-  .br-after-spin { animation: br-in 0.5s ease 4.6s both; }
+  .br-after-spin { animation: br-in 0.5s ease ${WHEEL_SPIN_S + 0.5}s both; }
   @keyframes br-in { from { opacity: 0; transform: translateY(8px); visibility: hidden; } to { opacity: 1; transform: none; visibility: visible; } }
   .br-kicker { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #8a6300; }
   .br-prize { margin: 6px 0 12px; font-size: 22px; font-weight: 700; line-height: 1.25; }
@@ -326,6 +385,7 @@ const BONUS_PAGE_CSS = `
   .br-back { display: inline-block; margin-top: 14px; font-size: 14px; color: var(--text); text-underline-offset: 3px; }
   @media (prefers-reduced-motion: reduce) {
     .wheel { animation: none; transform: rotate(var(--end)); }
+    .w-bulb { animation: none; }
     .br-fade, .br-after-spin { animation: none; }
   }
 `;
