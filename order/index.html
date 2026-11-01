@@ -339,11 +339,9 @@
 
   <script>
     (function () {
-      // Адрес функции Yandex Cloud, которая принимает заявки и хранит их в России (yandex-function/).
-      // Пусто — формы нет, расчёт отправляют в Telegram. Вписали адрес — форма включилась.
-      // Функция создана: https://functions.yandexcloud.net/d4e5d3nbcandlpe495lk — вписать сюда,
-      // когда проверка setup.ps1 покажет «200 ok» (30.10.2026 Yandex Cloud был в ограниченном режиме).
-      var ORDER_ENDPOINT = "";
+      // Куда отправлять заявку. Сайт и база — на нашем сервере в России, поэтому прямо на /api/order.
+      // Пусто — формы нет, расчёт отправляют в Telegram.
+      var ORDER_ENDPOINT = "/api/order";
       var FORM_ENABLED = ORDER_ENDPOINT !== "";
       // Цены — те же, что на главной и в src/orders.js (сервер пересчитывает итог сам)
       var PRICES = { card: 100, month: 200, year: 2000 };

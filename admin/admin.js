@@ -1024,13 +1024,13 @@ function renderTelegramStatus() {
 
   if (!s.configured) {
     $("tg-status").textContent =
-      "Бот ещё не подключён: добавьте в Cloudflare секреты TG_BOT_TOKEN и TG_WEBHOOK_SECRET, затем обновите страницу.";
+      "Бот ещё не подключён: добавьте TG_BOT_TOKEN и TG_WEBHOOK_SECRET в настройки сервера (/etc/tapreview.env), перезапустите сайт и обновите страницу.";
     return;
   }
   if (!s.webhook_ok) {
     $("tg-status").textContent = s.has_secret
       ? `Бот @${s.username} найден. Нажмите «Включить бота», чтобы он начал отвечать.`
-      : `Бот @${s.username} найден, но нет секрета TG_WEBHOOK_SECRET — добавьте его в Cloudflare.`;
+      : `Бот @${s.username} найден, но нет секрета TG_WEBHOOK_SECRET — добавьте его в настройки сервера (/etc/tapreview.env).`;
     $("tg-setup").hidden = !s.has_secret;
     return;
   }

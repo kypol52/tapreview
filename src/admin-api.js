@@ -245,7 +245,7 @@ export async function handleApi(request, env, url) {
     // Подробности видит только вошедший администратор, посторонним — общий текст
     const message = isAdmin
       ? `Ошибка сервера: ${error.message}`
-      : "Ошибка сервера. Подробности — в логах Cloudflare.";
+      : "Ошибка сервера. Подробности — в журнале сервера.";
     return json({ error: message }, 500);
   }
 }
@@ -737,7 +737,7 @@ async function telegramStatus(env) {
 
 async function telegramSetup(env) {
   if (!env.TG_BOT_TOKEN || !env.TG_WEBHOOK_SECRET) {
-    throw new HttpError(400, "Сначала добавьте в Cloudflare секреты TG_BOT_TOKEN и TG_WEBHOOK_SECRET");
+    throw new HttpError(400, "Сначала добавьте TG_BOT_TOKEN и TG_WEBHOOK_SECRET в настройки сервера (/etc/tapreview.env)");
   }
   if (!/^[A-Za-z0-9_-]{16,256}$/.test(env.TG_WEBHOOK_SECRET)) {
     throw new HttpError(400, "TG_WEBHOOK_SECRET: от 16 символов, только латинские буквы, цифры, _ и -");

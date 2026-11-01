@@ -5,7 +5,7 @@
 // Как владелец подключается: в админ-панели создаём одноразовую ссылку t.me/<бот>?start=КОД,
 // владелец открывает её и нажимает «Запустить» — его чат привязывается к заведению.
 //
-// Секреты (Cloudflare → Worker → Settings → Variables and Secrets, тип Secret):
+// Секреты (на сервере — файл /etc/tapreview.env; на Cloudflare — Worker → Settings → Variables and Secrets):
 //   TG_BOT_TOKEN      — токен бота от @BotFather
 //   TG_WEBHOOK_SECRET — любая длинная случайная строка из латинских букв и цифр
 
@@ -37,7 +37,7 @@ export const BOT_COMMANDS = [
 
 export async function tg(env, method, body = {}) {
   if (!env.TG_BOT_TOKEN) {
-    throw new Error("Не задан секрет TG_BOT_TOKEN (Cloudflare → Worker → Settings → Variables and Secrets)");
+    throw new Error("Не задан TG_BOT_TOKEN (на сервере — /etc/tapreview.env)");
   }
   const response = await fetch(`https://api.telegram.org/bot${env.TG_BOT_TOKEN}/${method}`, {
     method: "POST",
@@ -274,13 +274,14 @@ async function sendReports(env, chat, period, onlyIds) {
 
 // ---------- Еженедельный отчёт ----------
 
-// Бесплатный тариф Cloudflare разрешает 50 внешних запросов за один запуск:
-// 4 уходят на базу, остальные — на сообщения (и запас на удаление заблокировавших бота).
-// Поэтому отправляем не больше 40 отчётов и пишем в лог, если подписок больше
-// (тогда нужен платный тариф Workers — там лимит 1000).
-const MAX_WEEKLY_MESSAGES = 40;
+// На своём сервере (DB_URL) ограничений нет — до 1000 отчётов за раз.
+// На бесплатном Cloudflare было 50 внешних запросов за запуск — поэтому там только 40.
+function maxWeeklyMessages(env) {
+  return env.DB_URL ? 1000 : 40;
+}
 
 export async function weeklyReports(env) {
+  const MAX_WEEKLY_MESSAGES = maxWeeklyMessages(env);
   const subs = await db(
     env,
     "tg_subscribers?weekly_report=eq.true&select=chat_id,business_id&order=created_at.asc&limit=1000"
