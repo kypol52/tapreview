@@ -200,18 +200,33 @@ const server = http.createServer(async (req, res) => {
   Promise.allSettled(waits);
 });
 
-// ---------- Расписание: отчёт по понедельникам в 06:00 UTC (09:00 МСК) ----------
+// ---------- Расписание (06:00 UTC = 09:00 МСК) ----------
+//  - по понедельникам — недельный отчёт владельцам;
+//  - каждый день — напоминания по заявкам. Повторов не будет даже после перезапуска:
+//    в базе отмечается, о каких заявках сегодня уже напомнили (reminded_on).
+
+const DAILY_CRON = "0 6 * * *";
+
+function runCron(cron) {
+  const waits = [];
+  Promise.resolve(worker.scheduled({ cron }, env, { waitUntil: (p) => waits.push(p) }))
+    .then(() => Promise.allSettled(waits))
+    .catch((error) => console.error(`Cron ${cron} failed: ${error.stack || error}`));
+}
 
 let lastWeeklyRun = "";
+let lastDailyRun = "";
 setInterval(() => {
   const now = new Date();
   const key = now.toISOString().slice(0, 10);
-  if (now.getUTCDay() === 1 && now.getUTCHours() === 6 && now.getUTCMinutes() < 5 && lastWeeklyRun !== key) {
+  if (now.getUTCHours() !== 6) return;
+  if (lastDailyRun !== key) {
+    lastDailyRun = key;
+    runCron(DAILY_CRON);
+  }
+  if (now.getUTCDay() === 1 && now.getUTCMinutes() < 5 && lastWeeklyRun !== key) {
     lastWeeklyRun = key;
-    const waits = [];
-    Promise.resolve(worker.scheduled({ cron: WEEKLY_REPORT_CRON }, env, { waitUntil: (p) => waits.push(p) }))
-      .then(() => Promise.allSettled(waits))
-      .catch((error) => console.error(`Weekly report failed: ${error.stack || error}`));
+    runCron(WEEKLY_REPORT_CRON);
   }
 }, 30 * 1000);
 

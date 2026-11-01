@@ -176,12 +176,42 @@
         <div class="page-head">
           <div>
             <h1>Заявки</h1>
-            <p id="o-count" class="muted">Заявки со страницы tapreview.ru/order/ — калькулятор и форма.</p>
+            <p id="o-count" class="muted">Заявки с сайта и контакты, добавленные вручную.</p>
           </div>
           <div class="head-buttons">
+            <button id="o-add" class="btn btn-primary" type="button">+ Добавить контакт</button>
             <button id="o-refresh" class="btn btn-secondary" type="button">Обновить</button>
           </div>
         </div>
+
+        <!-- Контакт вручную: познакомились лично, написали в Telegram и т. п. -->
+        <form id="o-form" class="stats-box o-form" hidden>
+          <div class="link-label">Новый контакт</div>
+          <div class="grid-2">
+            <label class="field"><span>Имя *</span><input id="of-name" type="text" maxlength="80" required></label>
+            <label class="field"><span>Заведение *</span><input id="of-business" type="text" maxlength="120" required></label>
+            <label class="field"><span>Телефон</span><input id="of-phone" type="tel" maxlength="30" placeholder="+7…"></label>
+            <label class="field"><span>Telegram</span><input id="of-telegram" type="text" maxlength="60" placeholder="@username"></label>
+            <label class="field"><span>Город</span><input id="of-city" type="text" maxlength="80"></label>
+            <label class="field"><span>Этап</span><select id="of-status"></select></label>
+          </div>
+          <div class="grid-3">
+            <label class="field"><span>Заведений</span><input id="of-venues" type="number" min="1" max="50" value="1"></label>
+            <label class="field"><span>Карт</span><input id="of-cards" type="number" min="1" max="500" value="1"></label>
+            <label class="field"><span>Тариф</span><select id="of-plan"><option value="month">Месяц</option><option value="year">Год</option></select></label>
+          </div>
+          <div class="grid-2">
+            <label class="field"><span>Следующий шаг</span><input id="of-next-step" type="text" maxlength="200" placeholder="Позвонить, показать карту…"></label>
+            <label class="field"><span>Когда</span><input id="of-next-at" type="date"></label>
+          </div>
+          <label class="field"><span>Заметка</span><textarea id="of-note" rows="3" maxlength="4000"></textarea></label>
+          <p class="muted field-hint">Нужен телефон или Telegram. Добавляйте только тех, кто сам дал контакт для связи по TapReview.</p>
+          <p id="of-error" class="error" hidden></p>
+          <div class="o-actions">
+            <button id="of-save" class="btn btn-primary" type="submit">Сохранить</button>
+            <button id="of-cancel" class="btn btn-secondary" type="button">Отмена</button>
+          </div>
+        </form>
 
         <div class="stats-box o-tg">
           <div class="link-label">Уведомления в Telegram</div>
@@ -200,7 +230,8 @@
 
         <div class="toolbar">
           <div class="filters" role="group" aria-label="Статус заявок">
-            <button class="chip active" type="button" data-ostatus="open">Новые и в работе</button>
+            <button class="chip active" type="button" data-ostatus="open">Активные</button>
+            <button class="chip" type="button" data-ostatus="today">На сегодня</button>
             <button class="chip" type="button" data-ostatus="all">Все</button>
           </div>
         </div>

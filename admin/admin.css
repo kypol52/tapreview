@@ -454,7 +454,35 @@ input[type="color"]:disabled { opacity: 0.4; }
 .o-comment { margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--bg); white-space: pre-wrap; overflow-wrap: anywhere; }
 .o-warn { margin-top: 8px; color: #92400e; font-size: 13px; font-weight: 600; }
 .o-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
-.o-status { font-size: 13px; padding: 5px 8px; }
+.o-status { font-size: 13px; padding: 5px 8px; width: auto; }
+.o-card.o-meeting { border-left-color: #2563eb; }
+.o-card.o-pilot { border-left-color: #7c3aed; }
+.o-card.o-due { box-shadow: 0 0 0 2px #fde68a; }
+.o-next { margin-top: 8px; font-weight: 600; color: #374151; overflow-wrap: anywhere; }
+.o-next.is-due { color: #b45309; }
+.o-note { margin: 6px 0 0; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+.o-edit { display: grid; gap: 8px; margin-top: 10px; padding: 10px; border-radius: 8px; background: var(--bg); }
+.o-edit[hidden] { display: none; }
+.o-edit-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.o-quick { display: flex; flex-wrap: wrap; gap: 6px; }
+.o-edit .btn { justify-self: start; }
+#orders-section input[type="date"], #orders-section input[type="tel"], #orders-section input[type="number"], #orders-section textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+#orders-section textarea { resize: vertical; }
+.o-form { margin-bottom: 14px; }
+.o-form[hidden] { display: none; }
+.o-form .grid-3 { gap: 0 16px; }
+@media (max-width: 560px) {
+  .o-form .grid-2, .o-form .grid-3 { grid-template-columns: 1fr; }
+  .o-edit-row { grid-template-columns: 1fr; }
+}
 
 /* ---------- Подарок для гостей ---------- */
 

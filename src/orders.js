@@ -35,7 +35,7 @@ function checkOrigin(request, env) {
 }
 const RU_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-class OrderError extends Error {
+export class OrderError extends Error {
   constructor(status, message) {
     super(message);
     this.status = status;
@@ -121,7 +121,8 @@ function clean(value, max, label, required = false) {
   return text;
 }
 
-function validate(data) {
+// manual — контакт добавлен вручную в админке (личная встреча): галочки согласия с сайта нет
+export function validate(data, { manual = false } = {}) {
   const name = clean(data.name, 80, "Имя", true);
   const businessName = clean(data.business_name, 120, "Название заведения", true);
   const city = clean(data.city, 80, "Город");
@@ -150,9 +151,27 @@ function validate(data) {
   }
   const plan = data.plan === "year" ? "year" : data.plan === "month" ? "month" : null;
   if (!plan) throw new OrderError(400, "Выберите тариф");
-  if (data.consent !== true) throw new OrderError(400, "Нужно согласие на обработку персональных данных");
+  if (!manual && data.consent !== true) throw new OrderError(400, "Нужно согласие на обработку персональных данных");
 
   const totals = orderTotals({ venues, cards, plan });
+  if (manual) {
+    return {
+      name,
+      phone: phone || null,
+      telegram: telegram || null,
+      business_name: businessName,
+      city: city || null,
+      comment: comment || null,
+      venues,
+      cards,
+      plan,
+      total_now: totals.now,
+      total_next: totals.next,
+      source: "manual",
+      consent_at: null,
+      consent_version: null
+    };
+  }
   return {
     name,
     phone: phone || null,
@@ -239,6 +258,54 @@ export function orderText(o, env = {}) {
     `💳 При заказе: <b>${rub(t.now)}</b> · дальше ${rub(t.next)} ${o.plan === "year" ? "в год" : "в месяц"}`,
     `👉 Контакты и детали — в админке: <a href="${esc(admin)}">${esc(admin.replace(/^https?:\/\//, ""))}</a> → «Заявки»`
   ].join("\n");
+}
+
+// ---------- Напоминания воронки (каждый день в 09:00 по Москве) ----------
+
+// Сегодняшняя дата по Москве (UTC+3, без перехода на летнее время)
+export function todayMsk(now = Date.now()) {
+  return new Date(now + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+// Только номера заявок и шаги без имён и телефонов — данные заявителей остаются в России
+export async function orderReminders(env) {
+  const today = todayMsk();
+  const due = await db(
+    env,
+    `orders?status=not.in.(done,rejected)&next_at=lte.${today}` +
+      `&or=(reminded_on.is.null,reminded_on.lt.${today})&select=id,next_at&order=next_at.asc,id.asc&limit=50`
+  );
+  if (!due.length) return { sent: 0 };
+  const chats = await db(env, "order_recipients?select=chat_id");
+  if (!chats.length) return { sent: 0 };
+
+  const admin = `${String(env.PUBLIC_BASE_URL || "https://tapreview.ru").replace(/\/+$/, "")}/admin/`;
+  const late = due.filter((o) => o.next_at < today).map((o) => `№${o.id}`);
+  const now = due.filter((o) => o.next_at === today).map((o) => `№${o.id}`);
+  const text = [
+    "⏰ <b>Задачи по заявкам</b>",
+    now.length ? `На сегодня: ${now.join(", ")}` : "",
+    late.length ? `Просрочено: ${late.join(", ")}` : "",
+    `👉 Что сделать — в админке: <a href="${esc(admin)}">${esc(admin.replace(/^https?:\/\//, ""))}</a> → «Заявки» → «На сегодня»`
+  ].filter(Boolean).join("\n");
+
+  let sent = 0;
+  for (const { chat_id: chatId } of chats) {
+    try {
+      await tg(env, "sendMessage", { chat_id: chatId, text, parse_mode: "HTML", disable_web_page_preview: true });
+      sent++;
+    } catch (error) {
+      console.error(`Order reminder to ${chatId}: ${error.message}`);
+    }
+  }
+  if (sent) {
+    await db(env, `orders?id=in.(${due.map((o) => o.id).join(",")})`, {
+      method: "PATCH",
+      body: { reminded_on: today },
+      prefer: "return=minimal"
+    });
+  }
+  return { sent, orders: due.length };
 }
 
 function esc(text) {

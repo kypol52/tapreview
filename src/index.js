@@ -19,11 +19,12 @@ import { handleTelegramWebhook, handleTelegramRelay, weeklyReports } from "./tel
 import { handleStatsPage, handleBonusDesk, handleStaffDesk } from "./stats-page.js";
 import { handleBonus } from "./bonus.js";
 import { handleRef } from "./referral.js";
-import { handleOrder } from "./orders.js";
+import { handleOrder, orderReminders } from "./orders.js";
 import { db } from "./supabase.js";
 
-// Должно совпадать с расписанием в wrangler.jsonc ("crons")
+// Должно совпадать с расписанием в server/server.mjs
 const WEEKLY_REPORT_CRON = "0 6 * * 1";
+const DAILY_CRON = "0 6 * * *";
 
 export default {
   async fetch(request, env, ctx) {
@@ -94,10 +95,19 @@ export default {
     return env.ASSETS.fetch(request);
   },
 
-  // Расписание — в wrangler.jsonc ("crons"):
+  // Расписание задаёт server/server.mjs (свой сервер в РФ):
   //  - по понедельникам в 09:00 МСК — отчёт за неделю владельцам в Telegram;
-  //  - каждый день — маленький запрос к базе, чтобы бесплатный Supabase не приостановился.
+  //  - каждый день в 09:00 МСК — напоминания по заявкам (воронка в админке).
+  // Старый Cloudflare Worker теперь только посредник для Telegram: у него нет DB_URL, и по расписанию
+  // он ничего не делает — иначе разослал бы отчёты по устаревшей базе Supabase.
   async scheduled(controller, env, ctx) {
+    if (!env.DB_URL) return;
+    if (controller.cron === DAILY_CRON) {
+      ctx.waitUntil(
+        orderReminders(env).catch((error) => console.error(`Order reminders failed: ${error.message}\n${error.stack}`))
+      );
+      return;
+    }
     if (controller.cron === WEEKLY_REPORT_CRON) {
       ctx.waitUntil(
         weeklyReports(env).catch((error) => console.error(`Weekly reports failed: ${error.message}\n${error.stack}`))

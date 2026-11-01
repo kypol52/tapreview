@@ -27,7 +27,8 @@
 //   DELETE /api/admin/staff-links/:token             — отключить
 //   GET    /api/admin/businesses/:id/bonus-stats     — подарки за 30 дней: выдано / погашено
 //   GET    /api/admin/orders                         — заявки с сайта (/order/)
-//   PATCH  /api/admin/orders/:id                     — сменить статус { status }
+//   POST   /api/admin/orders                         — добавить контакт вручную
+//   PATCH  /api/admin/orders/:id                     — воронка { status, next_step, next_at, note }
 //   DELETE /api/admin/orders/:id                     — удалить заявку (и персональные данные в ней)
 //   GET    /api/admin/order-recipients               — чаты, куда приходят заявки
 //   POST   /api/admin/order-recipients/invite        — ссылка «получать заявки в Telegram»
@@ -42,7 +43,7 @@
 
 import { db } from "./supabase.js";
 import { tg, BOT_COMMANDS } from "./telegram.js";
-import { deleteRuOrder } from "./orders.js";
+import { deleteRuOrder, validate as validateOrder, OrderError } from "./orders.js";
 import { bonusCounts } from "./bonus.js";
 import { refUrl, refStats } from "./referral.js";
 import { localAuthEnabled, verifyToken, handleLogin } from "./admin-auth.js";
@@ -204,6 +205,9 @@ export async function handleApi(request, env, url) {
 
       if (path === "/api/admin/orders" && method === "GET") {
         return await listOrders(env);
+      }
+      if (path === "/api/admin/orders" && method === "POST") {
+        return await createOrder(request, env);
       }
       const orderMatch = path.match(/^\/api\/admin\/orders\/(\d{1,18})$/);
       if (orderMatch) {
@@ -876,25 +880,61 @@ async function createStaffLink(request, env, businessId) {
 
 // ---------- Заявки с сайта (/order/) ----------
 
-const ORDER_STATUSES = ["new", "in_work", "done", "rejected"];
+// Воронка: новая → связались → встреча → пилот → оплатил / отказ
+const ORDER_STATUSES = ["new", "in_work", "meeting", "pilot", "done", "rejected"];
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 async function listOrders(env) {
   const rows = await db(env, "orders?select=*&order=created_at.desc&limit=300");
   return json(rows);
 }
 
-async function updateOrder(request, env, id) {
-  const data = await readJson(request);
-  if (!ORDER_STATUSES.includes(data.status)) {
-    throw new HttpError(400, "Неизвестный статус");
+// Следующий шаг, дата и заметка — общие для правки и ручного добавления
+function pipelineFields(data) {
+  const body = {};
+  if ("status" in data) {
+    if (!ORDER_STATUSES.includes(data.status)) throw new HttpError(400, "Неизвестный статус");
+    body.status = data.status;
   }
+  if ("next_step" in data) body.next_step = cleanText(data.next_step, 200, "Следующий шаг") || null;
+  if ("note" in data) body.note = cleanText(data.note, 4000, "Заметка") || null;
+  if ("next_at" in data) {
+    const date = String(data.next_at ?? "").trim();
+    if (date && (!DATE_RE.test(date) || Number.isNaN(Date.parse(date)))) throw new HttpError(400, "Неверная дата");
+    body.next_at = date || null;
+    body.reminded_on = null; // новая дата — новое напоминание
+  }
+  return body;
+}
+
+async function updateOrder(request, env, id) {
+  const body = pipelineFields(await readJson(request));
+  if (!Object.keys(body).length) throw new HttpError(400, "Нечего сохранять");
   const rows = await db(env, `orders?id=eq.${id}&select=*`, {
     method: "PATCH",
-    body: { status: data.status },
+    body,
     prefer: "return=representation"
   });
   if (!rows.length) throw new HttpError(404, "Заявка не найдена");
   return json(rows[0]);
+}
+
+// Контакт, добавленный вручную (познакомились лично, написали в Telegram и т. п.)
+async function createOrder(request, env) {
+  const data = await readJson(request);
+  let order;
+  try {
+    order = validateOrder(data, { manual: true });
+  } catch (error) {
+    if (error instanceof OrderError) throw new HttpError(error.status, error.message);
+    throw error;
+  }
+  const rows = await db(env, "orders?select=*", {
+    method: "POST",
+    body: { ...order, ...pipelineFields({ status: data.status || "in_work", next_step: data.next_step, note: data.note, next_at: data.next_at }), tg_delivered: true },
+    prefer: "return=representation"
+  });
+  return json(rows[0], 201);
 }
 
 // Удаление — по просьбе человека или когда данные больше не нужны (см. политику /privacy/)
