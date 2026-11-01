@@ -3,759 +3,942 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="robots" content="noindex">
-  <title>TapReview — админ-панель</title>
-  <link rel="stylesheet" href="/admin/admin.css">
-  <script src="/admin/vendor/qrcode.js" defer></script>
-  <script src="/admin/admin.js" defer></script>
+  <title>TapReview — отзывы в одно касание</title>
+  <meta name="description" content="NFC и QR-карты для сбора отзывов на Яндекс Картах, 2ГИС и Google. Гость прикладывает телефон — и сразу попадает в форму отзыва. Статистика по каждой карте.">
+  <meta name="theme-color" content="#0a2a5c">
+  <link rel="canonical" href="https://tapreview.ru/">
+  <link rel="icon" type="image/png" href="/assets/favicon.png">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://tapreview.ru/">
+  <meta property="og:title" content="TapReview — отзывы в одно касание">
+  <meta property="og:description" content="NFC и QR-карты для сбора отзывов на Яндекс Картах, 2ГИС и Google.">
+  <meta property="og:image" content="https://tapreview.ru/assets/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preload" href="/fonts/montserrat-var-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
+  <script>
+    // Включаем анимацию появления заранее, чтобы блоки не «мигали» при загрузке
+    if (window.matchMedia && !matchMedia("(prefers-reduced-motion: reduce)").matches && "IntersectionObserver" in window) {
+      document.documentElement.classList.add("js");
+    }
+  </script>
+
+  <style>
+    /* Montserrat и Playfair Display (OFL, см. fonts/OFL-Montserrat.txt и fonts/OFL.txt) */
+    @font-face {
+      font-family: "Montserrat";
+      src: url("/fonts/montserrat-var-cyrillic.woff2") format("woff2");
+      font-weight: 100 900;
+      font-display: swap;
+      unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+    }
+    @font-face {
+      font-family: "Montserrat";
+      src: url("/fonts/montserrat-var-latin.woff2") format("woff2");
+      font-weight: 100 900;
+      font-display: swap;
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+20BD, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+    }
+    @font-face {
+      font-family: "Playfair Display";
+      src: url("/fonts/playfair-display-600-cyrillic.woff2") format("woff2");
+      font-weight: 600;
+      font-display: swap;
+      unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+    }
+    @font-face {
+      font-family: "Playfair Display";
+      src: url("/fonts/playfair-display-600-latin.woff2") format("woff2");
+      font-weight: 600;
+      font-display: swap;
+      unicode-range: U+0000-00FF, U+2000-206F;
+    }
+
+    :root {
+      /* Бренд */
+      --navy: #0a2a5c;
+      --navy-700: #0d3574;
+      --navy-900: #061a3a;
+      --gold: #e5aa0c;
+      --gold-600: #c99208;
+      --gold-50: #fdf7e6;
+      /* Нейтральные */
+      --ink: #0f1728;
+      --text: #2b3346;
+      --muted: #646d80;
+      --line: #e7eaf0;
+      --line-strong: #d6dbe5;
+      --soft: #f6f7fa;
+      --white: #fff;
+      /* Форма */
+      --r-sm: 12px;
+      --r: 20px;
+      --r-lg: 28px;
+      --shadow-sm: 0 1px 2px rgba(15, 23, 40, 0.05);
+      --shadow: 0 1px 2px rgba(15, 23, 40, 0.04), 0 12px 32px rgba(15, 23, 40, 0.07);
+      --shadow-lg: 0 2px 6px rgba(10, 42, 92, 0.06), 0 30px 70px rgba(10, 42, 92, 0.16);
+      --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 76px; -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      background: var(--white);
+      color: var(--text);
+      font-family: "Montserrat", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      font-weight: 500;
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    a { color: inherit; }
+    img, svg { display: block; }
+    .wrap { width: min(1160px, 100%); margin: 0 auto; padding: 0 20px; }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+    /* ---------- кнопки ---------- */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+      min-height: 54px; padding: 0 28px; border: 0; border-radius: 999px;
+      font: inherit; font-size: 16px; font-weight: 650; letter-spacing: -0.005em; text-decoration: none; cursor: pointer;
+      transition: transform 0.2s var(--ease), background-color 0.2s var(--ease), border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn svg { width: 20px; height: 20px; flex: none; }
+    .btn-primary { background: var(--navy); color: #fff; box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset, 0 10px 24px rgba(10, 42, 92, 0.22); }
+    .btn-primary:hover { background: var(--navy-700); transform: translateY(-1px); }
+    .btn-ghost { background: #fff; color: var(--navy); box-shadow: 0 0 0 1.5px var(--line-strong) inset; }
+    .btn-ghost:hover { box-shadow: 0 0 0 1.5px #b9c1d0 inset; transform: translateY(-1px); }
+    .btn-gold { background: var(--gold); color: var(--navy-900); }
+    .btn-gold:hover { background: #f0b519; transform: translateY(-1px); }
+    .btn:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid #9fb3d9; outline-offset: 3px; border-radius: 10px; }
+    .btn:focus-visible { border-radius: 999px; }
+
+    /* ---------- шапка ---------- */
+    .header {
+      position: sticky; top: 0; z-index: 20;
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: saturate(180%) blur(14px); -webkit-backdrop-filter: saturate(180%) blur(14px);
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.2s var(--ease);
+    }
+    .header.scrolled { border-bottom-color: var(--line); }
+    .header .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 68px; }
+    .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 750; font-size: 19px; letter-spacing: -0.01em; color: var(--navy); }
+    .logo-mark { position: relative; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--navy); color: #fff; font-size: 13px; font-weight: 750; letter-spacing: 0.02em; }
+    .logo-mark svg { position: absolute; top: 5px; right: 4px; width: 10px; height: 10px; }
+    .nav { display: none; gap: 30px; font-size: 15px; font-weight: 600; }
+    .nav a { color: var(--muted); text-decoration: none; transition: color 0.15s; }
+    .nav a:hover { color: var(--navy); }
+    .header .btn { min-height: 42px; padding: 0 18px; font-size: 14px; }
+    .header .btn svg { width: 18px; height: 18px; }
+
+    /* ---------- первый экран ---------- */
+    .hero { position: relative; padding: 36px 0 64px; }
+    .hero::before {
+      content: ""; position: absolute; inset: 0 0 auto; height: 620px; z-index: -1; pointer-events: none;
+      background:
+        radial-gradient(60% 55% at 85% 20%, rgba(10, 42, 92, 0.07), transparent 70%),
+        radial-gradient(40% 40% at 70% 70%, rgba(229, 170, 12, 0.07), transparent 70%);
+    }
+    .hero .wrap { display: grid; gap: 48px; align-items: center; }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 10px; margin: 0 0 22px; padding: 7px 14px 7px 10px;
+      border-radius: 999px; background: #fff; box-shadow: 0 0 0 1px var(--line) inset, var(--shadow-sm);
+      color: var(--navy); font-size: 13px; font-weight: 650;
+    }
+    .eyebrow .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 4px var(--gold-50); }
+    h1 {
+      margin: 0; color: var(--ink);
+      font-size: clamp(40px, 10.5vw, 72px); line-height: 1.02; font-weight: 750; letter-spacing: -0.035em;
+    }
+    h1 .accent {
+      color: var(--navy); white-space: nowrap;
+      background: linear-gradient(transparent 84%, rgba(229, 170, 12, 0.85) 84%, rgba(229, 170, 12, 0.85) 96%, transparent 96%);
+    }
+    .lead { margin: 22px 0 32px; max-width: 540px; font-size: clamp(17px, 2.2vw, 19px); line-height: 1.6; color: var(--muted); }
+    .lead b { color: var(--text); font-weight: 650; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; }
+    .hero-meta { display: flex; flex-wrap: wrap; gap: 10px 22px; margin: 28px 0 0; padding: 0; list-style: none; font-size: 14px; font-weight: 600; color: var(--text); }
+    .hero-meta li { display: flex; align-items: center; gap: 8px; }
+    .hero-meta svg { width: 18px; height: 18px; color: var(--gold-600); }
+    .ref-banner { margin: 0 0 16px; padding: 10px 14px; border-radius: 14px; background: var(--gold-50); box-shadow: 0 0 0 1px #f0d48a inset; font-size: 14px; color: #6b4a00; }
+    .ref-banner b { color: #4a3300; }
+    .hero-price { margin: 18px 0 0; font-size: 14px; color: var(--muted); }
+    .hero-price b { color: var(--ink); font-weight: 700; }
+    .hero-price a { color: var(--navy); font-weight: 650; }
+
+    /* ---------- Сцена: карта в акриловой подставке на стойке + телефон с NFC-касанием ----------
+       Сцена рисуется в «своих» 480×540 px и масштабируется под ширину экрана (--s). */
+    .visual { position: relative; display: flex; justify-content: center; min-width: 0; padding: 0 0 8px; }
+    .hero .wrap > * { min-width: 0; }
+    .scene-wrap { --s: 0.68; width: 100%; height: calc(540px * var(--s)); display: flex; justify-content: center; }
+    .scene { position: relative; flex: none; width: 480px; height: 540px; transform: scale(var(--s)); transform-origin: top center; }
+
+    /* Стойка: светлое дерево, края растворяются в фоне */
+    .counter {
+      position: absolute; left: -40px; right: -40px; bottom: 0; height: 196px;
+      -webkit-mask-image: linear-gradient(90deg, transparent, #000 16%, #000 84%, transparent);
+      mask-image: linear-gradient(90deg, transparent, #000 16%, #000 84%, transparent);
+    }
+    .counter-top {
+      position: absolute; left: 0; right: 0; top: 0; bottom: 30px;
+      clip-path: polygon(9% 0, 91% 0, 100% 100%, 0 100%);
+      background:
+        repeating-linear-gradient(91deg, rgba(120, 78, 36, 0.045) 0 2px, transparent 2px 11px),
+        linear-gradient(180deg, #efe4d3 0%, #e4d3ba 100%);
+    }
+    .counter-top::after { content: ""; position: absolute; inset: 0; background: radial-gradient(60% 70% at 40% 30%, rgba(255, 255, 255, 0.55), transparent 70%); }
+    .counter-edge {
+      position: absolute; left: 0; right: 0; bottom: 0; height: 30px;
+      background: linear-gradient(180deg, #d6c09f 0%, #c3a882 100%);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 18px 30px -12px rgba(60, 40, 15, 0.25);
+    }
+
+    /* Подставка с картой */
+    .stand { position: absolute; z-index: 2; left: 64px; bottom: 112px; width: 194px; transform: perspective(1100px) rotateY(16deg) rotateX(2deg); transform-origin: bottom center; }
+    .stand-shadow { position: absolute; left: -26px; right: -40px; bottom: -36px; height: 34px; border-radius: 50%; background: radial-gradient(closest-side, rgba(70, 45, 15, 0.32), transparent); filter: blur(2px); }
+    .card-img { position: relative; display: block; width: 100%; height: auto; border-radius: 12px; box-shadow: 0 2px 6px rgba(10, 42, 92, 0.12), 0 24px 40px -12px rgba(10, 42, 92, 0.3); }
+    /* Акриловое стекло поверх карты: блик и тонкая кромка */
+    .stand-glass {
+      position: absolute; inset: -7px -7px -2px -7px; border-radius: 16px; pointer-events: none;
+      background: linear-gradient(112deg, rgba(255, 255, 255, 0) 28%, rgba(255, 255, 255, 0.5) 40%, rgba(255, 255, 255, 0.08) 48%, rgba(255, 255, 255, 0) 60%);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85) inset, 0 0 0 1.5px rgba(150, 165, 190, 0.35);
+    }
+    /* Акриловое основание */
+    .stand-base {
+      position: absolute; left: -18px; right: -18px; bottom: -24px; height: 28px; border-radius: 6px 6px 8px 8px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(222, 230, 242, 0.75));
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.95) inset, 0 -1px 0 rgba(150, 165, 190, 0.4) inset, 0 10px 16px -6px rgba(40, 30, 15, 0.3);
+    }
+    .stand-base::before { content: ""; position: absolute; left: 14px; right: 14px; top: 5px; height: 3px; border-radius: 3px; background: rgba(150, 165, 190, 0.35); }
+
+    /* NFC-волны в точке касания */
+    .nfc { position: absolute; z-index: 5; left: 232px; top: 262px; width: 0; height: 0; pointer-events: none; }
+    .nfc i { position: absolute; left: -46px; top: -46px; width: 92px; height: 92px; border-radius: 50%; border: 2px solid var(--gold); box-shadow: 0 0 14px rgba(229, 170, 12, 0.45), 0 0 6px rgba(229, 170, 12, 0.35) inset; opacity: 0; }
+
+    /* Телефон (≈ 9 : 19,5) */
+    .phone {
+      position: absolute; z-index: 4; right: 6px; top: 22px; width: 196px; aspect-ratio: 9 / 19.5;
+      transform: rotate(7deg); transform-origin: 50% 80%;
+      padding: 7px; border-radius: 38px; background: #0d1424;
+      box-shadow: 0 0 0 1.5px #2a3245 inset, 0 0 0 3px #1a2233, 0 40px 70px rgba(6, 26, 58, 0.28), 0 8px 20px rgba(6, 26, 58, 0.18);
+    }
+    /* Экран до касания */
+    .s-idle {
+      position: absolute; z-index: 2; inset: 34px 0 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+      background: #fff; color: #8a91a1; font-size: 11px; font-weight: 650;
+    }
+    .s-idle span { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 50%; background: var(--soft); color: var(--navy); }
+    .s-idle svg { width: 26px; height: 26px; }
+
+    /* Анимация: телефон подносят к карте → волны NFC → открывается страница отзывов (цикл 6 с) */
+    @keyframes tap-phone {
+      0%, 12% { transform: translate(0, 0) rotate(7deg); }
+      32% { transform: translate(-78px, 36px) rotate(-12deg); }
+      36% { transform: translate(-73px, 33px) rotate(-12deg) scale(0.985); }
+      48% { transform: translate(-78px, 36px) rotate(-12deg); }
+      68%, 100% { transform: translate(0, 0) rotate(7deg); }
+    }
+    @keyframes tap-idle { 0%, 34% { opacity: 1; } 42%, 92% { opacity: 0; } 100% { opacity: 1; } }
+    @keyframes tap-ring { 0%, 33% { opacity: 0; transform: scale(0.25); } 35% { opacity: 0.95; } 58%, 100% { opacity: 0; transform: scale(1.9); } }
+    .phone { animation: tap-phone 6s var(--ease) infinite; }
+    .s-idle { animation: tap-idle 6s linear infinite; }
+    .nfc i { animation: tap-ring 6s ease-out infinite; }
+    .nfc i:nth-child(2) { animation-delay: 0.18s; }
+    .nfc i:nth-child(3) { animation-delay: 0.36s; }
+    /* Боковые кнопки */
+    .phone::before { content: ""; position: absolute; left: -4px; top: 21%; width: 3px; height: 12%; border-radius: 3px 0 0 3px; background: #1a2233; box-shadow: 0 -40px 0 -0.5px #1a2233; }
+    .phone::after { content: ""; position: absolute; right: -4px; top: 27%; width: 3px; height: 15%; border-radius: 0 3px 3px 0; background: #1a2233; }
+    .screen {
+      position: relative; display: flex; flex-direction: column; height: 100%; overflow: hidden;
+      border-radius: 34px; background: #fff; padding: 0 14px 10px; text-align: center;
+    }
+    .s-status { display: flex; align-items: center; justify-content: space-between; height: 34px; padding: 0 8px; font-size: 10.5px; font-weight: 700; color: var(--ink); }
+    .s-island { position: absolute; top: 9px; left: 50%; width: 30%; height: 17px; translate: -50% 0; border-radius: 99px; background: #0d1424; }
+    .s-icons { display: flex; align-items: center; gap: 4px; }
+    .s-icons svg { height: 9px; width: auto; }
+    .s-body { flex: 1; display: flex; flex-direction: column; justify-content: center; padding-bottom: 4px; }
+    .s-name { margin: 4px 0 2px; font-family: "Playfair Display", Georgia, serif; font-size: 22px; font-weight: 600; line-height: 1.15; color: var(--ink); }
+    .s-tag { margin: 0; font-size: 8px; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; color: #8a91a1; }
+    .s-line { width: 30px; height: 2px; margin: 11px auto; border-radius: 2px; background: var(--gold); }
+    .s-thanks { margin: 0; font-size: 12.5px; font-weight: 650; color: var(--ink); }
+    .s-stars { display: flex; justify-content: center; gap: 3px; margin: 7px 0 4px; color: var(--gold); }
+    .s-stars svg { width: 13px; height: 13px; }
+    .s-lead { margin: 0 0 12px; font-size: 9.5px; line-height: 1.4; color: #8a91a1; }
+    .s-btn {
+      display: flex; align-items: center; gap: 8px; margin: 0 0 7px; padding: 8px 11px; border-radius: 999px;
+      box-shadow: 0 0 0 1px var(--line) inset; font-size: 11px; font-weight: 650; color: var(--ink); text-align: left;
+    }
+    .s-btn svg { width: 19px; height: 19px; flex: none; }
+    .s-btn span { flex: 1; }
+    .s-btn i { color: #a3aab8; font-style: normal; }
+    .s-gift { justify-content: center; margin-top: 3px; box-shadow: 0 0 0 1px #f0d48a inset; background: var(--gold-50); color: #8a6300; }
+    .s-gift svg { width: 15px; height: 15px; }
+    .s-foot { margin: 6px auto 8px; padding: 4px 10px; border-radius: 99px; background: var(--soft); font-size: 9px; font-weight: 650; color: #8a91a1; }
+    .s-home { width: 34%; height: 4px; margin: 0 auto; border-radius: 4px; background: #0d1424; opacity: 0.85; }
+    .tap-chip {
+      position: absolute; z-index: 5; left: 50%; bottom: 0; translate: -50% 0;
+      display: flex; align-items: center; gap: 10px; white-space: nowrap;
+      padding: 10px 16px 10px 10px; border-radius: 16px; background: #fff; box-shadow: var(--shadow);
+      font-size: 13.5px; font-weight: 650; color: var(--navy);
+    }
+    .tap-chip span { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--navy); color: var(--gold); }
+    .tap-chip svg { width: 18px; height: 18px; }
+
+    /* ---------- площадки ---------- */
+    .platforms { padding: 26px 0; border-block: 1px solid var(--line); }
+    .platforms .wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 14px 40px; }
+    .platforms p { margin: 0; width: 100%; text-align: center; font-size: 13px; font-weight: 600; color: var(--muted); }
+    .platform { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; color: var(--ink); }
+    .platform svg { width: 28px; height: 28px; }
+
+    /* ---------- секции ---------- */
+    section { padding: 80px 0; }
+    .section-soft { background: var(--soft); }
+    .section-head { max-width: 680px; margin: 0 0 44px; }
+    .kicker { margin: 0 0 14px; color: var(--gold-600); font-size: 12.5px; font-weight: 750; letter-spacing: 0.16em; text-transform: uppercase; }
+    h2 { margin: 0; color: var(--ink); font-size: clamp(30px, 6vw, 46px); line-height: 1.1; font-weight: 750; letter-spacing: -0.03em; }
+    .section-head p:not(.kicker) { margin: 16px 0 0; font-size: 17px; color: var(--muted); }
+    h3 { margin: 0 0 8px; color: var(--ink); font-size: 19px; line-height: 1.3; font-weight: 700; letter-spacing: -0.01em; }
+
+    /* Как работает */
+    .steps { display: grid; gap: 16px; margin: 0; padding: 0; list-style: none; }
+    .step { position: relative; padding: 28px 26px 30px; border-radius: var(--r); background: #fff; box-shadow: 0 0 0 1px var(--line) inset; }
+    .step-num { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; font-size: 13px; font-weight: 700; color: var(--muted); letter-spacing: 0.04em; }
+    .step-num b { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--navy); color: #fff; font-size: 16px; }
+    .step p { margin: 0; color: var(--muted); font-size: 15.5px; }
+
+    /* Что получает бизнес */
+    .benefits { display: grid; gap: 16px; }
+    .benefit { padding: 26px; border-radius: var(--r); background: #fff; box-shadow: 0 0 0 1px var(--line) inset; }
+    .benefit-icon { display: grid; place-items: center; width: 44px; height: 44px; margin-bottom: 18px; border-radius: 12px; background: var(--gold-50); color: var(--gold-600); }
+    .benefit-icon svg { width: 22px; height: 22px; }
+    .benefit p { margin: 0; color: var(--muted); font-size: 15px; }
+
+    .stats-block { display: grid; gap: 32px; align-items: center; margin-top: 56px; padding: 28px; border-radius: var(--r-lg); background: var(--soft); }
+    .stats-copy h3 { font-size: clamp(22px, 3.4vw, 28px); letter-spacing: -0.02em; }
+    .stats-copy p { margin: 0 0 18px; color: var(--muted); }
+    .checks { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+    .checks li { display: flex; gap: 10px; font-size: 15px; font-weight: 600; color: var(--text); }
+    .checks svg { width: 20px; height: 20px; flex: none; margin-top: 2px; color: var(--navy); }
+
+    .dash { position: relative; padding: 20px; border-radius: 22px; background: #fff; box-shadow: var(--shadow); }
+    .dash-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 16px; }
+    .dash-title { font-size: 14px; font-weight: 700; color: var(--ink); }
+    .dash-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #9aa1b0; }
+    .dash-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+    .kpi { padding: 14px; border-radius: 14px; background: var(--soft); }
+    .kpi small { display: block; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+    .kpi strong { display: block; margin: 4px 0 2px; font-size: 28px; line-height: 1; font-weight: 750; color: var(--ink); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+    .kpi em { font-style: normal; font-size: 12px; font-weight: 700; color: #15803d; }
+    .bars { display: flex; align-items: flex-end; gap: 7px; height: 120px; padding: 0 2px; }
+    .bar { position: relative; flex: 1; border-radius: 7px 7px 3px 3px; background: var(--navy); transform-origin: bottom; }
+    .bar i { position: absolute; left: 22%; right: 22%; bottom: 0; border-radius: 5px 5px 2px 2px; background: var(--gold); }
+    .bar-days { display: flex; gap: 7px; margin-top: 8px; padding: 0 2px; font-size: 10.5px; font-weight: 600; color: #9aa1b0; }
+    .bar-days span { flex: 1; text-align: center; }
+    .dash-cards { margin: 16px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+    .dash-cards li { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13px; font-weight: 600; color: var(--text); }
+    .dash-cards li:last-child { border-bottom: 0; padding-bottom: 0; }
+    .dash-cards b { font-variant-numeric: tabular-nums; color: #b9bfcb; }
+    .dash-cards i { font-style: normal; }
+    .c-navy { color: var(--navy) !important; }
+    .c-gold { color: #b58200 !important; } /* темнее фирменного золотого — чтобы цифры читались на светлом фоне */
+    .col-mark { flex: none; display: block; width: 8px; height: 18px; margin: 2px 6px 0; border-radius: 3px 3px 1px 1px; }
+    .col-navy { background: var(--navy); }
+    .col-gold { background: var(--gold); }
+
+    /* Для кого */
+    .who { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; list-style: none; }
+    .who li {
+      display: flex; align-items: center; gap: 10px; padding: 12px 18px 12px 12px; border-radius: 999px;
+      background: #fff; box-shadow: 0 0 0 1px var(--line) inset; font-weight: 650; font-size: 15px; color: var(--ink);
+    }
+    .who svg { width: 30px; height: 30px; padding: 6px; border-radius: 50%; background: var(--soft); color: var(--navy); }
+
+    /* Цены */
+    .plans { display: grid; gap: 16px; align-items: stretch; }
+    .plan { position: relative; display: flex; flex-direction: column; padding: 30px 26px 26px; border-radius: var(--r-lg); background: #fff; box-shadow: 0 0 0 1px var(--line) inset; }
+    .plan-featured { background: var(--navy-900); color: #c9d3e6; box-shadow: var(--shadow-lg); }
+    .plan-featured h3, .plan-featured .price strong { color: #fff; }
+    .plan-badge { position: absolute; top: 22px; right: 22px; padding: 5px 11px; border-radius: 999px; background: var(--gold); color: var(--navy-900); font-size: 12px; font-weight: 750; }
+    .plan h3 { font-size: 18px; margin-bottom: 4px; }
+    .plan-sub { margin: 0 0 22px; font-size: 14px; color: var(--muted); }
+    .plan-featured .plan-sub { color: #9fb0cf; }
+    .price { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin: 0 0 6px; }
+    .price strong { font-size: 42px; line-height: 1; font-weight: 750; letter-spacing: -0.03em; color: var(--ink); font-variant-numeric: tabular-nums; }
+    .price-text { font-size: 30px !important; }
+    .price span { font-size: 15px; font-weight: 600; color: var(--muted); }
+    .plan-featured .price span { color: #9fb0cf; }
+    .price-note { margin: 0 0 22px; font-size: 13.5px; color: var(--muted); }
+    .plan-featured .price-note { color: #9fb0cf; }
+    .plan ul { flex: 1; display: grid; align-content: start; gap: 10px; margin: 0 0 26px; padding: 22px 0 0; list-style: none; border-top: 1px solid var(--line); }
+    .plan-featured ul { border-top-color: rgba(255, 255, 255, 0.12); }
+    .plan li { display: flex; gap: 10px; font-size: 14.5px; font-weight: 550; }
+    .plan li svg { width: 18px; height: 18px; flex: none; margin-top: 3px; color: var(--gold-600); }
+    .plan-featured li svg { color: var(--gold); }
+    .plan .btn { width: 100%; }
+    .plan-featured .btn-ghost { background: transparent; color: #fff; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.3) inset; }
+    .pricing-foot { display: grid; gap: 10px; margin-top: 22px; font-size: 14px; color: var(--muted); }
+    .pricing-foot p { margin: 0; display: flex; gap: 10px; }
+    .pricing-foot svg { width: 18px; height: 18px; flex: none; margin-top: 3px; color: var(--navy); }
+
+    /* Как заказать */
+    .order { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; counter-reset: order; }
+    .order li { position: relative; display: grid; grid-template-columns: 44px 1fr; gap: 0 16px; padding: 0 0 26px; counter-increment: order; }
+    .order li::before {
+      content: counter(order); grid-row: span 2; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%;
+      background: #fff; box-shadow: 0 0 0 1.5px var(--line-strong) inset; font-weight: 750; color: var(--navy);
+    }
+    .order li:not(:last-child)::after { content: ""; position: absolute; left: 21px; top: 50px; bottom: 6px; width: 2px; border-radius: 2px; background: var(--line); }
+    .order h3 { margin: 9px 0 4px; font-size: 17px; }
+    .order p { margin: 0; font-size: 15px; color: var(--muted); }
+    .order p a { color: var(--navy); font-weight: 650; }
+
+    /* Вопросы */
+    .faq { display: grid; gap: 10px; max-width: 820px; }
+    .faq details { border-radius: 16px; background: #fff; box-shadow: 0 0 0 1px var(--line) inset; transition: box-shadow 0.2s var(--ease); }
+    .faq details[open] { box-shadow: 0 0 0 1px var(--line-strong) inset, var(--shadow-sm); }
+    .faq summary {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 22px;
+      list-style: none; cursor: pointer; font-weight: 700; font-size: 16.5px; color: var(--ink);
+    }
+    .faq summary::-webkit-details-marker { display: none; }
+    .faq summary::after {
+      content: ""; flex: none; width: 12px; height: 12px; margin-right: 4px;
+      border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
+      transform: rotate(45deg) translateY(-3px); transition: transform 0.25s var(--ease);
+    }
+    .faq details[open] summary::after { transform: rotate(-135deg) translateY(-3px); }
+    .faq details p { margin: -4px 22px 20px; color: var(--muted); font-size: 15.5px; max-width: 680px; }
+
+    /* Призыв */
+    .cta { position: relative; overflow: hidden; padding: 56px 24px; border-radius: var(--r-lg); background: var(--navy-900); color: #fff; text-align: center; isolation: isolate; }
+    .cta::before {
+      content: ""; position: absolute; inset: 0; z-index: -1;
+      background: radial-gradient(55% 80% at 50% 0%, rgba(41, 84, 160, 0.55), transparent 70%);
+    }
+    .cta::after { content: ""; position: absolute; left: 50%; bottom: 0; width: 120px; height: 3px; translate: -50% 0; border-radius: 3px 3px 0 0; background: var(--gold); }
+    .cta h2 { margin: 0 auto 14px; max-width: 640px; color: #fff; }
+    .cta p { margin: 0 auto 30px; max-width: 520px; color: #b8c5df; font-size: 17px; }
+    .cta p b { color: #fff; font-weight: 650; }
+    .cta .actions { justify-content: center; }
+    .cta .btn-ghost { background: transparent; color: #fff; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.28) inset; }
+    .cta .btn-ghost:hover { box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.5) inset; }
+
+    /* Подвал */
+    .footer { padding: 36px 0 44px; color: var(--muted); font-size: 14px; }
+    .footer .wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 24px; }
+    .footer nav { display: flex; flex-wrap: wrap; gap: 10px 22px; }
+    .footer a { color: var(--navy); font-weight: 600; text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
+
+    /* Мягкое появление при прокрутке (только если работает JS и пользователь не отключил анимации) */
+    .js .reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.7s var(--ease), transform 0.7s var(--ease); transition-delay: var(--d, 0s); }
+    .js .reveal.in { opacity: 1; transform: none; }
+    .js .dash .bar { transform: scaleY(0.04); transition: transform 0.9s var(--ease); transition-delay: calc(var(--i) * 60ms + 0.15s); }
+    .js .dash.in .bar { transform: none; }
+
+    /* ---------- планшет и десктоп ---------- */
+    @media (min-width: 720px) {
+      .wrap { padding: 0 32px; }
+      .steps { grid-template-columns: repeat(3, 1fr); }
+      .benefits { grid-template-columns: repeat(2, 1fr); }
+      .plans { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .order { grid-template-columns: repeat(4, 1fr); gap: 20px; }
+      .order li { display: block; padding: 0; }
+      .order li::before { margin-bottom: 14px; }
+      .order li:not(:last-child)::after { left: 54px; right: -14px; top: 21px; bottom: auto; width: auto; height: 2px; }
+      .cta { padding: 76px 40px; }
+      .stats-block { padding: 40px; }
+    }
+    @media (min-width: 980px) {
+      .nav { display: flex; }
+      .hero { padding: 64px 0 96px; }
+      .hero .wrap { grid-template-columns: 1.08fr 0.92fr; gap: 40px; }
+      .scene-wrap { --s: 1.08; }
+      section { padding: 112px 0; }
+      .section-head { margin-bottom: 56px; }
+      .benefits { grid-template-columns: repeat(3, 1fr); }
+      .stats-block { grid-template-columns: 0.9fr 1.1fr; gap: 56px; padding: 56px; margin-top: 72px; }
+      .dash { padding: 26px; }
+    }
+    @media (max-width: 440px) {
+      .header .btn span { display: none; }
+      .header .btn { width: 42px; padding: 0; }
+      .actions .btn { width: 100%; }
+    }
+    @media (min-width: 441px) and (max-width: 979px) { .scene-wrap { --s: 0.9; } }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition: none !important; animation: none !important; }
+      .js .reveal { opacity: 1; transform: none; }
+      .js .dash .bar { transform: none; }
+      /* Без анимации: телефон уже приложен к карте, страница открыта */
+      .phone { transform: translate(-78px, 36px) rotate(-12deg); }
+      .s-idle { opacity: 0; }
+      .nfc i { opacity: 0.5; transform: scale(1); }
+      .nfc i:nth-child(2) { opacity: 0.3; transform: scale(1.4); }
+      .nfc i:nth-child(3) { opacity: 0.15; transform: scale(1.8); }
+    }
+  </style>
 </head>
 <body>
 
-  <!-- ===== Вход ===== -->
-  <section id="login-view" class="login" hidden>
-    <form id="login-form" class="login-card">
-      <div class="brand">TapReview</div>
-      <h1>Вход в админ-панель</h1>
+  <!-- Логотипы площадок и значки: объявлены один раз, дальше используются через <use> -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-yandex" viewBox="0 0 40 40">
+      <circle cx="20" cy="20" r="20" fill="#fc3f1d"/>
+      <path fill="#fff" d="M22.4 31h3.9V9h-5.7c-5.7 0-8.7 2.9-8.7 7.2 0 3.4 1.6 5.5 4.6 7.6L11.3 31h4.2l5.7-8.5-2-1.3c-2.4-1.6-3.6-2.9-3.6-5.6 0-2.4 1.7-4 4.9-4h1.9V31z"/>
+    </symbol>
+    <symbol id="i-google" viewBox="0 0 40 40">
+      <defs><clipPath id="gm-pin"><path d="M20 2c-7.2 0-13 5.6-13 12.6 0 9.4 13 23.4 13 23.4s13-14 13-23.4C33 7.6 27.2 2 20 2z"/></clipPath></defs>
+      <g clip-path="url(#gm-pin)">
+        <rect width="40" height="40" fill="#34a853"/>
+        <path d="M0 0h20v16L0 30z" fill="#fbbc04"/>
+        <path d="M0 0h40v8L20 16 7 6z" fill="#4285f4"/>
+        <path d="M20 0h20v22L20 16z" fill="#ea4335"/>
+        <path d="M7 0h22L20 14z" fill="#1a73e8"/>
+      </g>
+      <circle cx="20" cy="14.6" r="4.8" fill="#fff"/>
+    </symbol>
+    <symbol id="i-twogis" viewBox="0 0 40 40">
+      <rect width="40" height="40" rx="10" fill="#19aa1e"/>
+      <path d="M0 10a10 10 0 0 1 10-10h20a10 10 0 0 1 10 10v8H0z" fill="#ffd200"/>
+      <path d="M0 16h40v6H0z" fill="#fff" opacity=".9"/>
+      <path d="M20 8.5c-5.2 0-9.3 3.9-9.3 8.8 0 6.6 9.3 14.2 9.3 14.2s9.3-7.6 9.3-14.2c0-4.9-4.1-8.8-9.3-8.8z" fill="#fff"/>
+      <path d="M20 10.8c-3.9 0-7 2.9-7 6.5 0 4.8 7 10.9 7 10.9s7-6.1 7-10.9c0-3.6-3.1-6.5-7-6.5z" fill="#1ba1f2"/>
+    </symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 2.5 2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z" fill="currentColor"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.2 4.2L19 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-tg" viewBox="0 0 24 24"><path d="M21.5 4.2 2.9 11.4c-1 .4-1 1.4 0 1.7l4.6 1.4 1.8 5.4c.2.6.9.8 1.4.4l2.6-2.1 4.8 3.5c.6.4 1.4.1 1.6-.6l3.2-15.3c.2-.9-.6-1.6-1.4-1.6zM9.6 14.3l8.6-7.6-6.7 8.6-.3 3-1.6-4z" fill="currentColor"/></symbol>
+    <symbol id="i-nfc" viewBox="0 0 24 24"><path d="M8 9.5a4 4 0 0 1 0 5M11 7a7.5 7.5 0 0 1 0 10M14 4.5a11 11 0 0 1 0 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-calc" viewBox="0 0 24 24"><path d="M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8 7h8M8.5 11.5h.01M12 11.5h.01M15.5 11.5h.01M8.5 15h.01M12 15h.01M15.5 15h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </svg>
 
-      <label class="field">
-        <span>Email</span>
-        <input id="login-email" type="email" autocomplete="username" required>
-      </label>
-
-      <label class="field">
-        <span>Пароль</span>
-        <input id="login-password" type="password" autocomplete="current-password" required>
-      </label>
-
-      <p id="login-error" class="error" hidden></p>
-
-      <button id="login-button" class="btn btn-primary btn-block" type="submit">Войти</button>
-    </form>
-  </section>
-
-  <!-- ===== Панель ===== -->
-  <div id="app-view" hidden>
-    <header class="topbar">
-      <div class="brand">TapReview</div>
-      <div class="topbar-right">
-        <span id="user-email" class="muted"></span>
-        <button id="logout-button" class="btn btn-ghost" type="button">Выйти</button>
-      </div>
-    </header>
-
-    <main class="container">
-      <nav class="tabs" aria-label="Разделы">
-        <button id="tab-businesses" class="tab active" type="button">Бизнесы</button>
-        <button id="tab-groups" class="tab" type="button">Группы заведений</button>
-        <button id="tab-cards" class="tab" type="button">Карты</button>
-        <button id="tab-orders" class="tab" type="button">Заявки <span id="orders-badge" class="tab-badge" hidden></span></button>
+  <header class="header" id="top">
+    <div class="wrap">
+      <a class="logo" href="/" aria-label="TapReview — на главную">
+        <span class="logo-mark">TR<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 5.2a4 4 0 0 1 4 4M2 1.6a7.6 7.6 0 0 1 7.6 7.6" fill="none" stroke="#e5aa0c" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+        TapReview
+      </a>
+      <nav class="nav" aria-label="Разделы">
+        <a href="#how">Как работает</a>
+        <a href="#benefits">Возможности</a>
+        <a href="#pricing">Цены</a>
+        <a href="#faq">Вопросы</a>
       </nav>
+      <a class="btn btn-primary" href="/order/" aria-label="Рассчитать и заказать">
+        <svg aria-hidden="true"><use href="#i-calc"/></svg>
+        <span>Заказать</span>
+      </a>
+    </div>
+  </header>
 
-      <section id="businesses-section">
-      <div class="page-head">
+  <main>
+    <!-- ---------- первый экран ---------- -->
+    <div class="hero">
+      <div class="wrap">
         <div>
-          <h1>Бизнесы</h1>
-          <p id="count" class="muted"></p>
-        </div>
-        <button id="new-button" class="btn btn-primary" type="button">+ Новый бизнес</button>
-      </div>
-
-      <p id="billing-summary" class="billing-summary" hidden></p>
-
-      <div class="toolbar">
-        <input id="search" class="search" type="search" placeholder="Поиск по названию или ссылке">
-        <div class="filters" role="group" aria-label="Подписка">
-          <button class="chip active" type="button" data-billing="all">Все</button>
-          <button class="chip" type="button" data-billing="soon">Скоро продление</button>
-          <button class="chip" type="button" data-billing="expired">Отключены за неуплату</button>
-          <button class="chip" type="button" data-billing="none">Без подписки</button>
-        </div>
-      </div>
-
-      <p id="list-error" class="error" hidden></p>
-      <p id="loading" class="muted">Загрузка…</p>
-
-      <div class="table-wrap">
-        <table id="table" class="table" hidden>
-          <thead>
-            <tr>
-              <th>Название</th>
-              <th>Категория</th>
-              <th>Статус</th>
-              <th>За 30 дней</th>
-              <th>Ссылка</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="rows"></tbody>
-        </table>
-      </div>
-
-      <p id="empty" class="empty" hidden>Пока нет ни одного бизнеса. Нажмите «+ Новый бизнес».</p>
-      </section>
-
-      <!-- Группы: один QR / NFC → страница со списком заведений -->
-      <section id="groups-section" hidden>
-        <div class="page-head">
-          <div>
-            <h1>Группы заведений</h1>
-            <p class="muted">Один QR / NFC на несколько заведений: гость выбирает заведение из списка.</p>
-          </div>
-          <button id="g-new-button" class="btn btn-primary" type="button">+ Новая группа</button>
-        </div>
-
-        <p id="g-list-error" class="error" hidden></p>
-        <p id="g-loading" class="muted" hidden>Загрузка…</p>
-
-        <div class="table-wrap">
-          <table id="g-table" class="table" hidden>
-            <thead>
-              <tr>
-                <th>Название</th>
-                <th>Заведения</th>
-                <th>Статус</th>
-                <th>Ссылка</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="g-rows"></tbody>
-          </table>
-        </div>
-
-        <p id="g-empty" class="empty" hidden>Пока нет ни одной группы. Нажмите «+ Новая группа».</p>
-      </section>
-
-      <!-- Шаблонные карты: у каждой свой QR /c/КОД, привязка к заведению здесь -->
-      <section id="cards-section" hidden>
-        <div class="page-head">
-          <div>
-            <h1>Карты</h1>
-            <p id="c-count" class="muted">Шаблонные карты с уникальным QR. Привяжите карту к заведению — и она заработает.</p>
-          </div>
-          <div class="head-buttons">
-            <button id="c-csv-button" class="btn btn-secondary" type="button">Скачать список (CSV)</button>
-            <button id="c-issue-button" class="btn btn-primary" type="button">+ Выпустить карты</button>
-          </div>
-        </div>
-
-        <div class="toolbar">
-          <input id="c-search" class="search" type="search" placeholder="Номер карты или заведение" autocomplete="off">
-          <div class="filters" role="group" aria-label="Фильтр">
-            <button class="chip active" type="button" data-filter="all">Все</button>
-            <button class="chip" type="button" data-filter="free">Свободные</button>
-            <button class="chip" type="button" data-filter="assigned">Привязанные</button>
-            <button class="chip" type="button" data-filter="off">Отключённые</button>
-          </div>
-        </div>
-
-        <p id="c-list-error" class="error" hidden></p>
-        <p id="c-loading" class="muted" hidden>Загрузка…</p>
-
-        <div class="table-wrap">
-          <table id="c-table" class="table" hidden>
-            <thead>
-              <tr>
-                <th>Номер</th>
-                <th>Заведение</th>
-                <th>Место</th>
-                <th>Статус</th>
-                <th>За 30 дней</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="c-rows"></tbody>
-          </table>
-        </div>
-
-        <p id="c-empty" class="empty" hidden>Пока нет ни одной карты. Нажмите «+ Выпустить карты».</p>
-        <p id="c-nothing" class="empty" hidden>Ничего не найдено.</p>
-      </section>
-
-      <!-- Заявки с сайта (tapreview.ru/order/) -->
-      <section id="orders-section" hidden>
-        <div class="page-head">
-          <div>
-            <h1>Заявки</h1>
-            <p id="o-count" class="muted">Заявки с сайта и контакты, добавленные вручную.</p>
-          </div>
-          <div class="head-buttons">
-            <button id="o-add" class="btn btn-primary" type="button">+ Добавить контакт</button>
-            <button id="o-refresh" class="btn btn-secondary" type="button">Обновить</button>
-          </div>
-        </div>
-
-        <!-- Контакт вручную: познакомились лично, написали в Telegram и т. п. -->
-        <form id="o-form" class="stats-box o-form" hidden>
-          <div class="link-label">Новый контакт</div>
-          <div class="grid-2">
-            <label class="field"><span>Имя *</span><input id="of-name" type="text" maxlength="80" required></label>
-            <label class="field"><span>Заведение *</span><input id="of-business" type="text" maxlength="120" required></label>
-            <label class="field"><span>Телефон</span><input id="of-phone" type="tel" maxlength="30" value="+7 "></label>
-            <label class="field"><span>Telegram</span><input id="of-telegram" type="text" maxlength="60" placeholder="@username"></label>
-            <label class="field"><span>Город</span><input id="of-city" type="text" maxlength="80"></label>
-            <label class="field"><span>Этап</span><select id="of-status"></select></label>
-          </div>
-          <div class="grid-3">
-            <label class="field"><span>Заведений</span><input id="of-venues" type="number" min="1" max="50" value="1"></label>
-            <label class="field"><span>Карт</span><input id="of-cards" type="number" min="1" max="500" value="1"></label>
-            <label class="field"><span>Тариф</span><select id="of-plan"><option value="month">Месяц</option><option value="year">Год</option></select></label>
-          </div>
-          <div class="grid-2">
-            <label class="field"><span>Следующий шаг</span><input id="of-next-step" type="text" maxlength="200" placeholder="Позвонить, показать карту…"></label>
-            <label class="field"><span>Когда</span><input id="of-next-at" type="date"></label>
-          </div>
-          <label class="field"><span>Заметка</span><textarea id="of-note" rows="3" maxlength="4000"></textarea></label>
-          <p class="muted field-hint">Нужен телефон или Telegram. Добавляйте только тех, кто сам дал контакт для связи по TapReview.</p>
-          <p id="of-error" class="error" hidden></p>
-          <div class="o-actions">
-            <button id="of-save" class="btn btn-primary" type="submit">Сохранить</button>
-            <button id="of-cancel" class="btn btn-secondary" type="button">Отмена</button>
-          </div>
-        </form>
-
-        <div class="stats-box o-tg">
-          <div class="link-label">Уведомления в Telegram</div>
-          <p id="o-tg-status" class="muted">Загрузка…</p>
-          <ul id="o-tg-list" class="tg-subs"></ul>
-          <div class="o-tg-actions">
-            <button id="o-tg-invite" class="btn btn-secondary btn-small" type="button">Получать заявки в Telegram</button>
-          </div>
-          <div id="o-tg-link-box" class="link-row" hidden>
-            <input id="o-tg-link" type="text" readonly>
-            <a id="o-tg-open" class="btn btn-primary" target="_blank" rel="noopener noreferrer">Открыть в Telegram</a>
-          </div>
-          <p id="o-tg-hint" class="muted qr-text" hidden>Откройте ссылку на телефоне или компьютере, где у вас Telegram, и нажмите «Запустить». Ссылка одноразовая и действует сутки.</p>
-          <p id="o-tg-error" class="error" hidden></p>
-        </div>
-
-        <div class="toolbar">
-          <div class="filters" role="group" aria-label="Статус заявок">
-            <button class="chip active" type="button" data-ostatus="open">Активные</button>
-            <button class="chip" type="button" data-ostatus="today">На сегодня</button>
-            <button class="chip" type="button" data-ostatus="all">Все</button>
-          </div>
-        </div>
-
-        <p id="o-error" class="error" hidden></p>
-        <p id="o-loading" class="muted" hidden>Загрузка…</p>
-        <div id="o-list" class="o-list"></div>
-        <p id="o-empty" class="empty" hidden>Заявок пока нет.</p>
-        <p class="muted stats-note">
-          Это персональные данные. Удаляйте заявку, если человек попросил удалить данные или договор не заключён
-          и прошло 12 месяцев (так написано в политике /privacy/).
-        </p>
-      </section>
-    </main>
-  </div>
-
-  <!-- ===== Форма создания / редактирования ===== -->
-  <dialog id="editor" class="editor">
-    <form id="editor-form" method="dialog">
-      <div class="editor-head">
-        <h2 id="editor-title">Новый бизнес</h2>
-        <button id="editor-close" class="btn btn-ghost" type="button" aria-label="Закрыть">✕</button>
-      </div>
-
-      <div id="link-box" class="link-box" hidden>
-        <div class="link-label">Ссылка для записи в NFC-карту</div>
-        <div class="link-row">
-          <input id="link-url" type="text" readonly>
-          <button id="link-copy" class="btn btn-secondary" type="button">Копировать</button>
-          <a id="link-open" class="btn btn-secondary" target="_blank" rel="noopener">Открыть</a>
-        </div>
-
-        <p id="temp-domain-warning" class="warning" hidden>
-          Это временный адрес. Не печатайте карты и не записывайте NFC, пока не подключён свой домен.
-        </p>
-
-        <div class="qr-row">
-          <img id="qr-preview" class="qr-preview" alt="QR-код">
-          <div class="qr-info">
-            <div class="link-label">QR-код</div>
-            <p class="muted qr-text">
-              Ведёт на ту же страницу бизнеса (с пометкой «QR» для статистики).
-              При изменении ссылок Google, Яндекс или 2ГИС QR-код остаётся прежним —
-              перепечатывать не нужно.
-            </p>
-            <div class="qr-buttons">
-              <button id="qr-png" class="btn btn-secondary" type="button">Скачать PNG</button>
-              <button id="qr-svg" class="btn btn-secondary" type="button">Скачать SVG (для печати)</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div id="stats-box" class="stats-box" hidden>
-        <div class="link-label">Статистика за 30 дней</div>
-        <p id="stats-loading" class="muted">Загрузка…</p>
-        <p id="stats-error" class="error" hidden></p>
-
-        <div id="stats-content" hidden>
-          <div class="tiles">
-            <div class="tile">
-              <div class="tile-label">Открытия страницы</div>
-              <div id="st-views" class="tile-value">0</div>
-              <div id="st-sources" class="tile-sub"></div>
-            </div>
-            <div class="tile">
-              <div class="tile-label">Клики Google</div>
-              <div id="st-google" class="tile-value">0</div>
-            </div>
-            <div class="tile">
-              <div class="tile-label">Клики Яндекс</div>
-              <div id="st-yandex" class="tile-value">0</div>
-            </div>
-            <div class="tile">
-              <div class="tile-label">Клики 2ГИС</div>
-              <div id="st-twogis" class="tile-value">0</div>
-            </div>
-          </div>
-
-          <table id="stats-table" class="table stats-table">
-            <thead>
-              <tr>
-                <th>Дата</th>
-                <th>Открытия</th>
-                <th>Google</th>
-                <th>Яндекс</th>
-                <th>2ГИС</th>
-              </tr>
-            </thead>
-            <tbody id="stats-rows"></tbody>
-          </table>
-          <p id="stats-empty" class="muted" hidden>Пока нет ни одного перехода.</p>
-
-          <p class="muted stats-note">
-            Один посетитель засчитывается не чаще раза в 30 минут, роботы не учитываются.
-            Клик по кнопке означает переход на площадку, а не опубликованный отзыв.
+          <p class="ref-banner" id="ref-banner" hidden>🎁 Вы пришли по приглашению — <b>первый месяц подписки в подарок</b></p>
+          <p class="eyebrow reveal"><span class="dot" aria-hidden="true"></span>Карты с NFC и QR-кодом для отзывов</p>
+          <h1 class="reveal" style="--d:.05s">Отзывы <span class="accent">в одно</span> касание</h1>
+          <p class="lead reveal" style="--d:.1s">
+            Карта стоит на столе или у кассы. Гость прикладывает телефон или сканирует QR-код —
+            и сразу попадает в форму отзыва на <b>Яндекс Картах, 2ГИС или Google</b>. А вы видите, сколько людей дошли до отзыва.
           </p>
+          <div class="actions reveal" style="--d:.15s">
+            <a class="btn btn-primary" href="/order/">
+              <svg aria-hidden="true"><use href="#i-calc"/></svg>
+              Заказать карту
+            </a>
+            <a class="btn btn-gold" href="/b/yarik">Посмотреть пример</a>
+          </div>
+          <!-- ЦЕНЫ: подключение 100 ₽ за карту, подписка 200 ₽/мес или 2 000 ₽/год (меняются здесь и в разделе «Цены») -->
+          <p class="hero-price reveal" style="--d:.2s">Карта — <b>100&nbsp;₽</b>, подписка от <b>167&nbsp;₽/мес</b> за карту · <a href="#pricing">все цены</a></p>
+          <ul class="hero-meta reveal" style="--d:.25s">
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg>Без приложений</li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg>Любой смартфон</li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg>Смена ссылок без перепечатки</li>
+          </ul>
         </div>
-      </div>
 
-      <div id="ref-box" class="stats-box" hidden>
-        <div class="link-label">Рекомендации: «месяц бесплатно обоим»</div>
-        <p class="muted qr-text">
-          Ссылка-приглашение этого заведения (владелец видит её в своей статистике с кнопками «Отправить»).
-          Ссылка «Хочу такую карту» внизу страницы отзывов ведёт сюда же — гости-владельцы бизнеса тоже засчитываются.
-        </p>
-        <div class="link-row">
-          <input id="ref-url" type="text" readonly>
-          <button id="ref-copy" class="btn btn-secondary" type="button">Копировать</button>
-        </div>
-        <p id="ref-visits" class="muted ref-visits"></p>
-        <p id="ref-error" class="error" hidden></p>
-        <ul id="ref-list" class="tg-subs sl-list"></ul>
-      </div>
-
-      <div id="sl-box" class="stats-box" hidden>
-        <div class="link-label">Статистика владельцу по ссылке</div>
-        <p class="muted qr-text">
-          Страница со статистикой заведения: открывается в любом браузере, без Telegram, VPN и входа.
-          Отправьте ссылку владельцу — пусть сохранит её в закладки. Если ссылка попала не к тому человеку,
-          отключите её и создайте новую.
-          Все карты заведения попадают в ссылку сами. Если у владельца есть карты других его точек —
-          добавьте их по номеру с обратной стороны карты: он увидит общую сводку, каждую точку и каждую карту отдельно.
-        </p>
-        <p id="sl-error" class="error" hidden></p>
-        <button id="sl-create" class="btn btn-secondary" type="button">Создать ссылку</button>
-        <ul id="sl-list" class="tg-subs sl-list"></ul>
-      </div>
-
-      <div id="tg-box" class="stats-box" hidden>
-        <div class="link-label">Статистика владельцу в Telegram</div>
-        <p id="tg-status" class="muted">Загрузка…</p>
-        <p id="tg-error" class="error" hidden></p>
-        <button id="tg-setup" class="btn btn-secondary tg-gap" type="button" hidden>Включить бота</button>
-
-        <div id="tg-area" hidden>
-          <p class="muted qr-text tg-gap">
-            Создайте ссылку и отправьте её владельцу. Он откроет её в Telegram и нажмёт «Запустить» —
-            после этого бот будет присылать ему статистику. Ссылка одноразовая и действует 7 дней;
-            для второго человека (например, управляющего) создайте ещё одну.
-          </p>
-          <button id="tg-invite" class="btn btn-secondary" type="button">Создать ссылку для владельца</button>
-
-          <div id="tg-link-box" hidden>
-            <div class="link-row tg-gap">
-              <input id="tg-link" type="text" readonly>
-              <button id="tg-link-copy" class="btn btn-secondary" type="button">Копировать</button>
-            </div>
-            <div class="qr-row">
-              <img id="tg-qr" class="qr-preview" alt="QR-код ссылки на бота">
-              <p class="muted qr-text">Можно навести камеру телефона на этот QR — откроется бот.</p>
+        <div class="visual reveal" style="--d:.1s" aria-hidden="true">
+         <div class="scene-wrap">
+          <div class="scene">
+          <div class="counter"><div class="counter-top"></div><div class="counter-edge"></div></div>
+          <div class="stand">
+            <div class="stand-shadow"></div>
+            <div class="stand-base"></div>
+            <img class="card-img" src="/assets/card-front.png" width="640" height="1015" alt="">
+            <div class="stand-glass"></div>
+          </div>
+          <div class="nfc"><i></i><i></i><i></i></div>
+          <div class="phone">
+            <div class="screen">
+              <div class="s-island"></div>
+              <div class="s-idle"><span><svg><use href="#i-nfc"/></svg></span>Поднесите к карте</div>
+              <div class="s-status">
+                <span>9:41</span>
+                <span class="s-icons">
+                  <svg viewBox="0 0 17 11"><rect x="0" y="7" width="3" height="4" rx="1" fill="currentColor"/><rect x="4.5" y="5" width="3" height="6" rx="1" fill="currentColor"/><rect x="9" y="2.5" width="3" height="8.5" rx="1" fill="currentColor"/><rect x="13.5" y="0" width="3" height="11" rx="1" fill="currentColor"/></svg>
+                  <svg viewBox="0 0 25 12"><rect x="0.5" y="0.5" width="21" height="11" rx="3" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="16" height="8" rx="1.8" fill="currentColor"/><path d="M23 4v4a2 2 0 0 0 0-4z" fill="currentColor" opacity=".4"/></svg>
+                </span>
+              </div>
+              <div class="s-body">
+                <p class="s-tag">Кофейня</p>
+                <p class="s-name">Утро</p>
+                <div class="s-line"></div>
+                <p class="s-thanks">Спасибо за ваш визит!</p>
+                <div class="s-stars"><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg></div>
+                <p class="s-lead">Поделитесь впечатлениями —<br>это займёт минуту</p>
+                <div class="s-btn"><svg><use href="#i-yandex"/></svg><span>Яндекс Карты</span><i>›</i></div>
+                <div class="s-btn"><svg><use href="#i-google"/></svg><span>Google Карты</span><i>›</i></div>
+                <div class="s-btn"><svg><use href="#i-twogis"/></svg><span>2ГИС</span><i>›</i></div>
+                <div class="s-btn s-gift"><svg viewBox="0 0 24 24"><path d="M4 11h16v9H4zM3 7h18v4H3zM12 7v13M12 7c-1.5-3-6-3.5-6-1 0 1.5 2.5 1 6 1zM12 7c1.5-3 6-3.5 6-1 0 1.5-2.5 1-6 1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Получить скидку</div>
+              </div>
+              <span class="s-foot">♡ TapReview</span>
+              <div class="s-home"></div>
             </div>
           </div>
-
-          <div class="link-label tg-subs-title">Подключены</div>
-          <ul id="tg-subs" class="tg-subs"></ul>
-          <p id="tg-subs-empty" class="muted">Пока никто не подключён.</p>
+          </div>
+         </div>
+          <div class="tap-chip"><span><svg><use href="#i-nfc"/></svg></span>Приложили — и отзыв</div>
         </div>
       </div>
+    </div>
 
-      <label class="field">
-        <span>Название *</span>
-        <input id="f-name" type="text" maxlength="200" required>
-      </label>
-
-      <label class="field">
-        <span>Подпись под названием</span>
-        <input id="f-tagline" type="text" maxlength="80" placeholder="Ресторан • Москва">
-      </label>
-
-      <div class="grid-2">
-        <label class="field">
-          <span>Категория</span>
-          <select id="f-category">
-            <option value="">— не выбрана —</option>
-            <option value="restaurant">Ресторан / кафе</option>
-            <option value="beauty">Салон красоты / барбершоп</option>
-            <option value="shop">Магазин</option>
-            <option value="hotel">Отель</option>
-            <option value="auto">Автосервис</option>
-            <option value="other">Другое</option>
-          </select>
-        </label>
-
-        <label class="field">
-          <span>Адрес</span>
-          <input id="f-address" type="text" maxlength="300">
-        </label>
+    <!-- ---------- площадки ---------- -->
+    <div class="platforms">
+      <div class="wrap">
+        <p>Ведём гостей прямо в форму отзыва</p>
+        <span class="platform"><svg aria-hidden="true"><use href="#i-yandex"/></svg>Яндекс Карты</span>
+        <span class="platform"><svg aria-hidden="true"><use href="#i-twogis"/></svg>2ГИС</span>
+        <span class="platform"><svg aria-hidden="true"><use href="#i-google"/></svg>Google Карты</span>
       </div>
+    </div>
 
-      <label class="field">
-        <span>Ссылка на отзывы Google</span>
-        <input id="f-google" type="url" placeholder="https://…">
-      </label>
+    <!-- ---------- как это работает ---------- -->
+    <section id="how">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <p class="kicker">Как это работает</p>
+          <h2>Три шага — и гость уже пишет отзыв</h2>
+          <p>Не нужно искать заведение на карте, скачивать приложения или вводить ссылку.</p>
+        </div>
+        <ol class="steps">
+          <li class="step reveal">
+            <div class="step-num"><b>1</b>Касание</div>
+            <h3>Прикладывает телефон</h3>
+            <p>Или наводит камеру на QR-код. Работает на iPhone и Android, без приложений.</p>
+          </li>
+          <li class="step reveal" style="--d:.08s">
+            <div class="step-num"><b>2</b>Ваша страница</div>
+            <h3>Видит страницу заведения</h3>
+            <p>Название, пара тёплых слов и кнопки только тех площадок, которые нужны вам.</p>
+          </li>
+          <li class="step reveal" style="--d:.16s">
+            <div class="step-num"><b>3</b>Отзыв</div>
+            <h3>Оставляет отзыв</h3>
+            <p>Одно нажатие — и открывается форма отзыва на Яндекс Картах, в 2ГИС или Google.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
 
-      <label class="field">
-        <span>Ссылка на отзывы Яндекс Карт</span>
-        <input id="f-yandex" type="url" placeholder="https://…">
-      </label>
+    <!-- ---------- что получает бизнес ---------- -->
+    <section class="section-soft" id="benefits">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <p class="kicker">Что получает бизнес</p>
+          <h2>Больше гостей доходят до отзыва</h2>
+          <p>Довольные гости часто хотят оставить отзыв, но не доходят до него. TapReview убирает лишние шаги.</p>
+        </div>
 
-      <label class="field">
-        <span>Ссылка на отзывы 2ГИС</span>
-        <input id="f-twogis" type="url" placeholder="https://…">
-      </label>
-
-      <label class="field">
-        <span>Ссылка на логотип (необязательно)</span>
-        <input id="f-logo" type="url" placeholder="https://…/logo.png">
-      </label>
-
-      <fieldset class="billing bonus-box">
-        <legend>Подарок для гостей</legend>
-        <label class="field">
-          <span>Режим</span>
-          <select id="f-bonus-mode">
-            <option value="off">Выключен</option>
-            <option value="fixed">Один подарок для всех</option>
-            <option value="wheel">Колесо подарков</option>
-          </select>
-        </label>
-
-        <div id="f-bonus-settings" hidden>
-          <label class="field" id="f-fixed-box">
-            <span>Подарок</span>
-            <input id="f-discount-text" type="text" maxlength="60" placeholder="Скидка 10% на следующий визит">
-          </label>
-
-          <div id="f-wheel-box" class="field">
-            <span>Призы колеса и их шансы (2–8 призов)</span>
-            <div id="f-prizes" class="prizes"></div>
-            <button id="f-prize-add" class="btn btn-secondary btn-small" type="button">+ Добавить приз</button>
+        <div class="benefits">
+          <div class="benefit reveal">
+            <div class="benefit-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM10 18h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <h3>NFC и QR на одной карте</h3>
+            <p>Кто-то приложит телефон, кто-то отсканирует код — сработает у всех гостей.</p>
           </div>
-
-          <div class="grid-3">
-            <label class="field">
-              <span>Начинает действовать через, дней</span>
-              <input id="f-bonus-from" type="number" min="0" max="30" step="1" value="1">
-            </label>
-            <label class="field">
-              <span>Действует, дней</span>
-              <input id="f-bonus-valid" type="number" min="1" max="365" step="1" value="14">
-            </label>
-            <label class="field">
-              <span>Один подарок на телефон раз в, дней</span>
-              <input id="f-bonus-cooldown" type="number" min="1" max="365" step="1" value="30">
-            </label>
+          <div class="benefit reveal" style="--d:.06s">
+            <div class="benefit-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></div>
+            <h3>Ваши площадки</h3>
+            <p>Яндекс Карты, 2ГИС и Google — показываем только те, где вам важны отзывы.</p>
           </div>
-          <label class="field">
-            <span>Условия (видят гость и кассир)</span>
-            <input id="f-bonus-conditions" type="text" maxlength="200" placeholder="При заказе от 500 ₽, один код на чек">
-          </label>
-          <p id="f-bonus-stats" class="billing-status"></p>
+          <div class="benefit reveal" style="--d:.12s">
+            <div class="benefit-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <h3>Без перепечатки</h3>
+            <p>Сменилась ссылка или переехали? Карта продолжает работать — меняем всё у себя.</p>
+          </div>
+          <div class="benefit reveal">
+            <div class="benefit-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+            <h3>Статистика по каждой карте</h3>
+            <p>Видно, какая карта работает лучше. Отчёт в Telegram по понедельникам и ссылка на статистику в любой момент.</p>
+          </div>
+          <div class="benefit reveal" style="--d:.06s">
+            <div class="benefit-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21V9l9-6 9 6v12M9 21v-6h6v6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <h3>Несколько точек — одна ссылка</h3>
+            <p>Владелец сети видит общую сводку и каждое заведение отдельно.</p>
+          </div>
+          <div class="benefit reveal" style="--d:.12s">
+            <div class="benefit-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11h16v9H4zM3 7h18v4H3zM12 7v13M12 7c-1.5-3-6-3.5-6-1 0 1.5 2.5 1 6 1zM12 7c1.5-3 6-3.5 6-1 0 1.5-2.5 1-6 1z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <h3>Бонусы для гостей</h3>
+            <p>Кнопка «Получить скидку» на странице: кодовое слово на скидку или подарок при следующем визите.</p>
+          </div>
+        </div>
 
-          <div id="staff-box" class="staff-box" hidden>
-            <div class="link-label">Ссылка для персонала (касса)</div>
-            <p class="muted qr-text">
-              Официант или кассир по этой ссылке может только проверить и погасить код подарка этого заведения —
-              без статистики, настроек и админ-панели. Сделайте отдельную ссылку на смену или сотрудника; если человек ушёл — отключите её.
-            </p>
-            <div class="staff-new">
-              <input id="staff-label" type="text" maxlength="60" placeholder="Подпись, например «Касса» или «Анна»">
-              <button id="staff-create" class="btn btn-secondary" type="button">Создать ссылку</button>
+        <div class="stats-block">
+          <div class="stats-copy reveal">
+            <h3>Вы видите, как работают карты</h3>
+            <p>Личная ссылка на статистику открывается в любом браузере — без входа и паролей.</p>
+            <ul class="checks">
+              <li><span class="col-mark col-navy" aria-hidden="true"></span>Сколько раз открыли страницу отзывов</li>
+              <li><span class="col-mark col-gold" aria-hidden="true"></span>Сколько человек перешли к отзыву и куда</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>NFC или QR — что используют чаще</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Сравнение с прошлой неделей и месяцем</li>
+            </ul>
+          </div>
+          <div class="dash reveal" style="--d:.08s" role="img" aria-label="Пример страницы статистики: открытия и переходы к отзыву по дням и по картам">
+            <div class="dash-top"><span class="dash-title">Кофейня «Утро» · 7 дней</span><span class="dash-label">Пример</span></div>
+            <div class="dash-kpis">
+              <div class="kpi"><small>Открыли страницу</small><strong class="c-navy">184</strong><em>▲ +23</em></div>
+              <div class="kpi"><small>Перешли к отзыву</small><strong class="c-gold">71</strong><em>▲ +12</em></div>
             </div>
-            <p id="staff-error" class="error" hidden></p>
-            <ul id="staff-list" class="tg-subs sl-list"></ul>
-          </div>
-        </div>
-        <p class="muted field-hint">
-          Кнопка подарка появляется через несколько секунд после скана карты (NFC или QR), ниже кнопок отзывов.
-          Каждый гость получает свой одноразовый код; кассир проверяет и гасит его по ссылке статистики → «Проверить код подарка».
-          Подарок не должен зависеть от отзыва — так требуют правила Яндекс Карт и 2ГИС; не пишите «за отзыв».
-        </p>
-      </fieldset>
-
-      <fieldset class="billing">
-        <legend>Подписка</legend>
-        <div class="grid-2">
-          <label class="field">
-            <span>Оплачено до (включительно)</span>
-            <input id="f-paid-until" type="date">
-          </label>
-          <label class="field">
-            <span>Цена в месяц, ₽</span>
-            <input id="f-price" type="number" min="0" max="1000000" step="1" inputmode="numeric" placeholder="490">
-          </label>
-        </div>
-        <div class="billing-buttons">
-          <button id="f-plus-month" class="btn btn-secondary btn-small" type="button">+1 месяц</button>
-          <button id="f-plus-year" class="btn btn-secondary btn-small" type="button">+12 месяцев</button>
-          <button id="f-no-billing" class="btn btn-ghost btn-small" type="button">Без подписки</button>
-        </div>
-        <p id="f-billing-status" class="billing-status"></p>
-        <label class="field">
-          <span>Заметка об оплате (видна только вам)</span>
-          <input id="f-billing-note" type="text" maxlength="200" placeholder="СБП, Иван, +7 900 …; год со скидкой">
-        </label>
-        <label class="field">
-          <span>Пришёл по рекомендации от</span>
-          <select id="f-referred-by"><option value="">— никто —</option></select>
-        </label>
-        <p class="muted field-hint">
-          Пустая дата — подписка не ведётся, всё работает всегда. После даты 3 дня отсрочки,
-          затем карта ведёт гостей сразу на Яндекс Карты (или 2ГИС / Google), а статистика владельца встаёт на паузу.
-          За 5 дней до конца владелец видит напоминание на странице статистики и в Telegram.
-          После изменения нажмите «Сохранить».
-        </p>
-      </fieldset>
-
-      <div class="field">
-        <span>Оформление страницы отзывов</span>
-        <div class="themes" role="radiogroup" aria-label="Оформление страницы">
-          <label class="theme-opt"><input type="radio" name="f-theme" value="classic" checked>
-            <span class="theme-prev" style="--bg:#f4f6fa;--card:#fff;--line:#c9a27e"><i></i><b></b></span><span class="theme-name">Классика</span></label>
-          <label class="theme-opt"><input type="radio" name="f-theme" value="dark">
-            <span class="theme-prev" style="--bg:#0e131d;--card:#171e2c;--line:#e5aa0c"><i></i><b></b></span><span class="theme-name">Тёмная</span></label>
-          <label class="theme-opt"><input type="radio" name="f-theme" value="coffee">
-            <span class="theme-prev" style="--bg:#f3ebe1;--card:#fffaf4;--line:#a9744a"><i></i><b></b></span><span class="theme-name">Кофейня</span></label>
-          <label class="theme-opt"><input type="radio" name="f-theme" value="fresh">
-            <span class="theme-prev" style="--bg:#edf6f0;--card:#fff;--line:#2f9e5b"><i></i><b></b></span><span class="theme-name">Свежая</span></label>
-          <label class="theme-opt"><input type="radio" name="f-theme" value="rose">
-            <span class="theme-prev" style="--bg:#f8eef1;--card:#fff;--line:#c2577a"><i></i><b></b></span><span class="theme-name">Бьюти</span></label>
-        </div>
-        <p class="muted field-hint">Фон, карточка и цвет черты под названием. Свой фирменный цвет ниже заменяет цвет черты в любой теме.</p>
-      </div>
-
-      <div class="grid-2">
-        <div class="field">
-          <span>Фирменный цвет (черта под названием)</span>
-          <div class="color-row">
-            <label class="check">
-              <input id="f-color-on" type="checkbox">
-              Свой цвет
-            </label>
-            <input id="f-color" type="color" value="#2563eb" disabled>
-          </div>
-        </div>
-
-        <div class="field">
-          <span>Статус</span>
-          <label class="check">
-            <input id="f-active" type="checkbox" checked>
-            Активен (страница открывается)
-          </label>
-        </div>
-      </div>
-
-      <p id="editor-error" class="error" hidden></p>
-
-      <div class="editor-actions">
-        <button id="delete-button" class="btn btn-danger" type="button" hidden>Удалить</button>
-        <div class="spacer"></div>
-        <button id="cancel-button" class="btn btn-ghost" type="button">Отмена</button>
-        <button id="save-button" class="btn btn-primary" type="submit">Сохранить</button>
-      </div>
-    </form>
-  </dialog>
-
-  <!-- ===== Форма группы ===== -->
-  <dialog id="group-editor" class="editor">
-    <form id="group-form" method="dialog">
-      <div class="editor-head">
-        <h2 id="g-editor-title">Новая группа</h2>
-        <button id="g-editor-close" class="btn btn-ghost" type="button" aria-label="Закрыть">✕</button>
-      </div>
-
-      <div id="g-link-box" class="link-box" hidden>
-        <div class="link-label">Ссылка для записи в NFC-карту</div>
-        <div class="link-row">
-          <input id="g-link-url" type="text" readonly>
-          <button id="g-link-copy" class="btn btn-secondary" type="button">Копировать</button>
-          <a id="g-link-open" class="btn btn-secondary" target="_blank" rel="noopener">Открыть</a>
-        </div>
-
-        <div class="qr-row">
-          <img id="g-qr-preview" class="qr-preview" alt="QR-код">
-          <div class="qr-info">
-            <div class="link-label">QR-код группы</div>
-            <p class="muted qr-text">
-              Ведёт на страницу со списком заведений. Состав группы можно менять —
-              QR-код остаётся прежним. Статистика считается у каждого заведения отдельно.
-            </p>
-            <div class="qr-buttons">
-              <button id="g-qr-png" class="btn btn-secondary" type="button">Скачать PNG</button>
-              <button id="g-qr-svg" class="btn btn-secondary" type="button">Скачать SVG (для печати)</button>
+            <div class="bars" aria-hidden="true">
+              <div class="bar" style="--i:0;height:52%"><i style="height:38%"></i></div>
+              <div class="bar" style="--i:1;height:64%"><i style="height:40%"></i></div>
+              <div class="bar" style="--i:2;height:48%"><i style="height:36%"></i></div>
+              <div class="bar" style="--i:3;height:72%"><i style="height:42%"></i></div>
+              <div class="bar" style="--i:4;height:88%"><i style="height:39%"></i></div>
+              <div class="bar" style="--i:5;height:100%"><i style="height:41%"></i></div>
+              <div class="bar" style="--i:6;height:80%"><i style="height:37%"></i></div>
             </div>
+            <div class="bar-days" aria-hidden="true"><span>пн</span><span>вт</span><span>ср</span><span>чт</span><span>пт</span><span>сб</span><span>вс</span></div>
+            <ul class="dash-cards" aria-hidden="true">
+              <li><span>Стойка у кассы</span><b><i class="c-navy">96</i> · <i class="c-gold">41</i></b></li>
+              <li><span>Столик у окна</span><b><i class="c-navy">58</i> · <i class="c-gold">19</i></b></li>
+              <li><span>Терраса</span><b><i class="c-navy">30</i> · <i class="c-gold">11</i></b></li>
+            </ul>
           </div>
         </div>
       </div>
+    </section>
 
-      <label class="field">
-        <span>Название *</span>
-        <input id="g-name" type="text" maxlength="200" required placeholder="Например: ТЦ «Галерея»">
-      </label>
-
-      <label class="field">
-        <span>Подпись под названием</span>
-        <input id="g-tagline" type="text" maxlength="80" placeholder="Сеть салонов • Москва">
-      </label>
-
-      <label class="field">
-        <span>Ссылка на логотип (необязательно)</span>
-        <input id="g-logo" type="url" placeholder="https://…/logo.png">
-      </label>
-
-      <div class="field">
-        <span>Заведения в группе (в этом порядке они будут на странице)</span>
-        <ol id="g-items" class="group-items"></ol>
-        <p id="g-items-empty" class="muted group-empty">Пока пусто — добавьте заведения ниже.</p>
-        <div class="add-row">
-          <select id="g-add-select"></select>
-          <button id="g-add-button" class="btn btn-secondary" type="button">Добавить</button>
+    <!-- ---------- для кого ---------- -->
+    <section id="who">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <p class="kicker">Для кого</p>
+          <h2>Для бизнеса, которого выбирают по отзывам на картах</h2>
         </div>
+        <ul class="who reveal">
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 11h12v3a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5zM17 12h1.5a2.5 2.5 0 0 1 0 5H16M8 4c0 1.5 1 1.5 1 3M12 4c0 1.5 1 1.5 1 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Кафе и кофейни</li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v8M5 3v4a2 2 0 0 0 4 0V3M7 11v10M17 21V3c-2 0-3.5 2-3.5 6v4H17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Рестораны</li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="7" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="6" cy="17" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 8.5 20 18M8.5 15.5 20 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Барбершопы</li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c2 3 5 5 5 9a5 5 0 0 1-10 0c0-4 3-6 5-9zM12 21v-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Салоны красоты</li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14l-1 12H6zM9 8V6a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Магазины</li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 16V12l2-5h10l2 5v4M3 16h18v3H3zM7 19v1.5M17 19v1.5M5 12h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Автосервисы</li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20V8M3 14h18v6M21 14v-2a3 3 0 0 0-3-3h-7v5M7 11.5a1.5 1.5 0 1 0 0-.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Отели</li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Клиники и другие</li>
+        </ul>
       </div>
+    </section>
 
-      <div class="field">
-        <span>Статус</span>
-        <label class="check">
-          <input id="g-active" type="checkbox" checked>
-          Активна (страница открывается)
-        </label>
-      </div>
-
-      <p id="g-editor-error" class="error" hidden></p>
-
-      <div class="editor-actions">
-        <button id="g-delete-button" class="btn btn-danger" type="button" hidden>Удалить</button>
-        <div class="spacer"></div>
-        <button id="g-cancel-button" class="btn btn-ghost" type="button">Отмена</button>
-        <button id="g-save-button" class="btn btn-primary" type="submit">Сохранить</button>
-      </div>
-    </form>
-  </dialog>
-
-  <!-- ===== Карта ===== -->
-  <dialog id="card-editor" class="editor">
-    <form id="card-form" method="dialog">
-      <div class="editor-head">
-        <h2 id="c-editor-title">Карта</h2>
-        <button id="c-editor-close" class="btn btn-ghost" type="button" aria-label="Закрыть">✕</button>
-      </div>
-
-      <div class="link-box">
-        <div class="link-label">Ссылка для записи в NFC-чип этой карты</div>
-        <div class="link-row">
-          <input id="c-link-url" type="text" readonly>
-          <button id="c-link-copy" class="btn btn-secondary" type="button">Копировать</button>
-          <a id="c-link-open" class="btn btn-secondary" target="_blank" rel="noopener">Открыть</a>
+    <!-- ---------- цены ---------- -->
+    <!-- ЦЕНЫ: если меняете — поменяйте и строку «Подключение …» в первом экране -->
+    <section class="section-soft" id="pricing">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <p class="kicker">Цены</p>
+          <h2>Понятная цена без сюрпризов</h2>
+          <p>За каждую карту: один раз 100&nbsp;₽ за подключение, дальше — подписка 200&nbsp;₽ в месяц или 2&nbsp;000&nbsp;₽ в год.</p>
         </div>
 
-        <div class="qr-row">
-          <img id="c-qr-preview" class="qr-preview" alt="QR-код карты">
-          <div class="qr-info">
-            <div class="link-label">QR-код карты</div>
-            <p class="muted qr-text">
-              Этот QR напечатан на карте. Он не меняется: можно привязать карту
-              к другому заведению — перепечатывать и перезаписывать NFC не нужно.
-            </p>
-            <div class="qr-buttons">
-              <button id="c-qr-png" class="btn btn-secondary" type="button">Скачать PNG</button>
-              <button id="c-qr-svg" class="btn btn-secondary" type="button">Скачать SVG</button>
-            </div>
+        <div class="plans">
+          <article class="plan reveal">
+            <h3>Месяц</h3>
+            <p class="plan-sub">Чтобы попробовать</p>
+            <p class="price"><strong>200&nbsp;₽</strong><span>в месяц за карту</span></p>
+            <p class="price-note">+&nbsp;100&nbsp;₽ за&nbsp;подключение каждой карты</p>
+            <ul>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Карта NFC + QR</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Страница отзывов под ваше заведение</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Статистика по ссылке и в Telegram</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Смена ссылок без перепечатки</li>
+            </ul>
+            <a class="btn btn-ghost" href="/order/?plan=month">Заказать</a>
+          </article>
+
+          <article class="plan plan-featured reveal" style="--d:.06s">
+            <span class="plan-badge">Выгоднее</span>
+            <h3>Год</h3>
+            <p class="plan-sub">Для тех, кто уже решил</p>
+            <p class="price"><strong>2&nbsp;000&nbsp;₽</strong><span>в год за карту</span></p>
+            <p class="price-note">≈&nbsp;167&nbsp;₽ в&nbsp;месяц · +&nbsp;100&nbsp;₽ за&nbsp;подключение карты</p>
+            <ul>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Всё, что в тарифе «Месяц»</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Два месяца бесплатно</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Не нужно продлевать каждый месяц</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Цена не изменится весь год</li>
+            </ul>
+            <a class="btn btn-gold" href="/order/?plan=year">Заказать</a>
+          </article>
+
+          <article class="plan reveal" style="--d:.12s">
+            <h3>Сеть</h3>
+            <p class="plan-sub">Несколько точек или много карт</p>
+            <p class="price"><strong class="price-text">Индивидуально</strong></p>
+            <p class="price-note">Карта — 100&nbsp;₽ + подписка 200&nbsp;₽/мес</p>
+            <ul>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Карты на каждый стол или мастера</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Статистика по каждой карте</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Все точки в одной ссылке</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Один QR на несколько заведений</li>
+            </ul>
+            <a class="btn btn-ghost" href="/order/?plan=network">Рассчитать</a>
+          </article>
+        </div>
+
+        <div class="pricing-foot reveal">
+          <p><svg aria-hidden="true"><use href="#i-check"/></svg>Без автосписаний — каждый период вы оплачиваете сами, за 5 дней до конца напомним.</p>
+          <p><svg aria-hidden="true"><use href="#i-check"/></svg>Смена ссылок и перепривязка карт — бесплатно, пока действует подписка.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- как заказать ---------- -->
+    <section id="order">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <p class="kicker">Как заказать</p>
+          <h2>От сообщения до первого отзыва</h2>
+        </div>
+        <ol class="order">
+          <li class="reveal"><h3>Напишите нам</h3><p>Посчитайте стоимость в <a href="/order/">калькуляторе</a> и отправьте расчёт в Telegram.</p></li>
+          <li class="reveal" style="--d:.06s"><h3>Настроим страницу</h3><p>Найдём ваши карточки на площадках и пришлём ссылку на проверку.</p></li>
+          <li class="reveal" style="--d:.12s"><h3>Оплата и карты</h3><p>После оплаты передадим готовые карты — они уже работают.</p></li>
+          <li class="reveal" style="--d:.18s"><h3>Смотрите результат</h3><p>Поставьте карту на видное место и следите за статистикой.</p></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ---------- вопросы ---------- -->
+    <section class="section-soft" id="faq">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <p class="kicker">Вопросы</p>
+          <h2>Частые вопросы</h2>
+        </div>
+        <div class="faq reveal">
+          <details>
+            <summary>Гостю нужно что-то устанавливать?</summary>
+            <p>Нет. Карта открывает обычную страницу в браузере. Достаточно приложить телефон или навести камеру на QR-код.</p>
+          </details>
+          <details>
+            <summary>Что если в телефоне нет NFC?</summary>
+            <p>На той же карте есть QR-код — его считывает камера любого смартфона. На некоторых Android NFC нужно включить в настройках.</p>
+          </details>
+          <details>
+            <summary>Это не накрутка отзывов?</summary>
+            <p>Нет. Гость сам решает, писать ли отзыв и что в нём сказать, — мы только сокращаем путь до формы на площадке. Поэтому и количество отзывов мы не обещаем: мы показываем, сколько людей дошли до отзыва.</p>
+          </details>
+          <details>
+            <summary>Можно поменять ссылки или площадки потом?</summary>
+            <p>Да, в любой момент и без перепечатки. Карту можно даже перенести на другое заведение.</p>
+          </details>
+          <details>
+            <summary>Что показывает статистика?</summary>
+            <p>Сколько раз открыли страницу отзывов, с NFC или по QR, сколько человек нажали на Яндекс Карты, 2ГИС или Google — по дням, по каждой карте и каждой точке. Смотреть можно по личной ссылке или получать отчёт в Telegram.</p>
+          </details>
+          <details>
+            <summary>Что будет, если не продлить подписку?</summary>
+            <p>Мы напомним заранее. Если всё же не продлить, через 3 дня карта продолжит работать, но будет вести гостей сразу на площадку отзывов, а статистика встанет на паузу. После оплаты всё вернётся. Если не продлить в течение недели, карты могут быть отвязаны, а статистика удалена.</p>
+          </details>
+          <details>
+            <summary>У меня несколько заведений. Это удобно?</summary>
+            <p>Да. Все точки и карты можно собрать в одну ссылку: видно общую сводку и каждое заведение отдельно. А один QR-код может вести на список ваших заведений.</p>
+          </details>
+          <details>
+            <summary>Есть бонус за рекомендацию?</summary>
+            <p>Да. У каждого клиента есть своя ссылка-приглашение в статистике. Когда приглашённое заведение подключится и оплатит подписку, вы оба получаете месяц бесплатно.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- призыв ---------- -->
+    <section id="contact">
+      <div class="wrap">
+        <div class="cta reveal">
+          <h2>Попробуйте TapReview в своём заведении</h2>
+          <p>Посчитайте стоимость и напишите нам в Telegram <b>@tapreview_ru</b> — ответим на вопросы и подготовим карту под ваш бизнес.</p>
+          <div class="actions">
+            <a class="btn btn-gold" href="/order/">
+              <svg aria-hidden="true"><use href="#i-calc"/></svg>
+              Рассчитать и заказать
+            </a>
+            <a class="btn btn-ghost" href="https://t.me/tapreview_ru" target="_blank" rel="noopener">
+              <svg aria-hidden="true"><use href="#i-tg"/></svg>
+              Написать в Telegram
+            </a>
           </div>
         </div>
       </div>
+    </section>
+  </main>
 
-      <label class="field">
-        <span>Заведение</span>
-        <select id="c-business"></select>
-      </label>
+  <footer class="footer">
+    <div class="wrap">
+      <span>© 2026 TapReview · Отзывы в одно касание</span>
+      <nav aria-label="Контакты">
+        <a href="https://t.me/tapreview_ru" target="_blank" rel="noopener">Telegram @tapreview_ru ↗</a>
+        <a href="https://t.me/tapreviewru" target="_blank" rel="noopener">Канал ↗</a>
+        <a href="/oferta/">Публичная оферта</a>
+        <a href="/privacy/">Политика обработки данных</a>
+      </nav>
+    </div>
+  </footer>
 
-      <label class="field">
-        <span>Где стоит карта (необязательно)</span>
-        <input id="c-label" type="text" maxlength="60" placeholder="Касса, столик 3, ресепшен…">
-      </label>
+  <script>
+    // Приглашение (?ref=SLUG из ссылки /r/SLUG): запоминаем на 60 дней — его увидит калькулятор /order/
+    (function () {
+      var KEY = "tr_ref";
+      var DAYS = 60;
+      try {
+        var params = new URLSearchParams(location.search);
+        var ref = params.get("ref");
+        if (ref && /^[A-Za-z0-9]{4,32}$/.test(ref)) {
+          localStorage.setItem(KEY, JSON.stringify({ slug: ref, at: Date.now() }));
+          params.delete("ref");
+          history.replaceState(null, "", location.pathname + (params.toString() ? "?" + params : "") + location.hash);
+        }
+        var saved = JSON.parse(localStorage.getItem(KEY) || "null");
+        if (saved && Date.now() - saved.at < DAYS * 864e5) document.getElementById("ref-banner").hidden = false;
+      } catch (e) {}
+    })();
 
-      <div class="field">
-        <span>Статус</span>
-        <label class="check">
-          <input id="c-active" type="checkbox" checked>
-          Карта работает (снимите, если карту потеряли или украли)
-        </label>
-      </div>
+    // Мягкое появление блоков и тонкая линия под шапкой при прокрутке.
+    // Без JS или при «уменьшить движение» всё просто видно сразу.
+    (function () {
+      var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var header = document.getElementById("top");
+      var onScroll = function () { header.classList.toggle("scrolled", window.scrollY > 8); };
+      onScroll();
+      window.addEventListener("scroll", onScroll, { passive: true });
 
-      <p id="c-stats" class="muted card-stats"></p>
-
-      <p id="c-editor-error" class="error" hidden></p>
-
-      <div class="editor-actions">
-        <button id="c-delete-button" class="btn btn-danger" type="button">Удалить</button>
-        <div class="spacer"></div>
-        <button id="c-cancel-button" class="btn btn-ghost" type="button">Отмена</button>
-        <button id="c-save-button" class="btn btn-primary" type="submit">Сохранить</button>
-      </div>
-    </form>
-  </dialog>
-
-  <!-- ===== Выпуск карт ===== -->
-  <dialog id="issue-dialog" class="editor editor-small">
-    <form id="issue-form" method="dialog">
-      <div class="editor-head">
-        <h2>Выпустить карты</h2>
-        <button id="issue-close" class="btn btn-ghost" type="button" aria-label="Закрыть">✕</button>
-      </div>
-
-      <label class="field">
-        <span>Сколько карт</span>
-        <input id="issue-count" type="number" min="1" max="200" value="10" required>
-      </label>
-      <p class="muted field-hint">
-        Будут созданы свободные карты с новыми номерами. Затем нажмите «Скачать список (CSV)» —
-        это файл для типографии: номер и ссылка для QR каждой карты.
-      </p>
-
-      <p id="issue-error" class="error" hidden></p>
-
-      <div class="editor-actions">
-        <div class="spacer"></div>
-        <button id="issue-cancel" class="btn btn-ghost" type="button">Отмена</button>
-        <button id="issue-save" class="btn btn-primary" type="submit">Выпустить</button>
-      </div>
-    </form>
-  </dialog>
-
-  <div id="toast" class="toast" hidden></div>
-
+      if (reduce || !document.documentElement.classList.contains("js")) return;
+      var targets = document.querySelectorAll(".reveal, .dash");
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+        });
+      }, { rootMargin: "0px 0px -8% 0px", threshold: 0.12 });
+      targets.forEach(function (el) { io.observe(el); });
+    })();
+  </script>
 </body>
 </html>
