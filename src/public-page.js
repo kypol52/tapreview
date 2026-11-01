@@ -566,6 +566,8 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
     accent,
     theme: business.theme,
     design,
+    // Оценка 1–3: подарок появляется позже (22 с), чтобы гость сначала спокойно написал владельцу
+    extraCss: score && score <= 3 ? ".bonus { animation-delay: 22s; }" : "",
     footer: { href: `/r/${business.slug}?s=card`, text: "Хочу такую карту" },
     body: `
       ${logo}
