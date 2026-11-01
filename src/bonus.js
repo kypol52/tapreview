@@ -20,6 +20,8 @@ import { renderPage, escapeHtml, GIFT, DEFAULT_ACCENT, BONUS_COLUMNS, customDesi
 import { isExpired } from "./billing.js";
 
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // без 0/O, 1/I/L
+// Коды подарков — 6 цифр (быстро набрать на кассе). Старые коды с буквами по-прежнему принимаются.
+const CODE_DIGITS = "0123456789";
 const CODE_LENGTH = 6;
 const DEVICE_COOKIE = "tr_device";
 const DAY = 24 * 60 * 60 * 1000;
@@ -144,12 +146,12 @@ export async function handleBonus(request, env) {
     }
 
     let saved = null;
-    for (let attempt = 0; attempt < 5 && !saved; attempt++) {
+    for (let attempt = 0; attempt < 10 && !saved; attempt++) {
       try {
         const inserted = await db(env, "bonus_codes?select=code,prize,conditions,valid_from,valid_until,redeemed_at", {
           method: "POST",
           body: {
-            code: randomString(CODE_ALPHABET, CODE_LENGTH),
+            code: randomString(CODE_DIGITS, CODE_LENGTH),
             business_id: business.id,
             card_id: cardId,
             prize: prizes[index].label,

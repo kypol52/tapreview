@@ -120,7 +120,7 @@ async function statsPage(request, env, ctx, token) {
 // ---------- Касса: проверка и погашение кода подарка ----------
 //   /s/:token/bonus — владелец (ссылка статистики): касса + счётчики подарков, ссылка «← Статистика»
 //   /k/:token       — персонал (ссылка для кассы): ТОЛЬКО проверка и погашение кода своего заведения
-// GET ?code=ABC123 — проверить; ?code=ABC123&redeem=1 — погасить. Только коды заведений этой ссылки.
+// GET ?code=123456 — проверить; ?code=123456&redeem=1 — погасить (старые коды с буквами тоже). Только коды заведений этой ссылки.
 
 export async function handleBonusDesk(request, env, token) {
   try {
@@ -175,6 +175,8 @@ async function renderDesk(request, env, { ids, base, owner, token, by, onRedeem 
     const params = request.method === "POST" ? new URLSearchParams((await request.text()).slice(0, 500)) : url.searchParams;
     const input = String(params.get("code") || "");
     const wantRedeem = request.method === "POST" || params.get("redeem") === "1";
+    // Новые коды — 6 цифр (цифровая клавиатура на телефоне); старые с буквами — по ссылке «Старый код с буквами?»
+    const letters = params.get("abc") === "1" || /[^\d\s-]/.test(input);
     let result = "";
     if (input) {
       const code = normalizeCode(input);
@@ -219,16 +221,18 @@ async function renderDesk(request, env, { ids, base, owner, token, by, onRedeem 
       ${owner ? `<a class="back" href="/s/${token}">← Статистика</a>` : ""}
       <h1 class="name">Проверка подарка</h1>
       ${venueName ? `<p class="sub">${esc(venueName)}</p>` : ""}
-      <p class="range">Введите код с экрана гостя: 6 букв и цифр, например ABC-123</p>
+      <p class="range">Введите код с экрана гостя: 6 цифр, например 123-456</p>
     </div>
   </header>
   <main class="wrap">
     <section class="panel">
       <form class="desk-form" method="get" action="${base}">
+        ${letters ? `<input type="hidden" name="abc" value="1">` : ""}
         <input name="code" value="${esc(prettyInput(input))}" maxlength="12" autocomplete="off" autocapitalize="characters"
-          spellcheck="false" placeholder="ABC-123" aria-label="Код подарка" required>
+          ${letters ? "" : `inputmode="numeric"`} spellcheck="false" placeholder="${letters ? "ABC-123" : "123-456"}" aria-label="Код подарка" required>
         <button type="submit">Проверить</button>
       </form>
+      <a class="desk-abc" href="${base}${letters ? "" : "?abc=1"}">${letters ? "Обычный код из цифр" : "Старый код с буквами?"}</a>
       ${result}
     </section>
     ${statsPanel}
@@ -884,6 +888,7 @@ const CSS = `
   .desk-form input { flex: 1; min-width: 0; padding: 12px 14px; border: 0; border-radius: 12px; box-shadow: 0 0 0 1.5px var(--line) inset;
     font: inherit; font-size: 22px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text); }
   .desk-form input:focus { outline: none; box-shadow: 0 0 0 2px var(--navy) inset; }
+  .desk-abc { display: inline-block; margin-top: 8px; font-size: 12.5px; color: var(--muted); text-underline-offset: 3px; }
   .desk-form button { border: 0; border-radius: 12px; padding: 0 18px; background: var(--navy); color: #fff;
     font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
   .desk-redeem { display: grid; place-items: center; min-height: 52px; margin-top: 10px; border-radius: 12px; background: var(--up);
