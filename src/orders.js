@@ -128,8 +128,12 @@ export function validate(data, { manual = false } = {}) {
   const city = clean(data.city, 80, "Город");
   const comment = String(data.comment ?? "").trim().slice(0, 1000);
 
-  const rawPhone = clean(data.phone, 30, "Телефон");
-  const digits = rawPhone.replace(/\D/g, "");
+  // В поле заранее стоит «+7» — если дальше ничего не ввели, телефона нет
+  let rawPhone = clean(data.phone, 30, "Телефон");
+  if (rawPhone.replace(/\D/g, "") === "7") rawPhone = "";
+  let digits = rawPhone.replace(/\D/g, "");
+  // Набрали 8 после готового «+7»: +7 8900… → +7 900…
+  if (digits.length === 12 && digits.startsWith("78")) digits = `7${digits.slice(2)}`;
   if (rawPhone && (digits.length < 10 || digits.length > 15)) {
     throw new OrderError(400, "Проверьте номер телефона");
   }

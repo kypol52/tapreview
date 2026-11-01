@@ -269,7 +269,7 @@
             <div class="fields">
               <label class="field"><span>Ваше имя</span><input name="name" autocomplete="name" maxlength="80" required></label>
               <div class="pair">
-                <label class="field"><span>Телефон</span><input name="phone" type="tel" autocomplete="tel" maxlength="30" placeholder="+7 900 000-00-00"></label>
+                <label class="field"><span>Телефон</span><input name="phone" type="tel" autocomplete="tel" maxlength="30" value="+7 " placeholder="+7 900 000-00-00"></label>
                 <label class="field"><span>Telegram <i>(если удобнее)</i></span><input name="telegram" autocomplete="off" maxlength="60" placeholder="@username"></label>
               </div>
               <p class="contact-note">Достаточно телефона или Telegram.</p>
@@ -460,6 +460,35 @@
         if (e.target.getAttribute("aria-invalid")) e.target.removeAttribute("aria-invalid");
       });
 
+      // Телефон: «+7 » уже стоит в поле. Вставленный номер в любом виде (8 900…, +7 900…, 900…) приводим к +7
+      var phoneInput = form.elements.phone;
+      function phoneValue() {
+        var digits = phoneInput.value.replace(/\D/g, "");
+        if (digits === "7" || digits === "") return "";
+        // По привычке набрали 8 после готового +7: «+7 8900…» → «+7 900…»
+        if (digits.length === 12 && digits.slice(0, 2) === "78") return "+7 " + digits.slice(2);
+        return phoneInput.value;
+      }
+      // Маска «+7 900 123-45-67» прямо при наборе и вставке
+      function formatPhone(value) {
+        var rest = value.replace(/\D/g, "").replace(/^7/, "");
+        if (rest.length >= 11 && (rest[0] === "8" || rest[0] === "7")) rest = rest.slice(1);
+        rest = rest.slice(0, 10);
+        var out = "+7 " + rest.slice(0, 3);
+        if (rest.length > 3) out += " " + rest.slice(3, 6);
+        if (rest.length > 6) out += "-" + rest.slice(6, 8);
+        if (rest.length > 8) out += "-" + rest.slice(8, 10);
+        return out;
+      }
+      phoneInput.addEventListener("input", function () {
+        // Правку в середине номера не трогаем, чтобы курсор не прыгал
+        if (phoneInput.selectionStart !== phoneInput.value.length) return;
+        phoneInput.value = formatPhone(phoneInput.value);
+      });
+      phoneInput.addEventListener("focus", function () {
+        if (!phoneInput.value.trim()) phoneInput.value = "+7 ";
+      });
+
       form.addEventListener("submit", function (e) {
         e.preventDefault();
         errorBox.hidden = true;
@@ -467,8 +496,8 @@
 
         var f = form.elements;
         if (!f.name.value.trim()) return fail("Укажите, как к вам обращаться.", f.name);
-        if (!f.phone.value.trim() && !f.telegram.value.trim()) return fail("Укажите телефон или Telegram.", f.phone);
-        if (f.phone.value.trim() && f.phone.value.replace(/\D/g, "").length < 10) return fail("Проверьте номер телефона.", f.phone);
+        if (!phoneValue() && !f.telegram.value.trim()) return fail("Укажите телефон или Telegram.", f.phone);
+        if (phoneValue() && phoneValue().replace(/\D/g, "").length < 10) return fail("Проверьте номер телефона.", f.phone);
         if (!f.business_name.value.trim()) return fail("Укажите название заведения.", f.business_name);
         if (!f.consent.checked) return fail("Чтобы отправить заявку, отметьте согласие на обработку персональных данных.", f.consent);
 
@@ -477,7 +506,7 @@
           venues: parseInt(venuesInput.value, 10),
           cards: parseInt(cardsInput.value, 10),
           name: f.name.value,
-          phone: f.phone.value,
+          phone: phoneValue(),
           telegram: f.telegram.value,
           business_name: f.business_name.value,
           city: f.city.value,

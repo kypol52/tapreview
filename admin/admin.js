@@ -148,6 +148,19 @@ function bindEvents() {
     $("o-form").hidden = true;
   });
   $("o-form").addEventListener("submit", onOrderCreate);
+  // Маска «+7 900 123-45-67» при наборе и вставке (8 900…, +7 900…, 900…)
+  $("of-phone").addEventListener("input", () => {
+    const input = $("of-phone");
+    if (input.selectionStart !== input.value.length) return;
+    let rest = input.value.replace(/\D/g, "").replace(/^7/, "");
+    if (rest.length >= 11 && (rest[0] === "8" || rest[0] === "7")) rest = rest.slice(1);
+    rest = rest.slice(0, 10);
+    input.value =
+      `+7 ${rest.slice(0, 3)}` +
+      (rest.length > 3 ? ` ${rest.slice(3, 6)}` : "") +
+      (rest.length > 6 ? `-${rest.slice(6, 8)}` : "") +
+      (rest.length > 8 ? `-${rest.slice(8, 10)}` : "");
+  });
   for (const chip of document.querySelectorAll("#orders-section .chip")) {
     chip.addEventListener("click", () => {
       state.orderFilter = chip.dataset.ostatus;
