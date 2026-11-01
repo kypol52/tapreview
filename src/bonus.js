@@ -190,43 +190,62 @@ function pickWeighted(prizes) {
 
 // ---------- Страница результата (без скриптов: колесо крутится на CSS) ----------
 
-// Премиальное колесо: тёмно-синие сектора с золотыми надписями, золотой обод с лампочками
-const WHEEL_COLORS = [
-  { bg: "#0b2b5e", fg: "#f3d68e" },
-  { bg: "#061b3d", fg: "#f3d68e" },
-  { bg: "#14407f", fg: "#fbe7b0" } // только последнему сектору при нечётном числе, чтобы не слился с первым
-];
-const WHEEL_BULBS = 18;
+// Колесо в стиле «мягкий премиум»: толстый матовый обод, сектора в двух оттенках, золотые значки,
+// золотая метка-указатель и золотая шайба в центре. Цвета — от темы страницы заведения (насыщенные, не блеклые).
+const WHEEL_THEMES = {
+  classic: { rim: "#1d2c4d", a: "#1a2846", b: "#2b406b", text: "#ffffff", acc: "#e8b54d" },
+  dark: { rim: "#2b3243", a: "#1b2130", b: "#363e53", text: "#f3f4f8", acc: "#e3b25b" },
+  coffee: { rim: "#4b3323", a: "#36251a", b: "#5b4030", text: "#fff7ee", acc: "#eab46b" },
+  fresh: { rim: "#1c4a37", a: "#143a2b", b: "#23604a", text: "#f2fff8", acc: "#f0c35a" },
+  rose: { rim: "#5a2541", a: "#451a32", b: "#6c2d50", text: "#fff3f8", acc: "#f2c27a" }
+};
 const WHEEL_SPIN_S = 7; // длительность вращения; результат появляется сразу после остановки
 
+// Значок над призом — по словам в названии (тонкие линии в золотом цвете)
+const PRIZE_ICON = (d) =>
+  `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const PRIZE_ICONS = [
+  { re: /кофе|капуч|латте|чай|какао|раф/i, d: "M5 9h11v5a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5zM16 10h1.5a2.5 2.5 0 0 1 0 5H16M8 3.5c-.6.8-.6 1.7 0 2.5M11.5 3.5c-.6.8-.6 1.7 0 2.5" },
+  { re: /скидк|%|процент/i, d: "M3.5 12.5 11 5h7.5v7.5L11 20zM15 8.5h.01M9.5 15.5l4-4" },
+  { re: /шот|коктейл|пив|вино|бокал|напит|лимонад|сок/i, d: "M6 4h12l-1.5 7a4.5 4.5 0 0 1-9 0zM12 15.5V20M8.5 20h7" },
+  { re: /десерт|торт|пирож|морож|подар|бесплат|комплимент/i, d: "M4 10h16v4H4zM5.5 14h13v6h-13zM12 10v10M12 10c-1.6-3.6-6-4.2-6-1.4 0 1.5 2.6 1.4 6 1.4zM12 10c1.6-3.6 6-4.2 6-1.4 0 1.5-2.6 1.4-6 1.4z" },
+  { re: /.*/, d: "M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" }
+];
+
 // still = колесо уже остановлено на призе (повторный заход — без нового розыгрыша)
-function wheelHtml(prizes, index, still = false) {
+function wheelHtml(prizes, index, still = false, theme = "classic") {
+  const t = WHEEL_THEMES[theme] || WHEEL_THEMES.classic;
   const n = prizes.length;
   const seg = 360 / n;
-  const colors = prizes.map((_, i) => WHEEL_COLORS[n % 2 === 1 && i === n - 1 ? 2 : i % 2]);
-  const gradient = colors.map((c, i) => `${c.bg} ${i * seg}deg ${(i + 1) * seg}deg`).join(", ");
+  // при нечётном числе последний сектор — промежуточный оттенок, чтобы не слился с первым
+  const tones = prizes.map((_, i) => (n % 2 === 1 && i === n - 1 ? "mid" : i % 2 ? "b" : "a"));
+  const toneColor = { a: "var(--w-a)", b: "var(--w-b)", mid: "color-mix(in srgb, var(--w-a) 50%, var(--w-b))" };
+  const gradient = tones.map((tone, i) => `${toneColor[tone]} ${(i * seg).toFixed(3)}deg ${((i + 1) * seg).toFixed(3)}deg`).join(", ");
   // Указатель сверху: сектор index должен остановиться под ним
   const jitter = still ? 0 : (crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32 - 0.5) * seg * 0.6;
   const end = (still ? 360 : 360 * 10) - (index * seg + seg / 2) + jitter;
+  const narrow = n >= 7 ? " w-narrow" : "";
   const labels = prizes
-    .map((p, i) => `<span class="w-label" style="transform: rotate(${(i * seg + seg / 2).toFixed(2)}deg) translateY(-82px); color: ${colors[i].fg}">${escapeHtml(p.label)}</span>`)
+    .map((p, i) => {
+      const icon = PRIZE_ICONS.find((x) => x.re.test(p.label)).d;
+      const angle = i * seg + seg / 2;
+      // содержимое повёрнуто обратно так, чтобы после остановки колеса все подписи стояли ровно
+      return `<span class="w-label${narrow}" style="transform: rotate(${angle.toFixed(2)}deg) translateY(-${n >= 7 ? 86 : 80}px)">` +
+        `<span class="w-label-in" style="transform: rotate(${(-(angle + end)).toFixed(2)}deg)"><span class="w-icon">${PRIZE_ICON(icon)}</span>${escapeHtml(p.label)}</span></span>`;
+    })
     .join("");
-  const bulbs = Array.from(
-    { length: WHEEL_BULBS },
-    (_, i) => `<span class="w-bulb" style="transform: rotate(${((360 / WHEEL_BULBS) * i).toFixed(2)}deg) translateY(-142px)"></span>`
-  ).join("");
   return `
-    <div class="wheel-wrap${still ? " is-still" : ""}" aria-hidden="true">
-      <div class="w-rim">${bulbs}</div>
+    <div class="wheel-wrap${still ? " is-still" : ""}" aria-hidden="true"
+      style="--w-rim: ${t.rim}; --w-a: ${t.a}; --w-b: ${t.b}; --w-text: ${t.text}; --w-acc: ${t.acc};">
+      <div class="w-arc w-arc-1"></div><div class="w-arc w-arc-2"></div>
+      <div class="w-rim"></div>
       <div class="wheel${still ? " wheel-still" : ""}" style="--end: ${end.toFixed(2)}deg; background: conic-gradient(${gradient});">
-        <div class="w-lines" style="--seg: ${seg.toFixed(3)}deg"></div>${labels}
+        <div class="w-shade"></div><div class="w-lines" style="--seg: ${seg.toFixed(3)}deg"></div>${labels}
       </div>
-      <div class="w-gloss"></div>
       <div class="w-pointer"></div>
       <div class="w-hub"><span>TR</span></div>
     </div>`;
 }
-
 function formatCode(code) {
   return `${code.slice(0, 3)}-${code.slice(3)}`;
 }
@@ -274,7 +293,7 @@ function resultPage(business, c, { repeat, backUrl, wheel = null }) {
     body: `
       <h1 class="name name-long">${escapeHtml(business.name)}</h1>
       <div class="divider"></div>
-      ${wheel ? wheelHtml(wheel.prizes, wheel.index, repeat) : `<div class="br-gift" aria-hidden="true">${GIFT}</div>`}
+      ${wheel ? wheelHtml(wheel.prizes, wheel.index, repeat, business.theme) : `<div class="br-gift" aria-hidden="true">${GIFT}</div>`}
       ${result}
       <p class="br-rules">Подарок не зависит от отзыва. Один подарок на устройство за ${business.bonus_cooldown_days} ${plural(business.bonus_cooldown_days, "день", "дня", "дней")}.</p>
       <a class="br-back" href="${escapeHtml(backUrl)}">← Вернуться к странице заведения</a>`
@@ -291,80 +310,68 @@ function infoPage(status, text) {
 }
 
 const BONUS_PAGE_CSS = `
-  /* Колесо: обод 300 px, сектора 268 px. Вращение ~7 с с долгим плавным торможением */
-  .wheel-wrap { position: relative; width: 300px; height: 300px; margin: 10px auto 24px; max-width: 100%; }
+  /* Колесо: 300 px, матовый обод 20 px. Вращение ~7 с с долгим плавным торможением */
+  .wheel-wrap { position: relative; width: 300px; height: 300px; margin: 14px auto 26px; max-width: 100%; }
+  /* тонкие золотые дуги вокруг */
+  .w-arc { position: absolute; inset: -14px; border-radius: 50%; border: 1.5px solid transparent; pointer-events: none; }
+  .w-arc-1 { border-left-color: var(--w-acc); transform: rotate(28deg); opacity: 0.75;
+    -webkit-mask: linear-gradient(180deg, transparent 8%, #000 40%, #000 60%, transparent 92%); mask: linear-gradient(180deg, transparent 8%, #000 40%, #000 60%, transparent 92%); }
+  .w-arc-2 { border-right-color: var(--w-acc); transform: rotate(28deg); opacity: 0.75;
+    -webkit-mask: linear-gradient(180deg, transparent 8%, #000 40%, #000 60%, transparent 92%); mask: linear-gradient(180deg, transparent 8%, #000 40%, #000 60%, transparent 92%); }
   .w-rim {
     position: absolute; inset: 0; border-radius: 50%;
-    background: conic-gradient(from 20deg, #8a5f06, #f6dc8c, #b98510, #fff1c2, #a87508, #f0cd6a, #8a5f06, #e9c25a, #8a5f06);
-    box-shadow: 0 22px 44px rgba(6, 20, 45, 0.38), 0 6px 14px rgba(6, 20, 45, 0.25), inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+    background: linear-gradient(160deg, color-mix(in srgb, var(--w-rim) 78%, #fff) 0%, var(--w-rim) 35%, color-mix(in srgb, var(--w-rim) 70%, #000) 100%);
+    box-shadow: 0 24px 46px rgba(0, 0, 0, 0.35), 0 8px 16px rgba(0, 0, 0, 0.22),
+      inset 0 2px 1px rgba(255, 255, 255, 0.16), inset 0 -4px 8px rgba(0, 0, 0, 0.35);
   }
-  .w-rim::after {
-    content: ""; position: absolute; inset: 13px; border-radius: 50%;
-    box-shadow: 0 0 0 2px #6e4a04, inset 0 0 0 1px rgba(0, 0, 0, 0.2);
-  }
-  .w-bulb {
-    position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%;
-    background: radial-gradient(circle at 35% 35%, #ffffff, #fff4c9 40%, #f2c14a 75%);
-    box-shadow: 0 0 6px 2px rgba(255, 226, 140, 0.85);
-    animation: w-twinkle 0.35s ease-in-out infinite alternate;
-  }
-  .w-bulb:nth-child(even) { animation-delay: -0.35s; }
-  /* повторный заход (колесо стоит) — лампочки мигают спокойно */
-  .is-still .w-bulb { animation-duration: 1.4s; }
-  .is-still .w-bulb:nth-child(even) { animation-delay: -1.4s; }
-  @keyframes w-twinkle { from { opacity: 0.35; box-shadow: 0 0 2px 0 rgba(255, 226, 140, 0.4); } to { opacity: 1; } }
   .wheel {
-    position: absolute; inset: 16px; border-radius: 50%; overflow: hidden;
-    box-shadow: inset 0 0 0 2px rgba(243, 214, 142, 0.55), inset 0 0 26px rgba(0, 0, 0, 0.45);
+    position: absolute; inset: 20px; border-radius: 50%; overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), inset 0 0 22px rgba(0, 0, 0, 0.45);
     animation: w-spin ${WHEEL_SPIN_S}s cubic-bezier(0.17, 0.67, 0.08, 1) 0.3s both;
   }
   @keyframes w-spin { from { transform: rotate(0deg); } to { transform: rotate(var(--end)); } }
   .wheel-still { animation: none; transform: rotate(var(--end)); }
-  /* тонкие золотые линии между секторами */
+  /* мягкий объём секторов: светлее к краю, темнее к центру */
+  .w-shade {
+    position: absolute; inset: 0; border-radius: 50%;
+    background: radial-gradient(circle, rgba(0, 0, 0, 0.28) 0%, rgba(0, 0, 0, 0) 45%, rgba(255, 255, 255, 0.07) 100%);
+  }
+  /* разделители: тёмная линия + тонкий свет рядом — как фаска */
   .w-lines {
     position: absolute; inset: 0; border-radius: 50%;
-    background: repeating-conic-gradient(from -0.4deg, rgba(243, 214, 142, 0.9) 0deg 0.8deg, transparent 0.8deg var(--seg));
-    -webkit-mask: radial-gradient(circle, transparent 30px, #000 31px);
-    mask: radial-gradient(circle, transparent 30px, #000 31px);
+    background: repeating-conic-gradient(from -0.6deg, rgba(0, 0, 0, 0.45) 0deg 0.7deg, rgba(255, 255, 255, 0.1) 0.7deg 1.2deg, transparent 1.2deg var(--seg));
   }
-  .br-next { margin: 8px 0 0; font-size: 13px; font-weight: 600; color: #0a2a5c; }
+  .br-next { margin: 8px 0 0; font-size: 13px; font-weight: 600; color: var(--text); }
   .w-label {
-    position: absolute; left: 50%; top: 50%; width: 88px; margin: -0.65em 0 0 -44px;
-    transform-origin: 50% 50%; font-size: 11.5px; font-weight: 700; line-height: 1.15; text-align: center;
-    letter-spacing: 0.02em; overflow-wrap: anywhere; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+    position: absolute; left: 50%; top: 50%; width: 86px; height: 64px; margin: -32px 0 0 -43px;
+    transform-origin: 50% 50%; color: var(--w-text); font-size: 12px; font-weight: 600; line-height: 1.2; text-align: center;
+    overflow-wrap: anywhere; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
   }
-  /* блик сверху — не вращается */
-  .w-gloss {
-    position: absolute; inset: 16px; border-radius: 50%; pointer-events: none;
-    background: radial-gradient(ellipse 60% 32% at 50% 8%, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0) 70%);
-  }
+  .w-label-in { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; width: 100%; height: 100%; }
+  .w-label.w-narrow { width: 66px; height: 56px; margin: -28px 0 0 -33px; font-size: 10.5px; }
+  .w-narrow .w-label-in { gap: 3px; }
+  .w-icon { display: block; width: 24px; height: 24px; color: var(--w-acc); filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3)); }
+  .w-narrow .w-icon { width: 19px; height: 19px; }
+  .w-icon svg { display: block; width: 100%; height: 100%; }
+  /* указатель — золотая метка */
   .w-pointer {
-    position: absolute; z-index: 3; left: 50%; top: -10px; width: 34px; height: 44px; margin-left: -17px;
-    filter: drop-shadow(0 4px 5px rgba(6, 20, 45, 0.45));
-  }
-  .w-pointer::before {
-    content: ""; position: absolute; inset: 0;
-    background: linear-gradient(90deg, #a87508, #fff1c2 45%, #e3b23c 60%, #8a5f06);
-    clip-path: polygon(50% 100%, 6% 22%, 18% 6%, 50% 0, 82% 6%, 94% 22%);
+    position: absolute; z-index: 3; left: 50%; top: -16px; width: 30px; height: 30px; margin-left: -15px;
+    border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--w-acc) 55%, #fff), var(--w-acc) 45%, color-mix(in srgb, var(--w-acc) 70%, #000));
+    box-shadow: -3px 4px 8px rgba(0, 0, 0, 0.35);
   }
   .w-pointer::after {
-    content: ""; position: absolute; left: 50%; top: 9px; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%;
-    background: radial-gradient(circle at 35% 35%, #2a5aa3, #061b3d);
-    box-shadow: 0 0 0 1.5px #fbe7b0;
+    content: ""; position: absolute; left: 50%; top: 50%; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%;
+    background: color-mix(in srgb, var(--w-a) 80%, #000); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
   }
+  /* центр — золотая шайба */
   .w-hub {
-    position: absolute; z-index: 2; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px;
+    position: absolute; z-index: 2; left: 50%; top: 50%; width: 70px; height: 70px; margin: -35px 0 0 -35px;
     display: grid; place-items: center; border-radius: 50%;
-    background: radial-gradient(circle at 34% 28%, #fff6d2, #f0cd6a 35%, #c18d14 70%, #8a5f06);
-    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.4), inset 0 -3px 6px rgba(0, 0, 0, 0.25), 0 0 0 3px #061b3d, 0 0 0 4.5px rgba(243, 214, 142, 0.7);
+    background: radial-gradient(circle at 35% 28%, color-mix(in srgb, var(--w-acc) 35%, #fff), var(--w-acc) 55%, color-mix(in srgb, var(--w-acc) 72%, #000));
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45), inset 0 2px 2px rgba(255, 255, 255, 0.45), inset 0 -3px 6px rgba(0, 0, 0, 0.2);
   }
-  .w-hub span {
-    display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%;
-    background: radial-gradient(circle at 40% 30%, #1b4a8f, #061b3d 75%);
-    box-shadow: inset 0 0 0 1.5px rgba(251, 231, 176, 0.8);
-    color: #f6dc8c; font-weight: 800; font-size: 15px; letter-spacing: 0.04em;
-  }
-  .br-gift { width: 64px; height: 64px; margin: 4px auto 16px; }
+  .w-hub span { color: color-mix(in srgb, var(--w-a) 85%, #000); font-weight: 800; font-size: 20px; letter-spacing: 0.02em; }  .br-gift { width: 64px; height: 64px; margin: 4px auto 16px; }
   .br-gift svg { width: 100%; height: 100%; }
   .br { padding: 18px 18px 16px; border: 1px dashed #e2c46e; border-radius: 18px; background: #fffdf6; color: #141a2b; }
   .br-fade { animation: br-in 0.5s ease 0.2s both; }
@@ -385,7 +392,6 @@ const BONUS_PAGE_CSS = `
   .br-back { display: inline-block; margin-top: 14px; font-size: 14px; color: var(--text); text-underline-offset: 3px; }
   @media (prefers-reduced-motion: reduce) {
     .wheel { animation: none; transform: rotate(var(--end)); }
-    .w-bulb { animation: none; }
     .br-fade, .br-after-spin { animation: none; }
   }
 `;
