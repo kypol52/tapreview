@@ -73,7 +73,41 @@ export const BONUS_COLUMNS =
 
 const BUSINESS_COLUMNS =
   "id,slug,name,tagline,category,logo_url,brand_color,google_url,yandex_url,twogis_url," +
-  "discount_code,discount_text,paid_until,theme," + BONUS_COLUMNS;
+  "discount_code,discount_text,paid_until,theme,extra_links," + BONUS_COLUMNS;
+
+// Ссылки заведения под кнопками отзывов (миграция 020): меню, каталог, услуги…
+// Значки — тонкие линии в цвете текста темы, чтобы не спорить с логотипами площадок
+const LINK_ICON = (d) =>
+  `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+export const EXTRA_LINKS = {
+  menu: { label: "Меню", icon: LINK_ICON("M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 21V3c-2.2 1.2-3.5 3.6-3.5 6.5V13H17") },
+  catalog: { label: "Каталог", icon: LINK_ICON("M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z") },
+  services: { label: "Услуги и цены", icon: LINK_ICON("M3 12.5V4h8.5L21 13.5 13.5 21zM7.5 8h.01") },
+  booking: { label: "Онлайн-запись", icon: LINK_ICON("M4 6h16v14H4zM4 10h16M8 3v4M16 3v4M8 14h3") },
+  delivery: { label: "Доставка", icon: LINK_ICON("M5 8h14l-1 12H6zM9 8V6a3 3 0 0 1 6 0v2") },
+  site: { label: "Наш сайт", icon: LINK_ICON("M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3z") },
+  custom: { label: "Ссылка", icon: LINK_ICON("M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1") }
+};
+
+function extraLinksBlock(business) {
+  const links = (Array.isArray(business.extra_links) ? business.extra_links : []).filter((l) => l && isHttpsUrl(l.url));
+  if (!links.length) return "";
+  const items = links
+    .map((l) => {
+      const kind = EXTRA_LINKS[l.type] || EXTRA_LINKS.custom;
+      return `
+        <a class="xlink" href="${escapeHtml(l.url)}" target="_blank" rel="noopener nofollow">
+          <span class="xlink-icon">${kind.icon}</span>
+          <span class="xlink-label">${escapeHtml(l.label || kind.label)}</span>
+        </a>`;
+    })
+    .join("");
+  return `
+    <div class="xlinks">
+      <p class="xlinks-title">Ещё у нас</p>
+      <div class="xlinks-grid${links.length === 1 ? " xlinks-one" : ""}">${items}</div>
+    </div>`;
+}
 
 export const TELEGRAM_URL ="https://t.me/tapreviewru";
 
@@ -434,6 +468,7 @@ function businessPage(business, source, cardCode = null) {
       <div class="divider"></div>
       <h2 class="thanks">Спасибо за ваш визит!</h2>
       ${actions}
+      ${extraLinksBlock(business)}
       ${discount}`
   });
 }
@@ -636,6 +671,49 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
     .icon svg { display: block; width: 100%; height: 100%; }
     .label { flex: 1; font-size: 16px; line-height: 1.35; }
     .arrow { flex: none; width: 22px; height: 22px; color: var(--muted); }
+
+    /* Ссылки заведения: меню, каталог, услуги… — компактная сетка под кнопками отзывов */
+    .xlinks { margin-top: 26px; }
+    .xlinks-title {
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .xlinks-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .xlinks-grid.xlinks-one { grid-template-columns: 1fr; }
+    .xlink {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 48px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid var(--btn-border);
+      background: var(--btn-bg);
+      color: var(--btn-text);
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.25;
+      text-decoration: none;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .xlink:hover { box-shadow: 0 6px 18px var(--card-shadow); border-color: var(--accent); }
+    .xlink:active { transform: scale(0.98); }
+    .xlink:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+    .xlink-icon { flex: none; width: 20px; height: 20px; color: var(--accent); }
+    .xlink-icon svg { display: block; width: 100%; height: 100%; }
+    .xlink-label { min-width: 0; overflow-wrap: anywhere; }
+    /* нечётное число ссылок — последняя на всю ширину */
+    .xlinks-grid .xlink:last-child:nth-child(odd) { grid-column: 1 / -1; }
+    @media (max-width: 380px) {
+      .xlink { gap: 6px; padding: 10px 8px; font-size: 13px; }
+      .xlink-icon { width: 18px; height: 18px; }
+    }
 
     /* Страница шаблонной карты, которая ещё не привязана */
     .card-mark {

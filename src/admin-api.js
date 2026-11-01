@@ -55,8 +55,11 @@ const ADMIN_COLUMNS =
   "google_url,yandex_url,twogis_url,discount_code,discount_text,is_active," +
   "paid_until,monthly_price,billing_note," +
   "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions," +
-  "referred_by,ref_reward_at,theme," +
+  "referred_by,ref_reward_at,theme,extra_links," +
   "created_at,updated_at";
+
+const EXTRA_LINK_TYPES = ["menu", "catalog", "services", "booking", "delivery", "site", "custom"];
+const EXTRA_LINK_MAX = 6;
 
 const GROUP_COLUMNS = "id,slug,name,tagline,logo_url,business_ids,is_active,created_at,updated_at";
 const MAX_GROUP_SIZE = 50;
@@ -584,8 +587,23 @@ function validateBusiness(input) {
     billing_note: cleanText(input.billing_note, 200, "Заметка об оплате") || null,
     referred_by: cleanRefId(input.referred_by),
     theme: ["classic", "dark", "coffee", "fresh", "rose"].includes(input.theme) ? input.theme : "classic",
+    extra_links: cleanExtraLinks(input.extra_links),
     ...cleanBonus(input)
   };
+}
+
+// Кнопки «Меню», «Каталог», «Услуги и цены»… на странице отзывов (миграция 020)
+function cleanExtraLinks(value) {
+  const links = Array.isArray(value) ? value : [];
+  if (links.length > EXTRA_LINK_MAX) throw new HttpError(400, `Ссылки заведения: не больше ${EXTRA_LINK_MAX}`);
+  return links.map((link, i) => {
+    const type = EXTRA_LINK_TYPES.includes(link && link.type) ? link.type : "custom";
+    const url = cleanUrl(link && link.url, `«${i + 1}» (меню, каталог…)`);
+    if (!url) throw new HttpError(400, `Ссылка заведения ${i + 1}: вставьте адрес или удалите строку`);
+    const label = cleanText(link && link.label, 30, `Подпись ссылки ${i + 1}`);
+    if (type === "custom" && !label) throw new HttpError(400, `Ссылка заведения ${i + 1}: напишите подпись кнопки`);
+    return label ? { type, url, label } : { type, url };
+  });
 }
 
 function cleanRefId(value) {

@@ -492,6 +492,11 @@ input[type="color"]:disabled { opacity: 0.4; }
 .prize-row { display: flex; align-items: center; gap: 6px; }
 .prize-row .prize-label { flex: 1; min-width: 0; }
 .prize-row .prize-weight { width: 76px; }
+.xlink-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.xlink-row .xlink-type { width: 150px; flex: none; }
+.xlink-row .xlink-label { width: 150px; flex: none; }
+.xlink-row .xlink-url { flex: 1; min-width: 160px; }
+.xlinks-box .field-hint { margin: 0 0 10px; }
 .prize-share { width: 40px; font-size: 13px; font-weight: 600; color: var(--muted); text-align: right; }
 @media (max-width: 640px) { .grid-3 { grid-template-columns: 1fr; } }
 .ref-visits { margin: 10px 0 0; font-size: 13px; }

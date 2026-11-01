@@ -88,6 +88,11 @@ function bindEvents() {
     if ($("f-prizes").children.length < 8) $("f-prizes").append(prizeRow({ label: "", weight: 10 }));
     updatePrizeShares();
   });
+  $("f-xlink-add").addEventListener("click", () => {
+    if ($("f-xlinks").children.length < XLINK_MAX) $("f-xlinks").append(xlinkRow());
+    updateXlinkAdd();
+    $("f-xlinks").lastElementChild.querySelector(".xlink-url").focus();
+  });
 
   $("editor-form").addEventListener("submit", onSave);
   $("editor-close").addEventListener("click", closeEditor);
@@ -880,6 +885,8 @@ function openEditor(business) {
   const theme = (business && business.theme) || "classic";
   for (const radio of document.querySelectorAll('input[name="f-theme"]')) radio.checked = radio.value === theme;
   fillBonus(business);
+  $("f-xlinks").replaceChildren(...((business && business.extra_links) || []).map(xlinkRow));
+  updateXlinkAdd();
   $("f-active").checked = business ? business.is_active : true;
   $("f-paid-until").value = business ? business.paid_until || "" : "";
   $("f-price").value = business && business.monthly_price != null ? String(business.monthly_price) : "";
@@ -1316,8 +1323,69 @@ function readForm() {
     monthly_price: $("f-price").value,
     billing_note: $("f-billing-note").value,
     referred_by: $("f-referred-by").value || null,
-    theme: (document.querySelector('input[name="f-theme"]:checked') || {}).value || "classic"
+    theme: (document.querySelector('input[name="f-theme"]:checked') || {}).value || "classic",
+    extra_links: readXlinks()
   };
+}
+
+// ================= Меню, каталог, услуги (кнопки «Ещё у нас» на странице отзывов) =================
+
+const XLINK_TYPES = {
+  menu: "Меню",
+  catalog: "Каталог",
+  services: "Услуги и цены",
+  booking: "Онлайн-запись",
+  delivery: "Доставка",
+  site: "Наш сайт",
+  custom: "Своя подпись…"
+};
+const XLINK_MAX = 6;
+
+function xlinkRow(link = {}) {
+  const row = el("div", "xlink-row");
+  const type = el("select", "xlink-type");
+  for (const [value, label] of Object.entries(XLINK_TYPES)) {
+    const option = el("option", "", label);
+    option.value = value;
+    option.selected = (link.type || "menu") === value;
+    type.append(option);
+  }
+  const label = el("input", "xlink-label");
+  label.type = "text";
+  label.maxLength = 30;
+  label.placeholder = "Подпись кнопки";
+  label.value = link.label || "";
+  const url = el("input", "xlink-url");
+  url.type = "url";
+  url.placeholder = "https://…";
+  url.value = link.url || "";
+  const showLabel = () => (label.hidden = type.value !== "custom");
+  type.addEventListener("change", showLabel);
+  showLabel();
+  const remove = el("button", "sl-chip-x", "✕");
+  remove.type = "button";
+  remove.title = "Убрать ссылку";
+  remove.addEventListener("click", () => {
+    row.remove();
+    updateXlinkAdd();
+  });
+  row.append(type, label, url, remove);
+  return row;
+}
+
+function updateXlinkAdd() {
+  $("f-xlink-add").hidden = $("f-xlinks").children.length >= XLINK_MAX;
+}
+
+function readXlinks() {
+  return [...$("f-xlinks").querySelectorAll(".xlink-row")]
+    .map((row) => {
+      const type = row.querySelector(".xlink-type").value;
+      const link = { type, url: row.querySelector(".xlink-url").value.trim() };
+      if (type === "custom") link.label = row.querySelector(".xlink-label").value.trim();
+      return link;
+    })
+    .filter((link) => link.url || link.label);
 }
 
 // ================= Рекомендации: «месяц бесплатно обоим» =================
