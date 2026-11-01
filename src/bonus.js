@@ -259,6 +259,8 @@ function resultPage(business, c, { repeat, backUrl, wheel = null }) {
     accent: null,
     theme: business.theme,
     extraCss: BONUS_PAGE_CSS,
+    // Как на странице заведения: зелёная кнопка на сайт TapReview (через реферальную ссылку заведения)
+    footer: { href: `/r/${business.slug}?s=card`, text: "Хочу такую карту" },
     body: `
       <h1 class="name name-long">${escapeHtml(business.name)}</h1>
       <div class="divider"></div>
