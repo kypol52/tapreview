@@ -45,6 +45,7 @@ import { tg, BOT_COMMANDS } from "./telegram.js";
 import { deleteRuOrder } from "./orders.js";
 import { bonusCounts } from "./bonus.js";
 import { refUrl, refStats } from "./referral.js";
+import { localAuthEnabled, verifyToken, handleLogin } from "./admin-auth.js";
 
 const CATEGORIES = ["restaurant", "beauty", "shop", "hotel", "auto", "other"];
 
@@ -87,10 +88,15 @@ export async function handleApi(request, env, url) {
 
     if (path === "/api/config" && method === "GET") {
       return json({
+        authMode: localAuthEnabled(env) ? "local" : "supabase",
         supabaseUrl: env.SUPABASE_URL,
         publishableKey: env.SUPABASE_PUBLISHABLE_KEY,
         publicBaseUrl: env.PUBLIC_BASE_URL || url.origin
       });
+    }
+
+    if (path === "/api/login") {
+      return await handleLogin(request, env);
     }
 
     if (path.startsWith("/api/admin/")) {
@@ -251,6 +257,13 @@ async function requireAdmin(request, env) {
   const token = header.startsWith("Bearer ") ? header.slice(7) : "";
   if (!token) {
     throw new HttpError(401, "Нужно войти");
+  }
+
+  // Свой сервер: проверяем свой токен (src/admin-auth.js)
+  if (localAuthEnabled(env)) {
+    const email = await verifyToken(env, token);
+    if (!email) throw new HttpError(401, "Сессия истекла, войдите заново");
+    return { email };
   }
 
   // Supabase сам проверяет подпись и срок действия токена

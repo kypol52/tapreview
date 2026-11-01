@@ -203,6 +203,19 @@ async function onLogin(event) {
 }
 
 async function authRequest(grantType, body) {
+  // Свой сервер в России: вход через наш API (/api/login), сессия 30 дней, без Supabase
+  if (state.config.authMode === "local") {
+    if (grantType !== "password") throw new Error("Сессия истекла");
+    const response = await fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Неверный email или пароль");
+    return data;
+  }
+
   const response = await fetch(
     `${state.config.supabaseUrl}/auth/v1/token?grant_type=${grantType}`,
     {
@@ -276,7 +289,7 @@ async function logout() {
   clearSession();
   showLogin();
 
-  if (token && state.config) {
+  if (token && state.config && state.config.authMode !== "local") {
     // Сообщаем Supabase, что сессия закончена (если не получится — не страшно)
     fetch(`${state.config.supabaseUrl}/auth/v1/logout`, {
       method: "POST",

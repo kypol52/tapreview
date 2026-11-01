@@ -108,7 +108,7 @@ export async function handleBonus(request, env) {
       deviceId = randomString(CODE_ALPHABET + "abcdefghjkmnpqrstuvwxyz", 24);
       setCookie = `${DEVICE_COOKIE}=${deviceId}; Path=/; Max-Age=${400 * 24 * 3600}; HttpOnly; Secure; SameSite=Lax`;
     }
-    const visitorKey = await sha256(`${deviceId}|${business.id}|${env.SUPABASE_SECRET_KEY}`);
+    const visitorKey = await sha256(`${deviceId}|${business.id}|${env.HASH_SALT || env.SUPABASE_SECRET_KEY}`);
     const backUrl = cardCode ? `/c/${cardCode}?s=${source}` : `/b/${business.slug}?s=${source}`;
 
     // Уже получал бонус за последние N дней — показываем тот же код, без нового розыгрыша

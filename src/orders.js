@@ -1,6 +1,9 @@
-// Заявки с сайта: POST /api/order — копия заявки из России.
+// Заявки с сайта: POST /api/order.
 //
-// Форма на tapreview.ru/order/ отправляет заявку не сюда, а в функцию Yandex Cloud (папка yandex-function/):
+// РЕЖИМ «СВОЙ СЕРВЕР В РФ» (ORDERS_DIRECT=1): сайт и база уже в России, поэтому форма отправляет заявку
+// прямо сюда — проверяем (чужой сайт, ловушка для роботов, слишком быстрая отправка, частота) и сохраняем.
+//
+// РЕЖИМ «CLOUDFLARE» (как было): форма отправляет заявку не сюда, а в функцию Yandex Cloud (папка yandex-function/):
 // по закону персональные данные сначала записываются в базу в России (Yandex Database). Функция сохраняет
 // заявку и пересылает копию сюда с секретом X-Relay-Secret. Здесь копия сохраняется в Supabase
 // (для админ-панели → «Заявки») и уходит в Telegram всем чатам из order_recipients.
@@ -20,6 +23,16 @@ export const PLAN_LABELS = { month: "Месяц", year: "Год" };
 const CONSENT_VERSION = "2026-10-30";
 
 const MAX_BODY = 8000;
+const MIN_FILL_MS = 3000;
+
+// Форму можно отправить только со своего сайта
+function checkOrigin(request, env) {
+  const origin = request.headers.get("Origin");
+  if (!origin) return;
+  const allowed = new Set([new URL(request.url).origin]);
+  if (env.PUBLIC_BASE_URL) allowed.add(new URL(env.PUBLIC_BASE_URL).origin);
+  if (!allowed.has(origin)) throw new OrderError(403, "Запрос с чужого сайта");
+}
 const RU_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 class OrderError extends Error {
@@ -33,9 +46,12 @@ export async function handleOrder(request, env, ctx) {
   try {
     if (request.method !== "POST") throw new OrderError(405, "Метод не поддерживается");
     const secret = request.headers.get("X-Relay-Secret") || "";
-    if (!env.ORDER_RELAY_SECRET || !sameString(secret, env.ORDER_RELAY_SECRET)) {
+    const relay = Boolean(env.ORDER_RELAY_SECRET) && sameString(secret, env.ORDER_RELAY_SECRET);
+    const direct = !relay && env.ORDERS_DIRECT === "1";
+    if (!relay && !direct) {
       throw new OrderError(403, "Заявки принимаются через форму на tapreview.ru/order/");
     }
+    if (direct) checkOrigin(request, env);
 
     const text = await request.text();
     if (text.length > MAX_BODY) throw new OrderError(413, "Слишком большой запрос");
@@ -46,9 +62,16 @@ export async function handleOrder(request, env, ctx) {
       throw new OrderError(400, "Неверный формат данных");
     }
     if (!data || typeof data !== "object") throw new OrderError(400, "Неверный формат данных");
-    if (!RU_ID_RE.test(String(data.ru_id))) throw new OrderError(400, "Нет номера заявки в российской базе");
 
-    const order = { ...validate(data), ru_id: String(data.ru_id) };
+    let order;
+    if (direct) {
+      // Роботы заполняют скрытое поле или отправляют форму мгновенно — делаем вид, что всё хорошо
+      if (String(data.website || "").trim() || Number(data.elapsed) < MIN_FILL_MS) return reply({ ok: true });
+      order = validate(data);
+    } else {
+      if (!RU_ID_RE.test(String(data.ru_id))) throw new OrderError(400, "Нет номера заявки в российской базе");
+      order = { ...validate(data), ru_id: String(data.ru_id) };
+    }
     await checkRate(env, order);
 
     const rows = await db(env, "orders?select=id,created_at", {

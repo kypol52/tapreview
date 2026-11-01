@@ -41,7 +41,7 @@ export async function logEvent(request, env, { businessId, eventType, destinatio
     const userAgent = request.headers.get("User-Agent") || "";
 
     // Секретный ключ используется как «соль», чтобы хеш нельзя было подобрать перебором
-    const visitorHash = await sha256(`${day}|${ip}|${userAgent}|${env.SUPABASE_SECRET_KEY}`);
+    const visitorHash = await sha256(`${day}|${ip}|${userAgent}|${env.HASH_SALT || env.SUPABASE_SECRET_KEY}`);
     const dedupeKey = await sha256(
       `${businessId}|${eventType}|${destination || ""}|${visitorHash}|${windowNumber}`
     );
