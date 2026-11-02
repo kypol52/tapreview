@@ -43,9 +43,15 @@ curl -s 127.0.0.1:8787/health            # база жива? сколько ч�
 
 ## Копии на Яндекс Диске (если сервер пропал)
 
-Включить один раз: `sudo bash /opt/tapreview/site/server/offsite-setup.sh` (логин Яндекса + пароль приложения
-«Файлы / WebDAV»). Каждую ночь в 03:45 зашифрованная копия кладётся в папку `TapReview-backups` на Диске
-(`tapreview-ДД.dump.enc`, ДД — день месяца). Сторож сайта пишет в Telegram, если копия старше 2 суток.
+Токен (один раз, срок около года — потом получить заново и снова запустить offsite-setup.sh):
+1. oauth.yandex.ru → «Создать приложение»: название «TapReview backup», платформа «Веб-сервисы»,
+   Redirect URI `https://oauth.yandex.ru/verification_code`, доступ «Яндекс Диск REST API → Доступ к папке
+   приложения на Диске». Скопировать ClientID.
+2. Открыть `https://oauth.yandex.ru/authorize?response_type=token&client_id=CLIENTID` → «Разрешить» → токен.
+
+Включить: `sudo bash /opt/tapreview/site/server/offsite-setup.sh` (спросит токен). Каждую ночь в 03:45
+зашифрованная копия кладётся на Диск в «Приложения → TapReview backup» (`tapreview-ДД.dump.enc`, ДД — день месяца).
+Сторож сайта пишет в Telegram, если копия старше 2 суток. (WebDAV не подходит: бесплатным аккаунтам Яндекс отвечает 402.)
 
 Восстановить на новом сервере (после `setup.sh`): скачать файл с Диска, затем
 ```
