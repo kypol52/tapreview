@@ -6,7 +6,8 @@
 // после чего сразу перенаправляем посетителя на нужную площадку.
 
 import { db } from "./supabase.js";
-import { logEvent, sourceFrom } from "./analytics.js";
+import { logEvent, sourceFrom, isBot } from "./analytics.js";
+import { guestOf } from "./guests.js";
 import { isExpired } from "./billing.js";
 import { bonusBlock } from "./bonus.js";
 import { flowFrom, logRating, LIKES, PHONE_KEEP_DAYS } from "./rating.js";
@@ -70,7 +71,8 @@ export const GIFT = `<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20"
 
 // Настройки бонуса для гостей (bonus.js, миграции 015, 023)
 export const BONUS_COLUMNS =
-  "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions,bonus_daily_limit";
+  "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions,bonus_daily_limit," +
+  "stamps_goal,stamps_prize";
 
 const BUSINESS_COLUMNS =
   "id,slug,name,tagline,category,logo_url,brand_color,google_url,yandex_url,twogis_url," +
@@ -156,7 +158,14 @@ export async function handleBusinessPage(request, env, ctx, slug) {
   }
 
   if (isExpired(business.paid_until)) return pausedResponse(business);
-  return businessPage(business, source, null, flow);
+  const guest = isBot(request) ? null : await guestOf(request, env, business, source);
+  return withGuestCookie(businessPage(business, source, null, flow, guest), guest);
+}
+
+// Cookie устройства ставим при первом касании карты (guests.js): «С возвращением!» и штампы
+function withGuestCookie(response, guest) {
+  if (guest && guest.setCookie) response.headers.append("Set-Cookie", guest.setCookie);
+  return response;
 }
 
 // Подписка закончилась (после отсрочки): гость не должен упираться в ошибку —
@@ -294,7 +303,8 @@ export async function handleCardPage(request, env, ctx, rawCode) {
   }
 
   if (isExpired(business.paid_until)) return pausedResponse(business);
-  return businessPage(business, source, card.code, flow);
+  const guest = isBot(request) ? null : await guestOf(request, env, business, source);
+  return withGuestCookie(businessPage(business, source, card.code, flow, guest), guest);
 }
 
 // Код карты: только латинские буквы и цифры, регистр и дефисы не важны (K7P-3QX = k7p3qx)
@@ -447,7 +457,7 @@ function redirect(location) {
   });
 }
 
-function businessPage(business, source, cardCode = null, flow = { score: null, all: false, sent: false }) {
+function businessPage(business, source, cardCode = null, flow = { score: null, all: false, sent: false }, guest = null) {
   // Свой фирменный цвет заведения, иначе — цвет черты выбранной темы
   const accent = COLOR_RE.test(business.brand_color || "") ? business.brand_color : null;
 
@@ -479,7 +489,11 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
       : "";
 
   const taglineText = business.tagline || CATEGORY_TAGLINES[business.category] || "";
-  const tagline = taglineText ? `<p class="tagline">${escapeHtml(taglineText)}</p>` : "";
+  // «С возвращением!» — со второго дня визитов (guests.js); визиты считаются только при касании карты или QR
+  const welcome = guest && guest.visits >= 2
+    ? `<p class="welcome">С возвращением! Вы у нас ${guest.visits}-й раз 👋</p>`
+    : "";
+  const tagline = (taglineText ? `<p class="tagline">${escapeHtml(taglineText)}</p>` : "") + welcome;
 
   // Длинные названия делаем мельче, чтобы помещались на экран телефона.
   // Логотип «Своего дизайна» заменяет название — тогда название остаётся только для экранного диктора.
@@ -489,7 +503,7 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
 
   // Подарок для гостей (bonus.js): только при скане карты, появляется через несколько секунд,
   // не зависит от отзыва. Без JavaScript — обычная форма.
-  const discount = bonusBlock(business, source, cardCode);
+  const discount = bonusBlock(business, source, cardCode, guest ? guest.stamps : null);
 
   if (business.rating_first) {
     return ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, discount, design });
@@ -931,6 +945,19 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
     .fb-consent { margin: 8px 2px 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
     .fb-consent a { color: inherit; }
     .fb-warn { margin: 0 0 8px; color: var(--muted); font-size: 13px; }
+    /* «С возвращением!» и штампы (guests.js) */
+    .welcome { margin: 8px auto 0; padding: 5px 12px; width: fit-content; border-radius: 999px;
+      background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--text); font-size: 13.5px; font-weight: 650; }
+    .stamps { margin: 0 0 12px; }
+    .stamps-row { display: flex; justify-content: center; align-items: center; gap: 7px; }
+    .stamp { width: 22px; height: 22px; border-radius: 50%; border: 2px dashed color-mix(in srgb, var(--muted) 55%, transparent); }
+    .stamp-on { border: 0; background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--accent) 55%, #fff), var(--accent)); box-shadow: 0 2px 6px color-mix(in srgb, var(--accent) 40%, transparent); }
+    .stamp-gift { width: 30px; height: 30px; border: 0; opacity: 0.45; }
+    .stamp-gift svg { display: block; width: 100%; height: 100%; }
+    .stamp-ready { opacity: 1; animation: stamp-pulse 1.6s ease-in-out infinite; }
+    @keyframes stamp-pulse { 50% { transform: scale(1.12); } }
+    .stamps-text { margin: 6px 0 0; font-size: 13px; font-weight: 600; color: var(--text); }
+    @media (prefers-reduced-motion: reduce) { .stamp-ready { animation: none; } }
     /* «Сейчас у нас» */
     .moment { margin-top: 22px; overflow: hidden; border-radius: 18px; border: 1px solid var(--btn-border); background: var(--btn-bg); text-align: left; }
     .moment-photo { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }

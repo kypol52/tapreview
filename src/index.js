@@ -22,6 +22,7 @@ import { handleTelegramWebhook, handleTelegramRelay, weeklyReports } from "./tel
 import { handleStatsPage, handleBonusDesk, handleStaffDesk, handleFeedbackResolve } from "./stats-page.js";
 import { handleBonus } from "./bonus.js";
 import { handleOwnerSettings } from "./owner-settings.js";
+import { purgeOldVisits } from "./guests.js";
 import { handleRef } from "./referral.js";
 import { handleOrder, orderReminders } from "./orders.js";
 import { handleFeedback, purgeOldPhones } from "./rating.js";
@@ -137,6 +138,7 @@ export default {
         orderReminders(env).catch((error) => console.error(`Order reminders failed: ${error.message}\n${error.stack}`))
       );
       ctx.waitUntil(purgeOldPhones(env).catch((error) => console.error(`Phone purge failed: ${error.message}`)));
+      ctx.waitUntil(purgeOldVisits(env).catch((error) => console.error(`Visits purge failed: ${error.message}`)));
       return;
     }
     if (controller.cron === WEEKLY_REPORT_CRON) {

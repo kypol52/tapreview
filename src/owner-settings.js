@@ -117,7 +117,9 @@ function bonusFields(form) {
     bonus_from_days: String(form.get("from_days") || ""),
     bonus_valid_days: String(form.get("valid_days") || ""),
     bonus_cooldown_days: String(form.get("cooldown_days") || ""),
-    bonus_daily_limit: String(form.get("daily_limit") || "")
+    bonus_daily_limit: String(form.get("daily_limit") || ""),
+    stamps_goal: String(form.get("stamps_goal") || ""),
+    stamps_prize: String(form.get("stamps_prize") || "")
   };
 }
 
@@ -261,6 +263,14 @@ function bonusSection(b, hidden, msg) {
           <label>Один подарок на телефон раз в, дней${n("cooldown_days", b.bonus_cooldown_days ?? 30, 1, 365)}</label>
           <label>Не больше подарков в день${n("daily_limit", b.bonus_daily_limit ?? 50, 1, 10000)}</label>
         </div>
+        <fieldset class="set-prizes"><legend>Штампы (необязательно)</legend>
+          <p class="set-hint">Штамп — каждый подарок, погашенный на кассе. Собрал все — следующий подарок будет особым призом вместо колеса, и счёт начнётся заново. Пусто — штампов нет.</p>
+          <div class="set-two">
+            <label>Штампов до приза (2–10)<input name="stamps_goal" type="number" min="2" max="10" inputmode="numeric" value="${esc(String(b.stamps_goal ?? ""))}" placeholder="выключено"></label>
+            <label>Особый приз<input name="stamps_prize" maxlength="60" value="${esc(b.stamps_prize || "")}" placeholder="Пицца в подарок"></label>
+          </div>
+          <p class="set-hint">Чтобы штампы копились быстрее, поставьте «Один подарок на телефон раз в» 7 дней.</p>
+        </fieldset>
         <p class="set-hint">Подарок не должен зависеть от отзыва — так требуют правила Яндекс Карт и 2ГИС. Не пишите «за отзыв».</p>
         <button class="set-save" type="submit">Сохранить</button>
       </form>

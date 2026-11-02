@@ -18,12 +18,11 @@ import { db } from "./supabase.js";
 import { isBot, visitorHashOf } from "./analytics.js";
 import { renderPage, escapeHtml, GIFT, DEFAULT_ACCENT, BONUS_COLUMNS, customDesign } from "./public-page.js";
 import { isExpired } from "./billing.js";
+import { deviceFrom, visitorKeyOf, stampsOn, stampCount } from "./guests.js";
 
-const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // без 0/O, 1/I/L
 // Коды подарков — 6 цифр (быстро набрать на кассе). Старые коды с буквами по-прежнему принимаются.
 const CODE_DIGITS = "0123456789";
 const CODE_LENGTH = 6;
-const DEVICE_COOKIE = "tr_device";
 const DAY = 24 * 60 * 60 * 1000;
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
 export const BONUS_DELAY_SECONDS = 10;
@@ -49,9 +48,28 @@ function bonusEnabled(business) {
 
 // ---------- Кнопка на странице отзывов ----------
 
-export function bonusBlock(business, source, cardCode) {
+// Штампы (миграция 028): кружки по числу штампов до особого приза, последний — подарок
+export function stampsHtml(business, count) {
+  if (!stampsOn(business) || count === null || count === undefined) return "";
+  const goal = business.stamps_goal;
+  const n = Math.min(count, goal);
+  const dots = Array.from({ length: goal }, (_, i) => `<span class="stamp${i < n ? " stamp-on" : ""}"></span>`).join("");
+  const left = goal - n;
+  const prize = escapeHtml(business.stamps_prize);
+  const text = left
+    ? `Ещё ${left} ${plural(left, "штамп", "штампа", "штампов")} — и подарок «${prize}»`
+    : `Все штампы собраны! Следующий подарок — «${prize}»`;
+  return `
+    <div class="stamps" role="img" aria-label="Штампы: ${n} из ${goal}">
+      <div class="stamps-row">${dots}<span class="stamp stamp-gift${left ? "" : " stamp-ready"}">${GIFT}</span></div>
+      <p class="stamps-text">${text}</p>
+    </div>`;
+}
+
+export function bonusBlock(business, source, cardCode, stamps = null) {
   if (!bonusEnabled(business) || (source !== "nfc" && source !== "qr")) return "";
   const wheel = business.bonus_mode === "wheel";
+  const ready = stampsOn(business) && stamps !== null && stamps >= business.stamps_goal;
   // Обычная ссылка, а не форма: в РФ провайдеры иногда обрывают соединения с Cloudflare,
   // и обычный переход браузер сам повторяет, а отправку формы — нет («соединение прервано» в Safari).
   // Повтор безопасен: тот же телефон получает тот же код.
@@ -59,10 +77,11 @@ export function bonusBlock(business, source, cardCode) {
   if (cardCode) params.set("c", cardCode);
   return `
     <div class="bonus">
+      ${stampsHtml(business, stamps)}
       <p class="bonus-note">Подарок на следующий визит</p>
       <a class="button bonus-button" href="/bonus?${escapeHtml(params.toString())}" rel="nofollow">
         <span class="icon bonus-icon">${GIFT}</span>
-        <span class="label">${wheel ? "Крутить колесо подарков" : "Получить подарок"}</span>
+        <span class="label">${ready ? "Получить особый подарок" : wheel ? "Крутить колесо подарков" : "Получить подарок"}</span>
       </a>
     </div>`;
 }
@@ -102,15 +121,9 @@ export async function handleBonus(request, env) {
       return infoPage(404, "Бонус сейчас недоступен");
     }
 
-    // Устройство: случайный id в cookie; в базе — только хеш с секретом
-    const cookies = parseCookies(request.headers.get("Cookie"));
-    let deviceId = cookies[DEVICE_COOKIE];
-    let setCookie = null;
-    if (!/^[A-Za-z0-9]{24}$/.test(deviceId || "")) {
-      deviceId = randomString(CODE_ALPHABET + "abcdefghjkmnpqrstuvwxyz", 24);
-      setCookie = `${DEVICE_COOKIE}=${deviceId}; Path=/; Max-Age=${400 * 24 * 3600}; HttpOnly; Secure; SameSite=Lax`;
-    }
-    const visitorKey = await sha256(`${deviceId}|${business.id}|${env.HASH_SALT || env.SUPABASE_SECRET_KEY}`);
+    // Устройство: случайный id в cookie; в базе — только хеш с секретом (guests.js)
+    const { deviceId, setCookie } = deviceFrom(request);
+    const visitorKey = await visitorKeyOf(env, deviceId, business.id);
     const backUrl = cardCode ? `/c/${cardCode}?s=${source}` : `/b/${business.slug}?s=${source}`;
 
     // Уже получал бонус за последние N дней — показываем тот же код, без нового розыгрыша
@@ -118,15 +131,18 @@ export async function handleBonus(request, env) {
     const existing = await db(
       env,
       `bonus_codes?business_id=eq.${business.id}&visitor_key=eq.${visitorKey}` +
-        `&created_at=gt.${encodeURIComponent(since)}&select=code,prize,conditions,valid_from,valid_until,redeemed_at,created_at` +
+        `&created_at=gt.${encodeURIComponent(since)}&select=code,prize,conditions,valid_from,valid_until,redeemed_at,created_at,stamp_reward` +
         `&order=created_at.desc&limit=1`
     );
+    // Штампы (миграция 028): сколько набрано с последнего приза за штампы
+    const stamps = stampsOn(business) ? await stampCount(env, business, visitorKey) : null;
+
     if (existing.length) {
       // Для колеса показываем его уже остановленным на выпавшем призе — так понятно, что розыгрыш был
       const prizes = prizesOf(business);
-      const index = business.bonus_mode === "wheel" ? prizes.findIndex((p) => p.label === existing[0].prize) : -1;
+      const index = business.bonus_mode === "wheel" && !existing[0].stamp_reward ? prizes.findIndex((p) => p.label === existing[0].prize) : -1;
       const wheel = index >= 0 ? { prizes, index } : null;
-      return withCookie(resultPage(business, existing[0], { repeat: true, backUrl, wheel }), setCookie);
+      return withCookie(resultPage(business, existing[0], { repeat: true, backUrl, wheel, stamps }), setCookie);
     }
 
     const now = Date.now();
@@ -161,7 +177,10 @@ export async function handleBonus(request, env) {
     }
 
     const prizes = prizesOf(business);
-    const index = pickWeighted(prizes);
+    // Все штампы собраны — вместо колеса особый приз владельца, счёт штампов начнётся заново
+    const reward = stamps !== null && stamps >= business.stamps_goal;
+    const index = reward ? -1 : pickWeighted(prizes);
+    const prizeLabel = reward ? String(business.stamps_prize).slice(0, 60) : prizes[index].label;
     // Дни — по Москве. С задержкой: с начала дня через N дней и ещё bonus_valid_days дней.
     // Без задержки: с этой минуты до конца (bonus_valid_days)-го дня, считая сегодняшний.
     const delayed = business.bonus_from_days > 0;
@@ -177,16 +196,17 @@ export async function handleBonus(request, env) {
     let saved = null;
     for (let attempt = 0; attempt < 10 && !saved; attempt++) {
       try {
-        const inserted = await db(env, "bonus_codes?select=code,prize,conditions,valid_from,valid_until,redeemed_at", {
+        const inserted = await db(env, "bonus_codes?select=code,prize,conditions,valid_from,valid_until,redeemed_at,stamp_reward", {
           method: "POST",
           body: {
             code: randomString(CODE_DIGITS, CODE_LENGTH),
             business_id: business.id,
             card_id: cardId,
-            prize: prizes[index].label,
+            prize: prizeLabel,
             conditions: business.bonus_conditions || null,
             visitor_key: visitorKey,
             device_day: deviceDay,
+            ...(reward ? { stamp_reward: true } : {}),
             valid_from: new Date(validFrom).toISOString(),
             valid_until: new Date(validUntil).toISOString()
           },
@@ -200,7 +220,12 @@ export async function handleBonus(request, env) {
     if (!saved) throw new Error("Не удалось подобрать свободный код");
 
     return withCookie(
-      resultPage(business, saved, { repeat: false, backUrl, wheel: business.bonus_mode === "wheel" ? { prizes, index } : null }),
+      resultPage(business, saved, {
+        repeat: false,
+        backUrl,
+        wheel: business.bonus_mode === "wheel" && !reward ? { prizes, index } : null,
+        stamps: reward ? 0 : stamps
+      }),
       setCookie
     );
   } catch (error) {
@@ -294,7 +319,14 @@ export function validityText(c) {
   return `Действует с ${dayLabel(from)} по ${dayLabel(lastDay)}`;
 }
 
-function resultPage(business, c, { repeat, backUrl, wheel = null }) {
+function resultPage(business, c, { repeat, backUrl, wheel = null, stamps = null }) {
+  // Штампы: приз за штампы — праздничная надпись; обычный код — прогресс и «штамп поставят на кассе»
+  let stampBox = "";
+  if (stampsOn(business) && stamps !== null) {
+    stampBox = c.stamp_reward
+      ? `<p class="br-stamp">🎉 Все ${business.stamps_goal} ${plural(business.stamps_goal, "штамп", "штампа", "штампов")} собраны — это ваш особый подарок. Штампы начинают копиться заново.</p>`
+      : `${stampsHtml(business, stamps)}${c.redeemed_at ? "" : `<p class="br-stamp-note">Штамп появится, когда кассир погасит этот код.</p>`}`;
+  }
   const status = c.redeemed_at
     ? `<p class="br-warn">Этот код уже использован ${escapeHtml(dayLabel(Date.parse(c.redeemed_at)))}. Новый подарок можно будет получить позже.</p>`
     : "";
@@ -305,7 +337,7 @@ function resultPage(business, c, { repeat, backUrl, wheel = null }) {
     : "";
   const result = `
     <div class="br ${wheel && !repeat ? "br-after-spin" : "br-fade"}">
-      <p class="br-kicker">${repeat ? "Ваш подарок уже ждёт вас" : wheel ? "Ваш приз" : "Ваш подарок"}</p>
+      <p class="br-kicker">${c.stamp_reward ? "Подарок за штампы" : repeat ? "Ваш подарок уже ждёт вас" : wheel ? "Ваш приз" : "Ваш подарок"}</p>
       <p class="br-prize">${escapeHtml(c.prize)}</p>
       <p class="br-code" aria-label="Код ${escapeHtml(c.code.split("").join(" "))}">${escapeHtml(formatCode(c.code))}</p>
       <p class="br-valid">${escapeHtml(validityText(c))}</p>
@@ -329,6 +361,7 @@ function resultPage(business, c, { repeat, backUrl, wheel = null }) {
       <div class="divider"></div>
       ${wheel ? wheelHtml(wheel.prizes, wheel.index, repeat, business.theme) : `<div class="br-gift" aria-hidden="true">${GIFT}</div>`}
       ${result}
+      ${stampBox}
       <p class="br-rules">Подарок не зависит от отзыва. Один подарок на устройство за ${business.bonus_cooldown_days} ${plural(business.bonus_cooldown_days, "день", "дня", "дней")}.</p>
       <a class="br-back" href="${escapeHtml(backUrl)}">← Вернуться к странице заведения</a>`
   });
@@ -444,6 +477,9 @@ const BONUS_PAGE_CSS = `
   .br-hint { margin: 10px 0 0; font-size: 13px; color: #6b7280; }
   .br-rules { margin: 14px 0 0; font-size: 12px; color: var(--muted); }
   .br-back { display: inline-block; margin-top: 14px; font-size: 14px; color: var(--text); text-underline-offset: 3px; }
+  .br .stamps, .br ~ .stamps { margin-top: 16px; }
+  .br-stamp { margin: 14px 0 0; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 14%, transparent); font-size: 14px; font-weight: 600; color: var(--text); }
+  .br-stamp-note { margin: 6px 0 0; font-size: 12.5px; color: var(--muted); }
   @media (prefers-reduced-motion: reduce) {
     .wheel { animation: none; transform: rotate(var(--end)); }
     .br-fade, .br-after-spin { animation: none; }
@@ -530,15 +566,6 @@ export async function bonusFunnel(env, businessIds, { from, to, cardId = null })
 function withCookie(response, cookie) {
   if (cookie) response.headers.append("Set-Cookie", cookie);
   return response;
-}
-
-function parseCookies(header) {
-  const out = {};
-  for (const part of String(header || "").split(";")) {
-    const i = part.indexOf("=");
-    if (i > 0) out[part.slice(0, i).trim()] = part.slice(i + 1).trim();
-  }
-  return out;
 }
 
 function randomString(alphabet, length) {

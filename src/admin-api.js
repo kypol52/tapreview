@@ -59,6 +59,7 @@ const ADMIN_COLUMNS =
   "google_url,yandex_url,twogis_url,discount_code,discount_text,is_active," +
   "paid_until,monthly_price,billing_note," +
   "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions,bonus_daily_limit," +
+  "stamps_goal,stamps_prize," +
   "referred_by,ref_reward_at,theme,design,extra_links,rating_first,moment," +
   "created_at,updated_at";
 
@@ -702,7 +703,14 @@ function cleanBonus(input) {
     if (!Number.isInteger(n) || n < min || n > max) throw new HttpError(400, `${label}: целое число от ${min} до ${max}`);
     return n;
   };
+  // Штампы (миграция 028): пусто — выключены
+  const stampsGoal = int(input.stamps_goal, 2, 10, "Штампов до особого приза", null);
+  const stampsPrize = cleanText(input.stamps_prize, 60, "Особый приз за штампы") || null;
+  if (stampsGoal && !stampsPrize) throw new HttpError(400, "Штампы: напишите особый приз (например, «Пицца в подарок»)");
+  if (stampsPrize && !stampsGoal) throw new HttpError(400, "Штампы: укажите, сколько штампов нужно собрать (от 2 до 10)");
   return {
+    stamps_goal: stampsGoal,
+    stamps_prize: stampsGoal ? stampsPrize : null,
     bonus_mode: mode,
     bonus_prizes: cleanPrizes,
     bonus_from_days: int(input.bonus_from_days, 0, 30, "Через сколько дней начинает действовать", 1),
