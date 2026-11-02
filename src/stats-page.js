@@ -10,6 +10,7 @@ import { normalizeCode, findCode, redeemCode, bonusCounts, bonusFunnel, validity
 import { ratingStats, setFeedbackResolved, LIKES, PHONE_KEEP_DAYS } from "./rating.js";
 import { refUrl, refStats } from "./referral.js";
 import { recentScore, scoreHtml, SCORE_CSS } from "./score.js";
+import { rewardInviter } from "./friends.js";
 
 const TOKEN_RE = /^[A-Za-z0-9]{24}$/;
 // Куда владелец пишет, чтобы продлить подписку (личный Telegram TapReview)
@@ -206,6 +207,8 @@ async function renderDesk(request, env, { ids, base, owner, token, by, onRedeem 
       if (wantRedeem && found && found.state === "ok") {
         const done = await redeemCode(env, found.row.id, by);
         if (done && onRedeem) await onRedeem();
+        // Погашен подарок по приглашению → подарок пригласившему другу (friends.js)
+        if (done) await rewardInviter(env, found.row);
         result = done
           ? deskResult("done", found.row, names, "Код погашен — можно выдавать подарок")
           : deskResult("used", found.row, names, "Код уже погашен");

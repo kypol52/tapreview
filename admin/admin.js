@@ -1446,6 +1446,8 @@ function readForm() {
     bonus_daily_limit: $("f-bonus-daily").value,
     stamps_goal: $("f-stamps-goal").value,
     stamps_prize: $("f-stamps-prize").value,
+    friend_gift: $("f-friend-gift").value,
+    friend_reward: $("f-friend-reward").value,
     bonus_conditions: $("f-bonus-conditions").value,
     brand_color: $("f-color-on").checked ? $("f-color").value : null,
     is_active: $("f-active").checked,
@@ -1800,6 +1802,8 @@ function fillBonus(business) {
   $("f-bonus-daily").value = business ? business.bonus_daily_limit ?? 50 : 50;
   $("f-stamps-goal").value = business && business.stamps_goal ? String(business.stamps_goal) : "";
   $("f-stamps-prize").value = business ? business.stamps_prize || "" : "";
+  $("f-friend-gift").value = business ? business.friend_gift || "" : "";
+  $("f-friend-reward").value = business ? business.friend_reward || "" : "";
   $("f-bonus-conditions").value = business ? business.bonus_conditions || "" : "";
   $("f-bonus-stats").textContent = "";
   showBonusMode();

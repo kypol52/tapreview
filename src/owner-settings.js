@@ -119,7 +119,9 @@ function bonusFields(form) {
     bonus_cooldown_days: String(form.get("cooldown_days") || ""),
     bonus_daily_limit: String(form.get("daily_limit") || ""),
     stamps_goal: String(form.get("stamps_goal") || ""),
-    stamps_prize: String(form.get("stamps_prize") || "")
+    stamps_prize: String(form.get("stamps_prize") || ""),
+    friend_gift: String(form.get("friend_gift") || ""),
+    friend_reward: String(form.get("friend_reward") || "")
   };
 }
 
@@ -270,6 +272,13 @@ function bonusSection(b, hidden, msg) {
             <label>Особый приз<input name="stamps_prize" maxlength="60" value="${esc(b.stamps_prize || "")}" placeholder="Пицца в подарок"></label>
           </div>
           <p class="set-hint">Чтобы штампы копились быстрее, поставьте «Один подарок на телефон раз в» 7 дней.</p>
+        </fieldset>
+        <fieldset class="set-prizes"><legend>Подарите другу (необязательно)</legend>
+          <p class="set-hint">Гость делится ссылкой со своего экрана подарка. Новый гость получает подарок на первый визит, а пригласивший — свой, когда друг придёт и кассир погасит его код. До 3 друзей в месяц по одной ссылке. Пусто — выключено.</p>
+          <div class="set-two">
+            <label>Подарок другу<input name="friend_gift" maxlength="60" value="${esc(b.friend_gift || "")}" placeholder="Десерт в подарок"></label>
+            <label>Подарок пригласившему<input name="friend_reward" maxlength="60" value="${esc(b.friend_reward || "")}" placeholder="Капучино"></label>
+          </div>
         </fieldset>
         <p class="set-hint">Подарок не должен зависеть от отзыва — так требуют правила Яндекс Карт и 2ГИС. Не пишите «за отзыв».</p>
         <button class="set-save" type="submit">Сохранить</button>

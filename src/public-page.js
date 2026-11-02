@@ -72,7 +72,7 @@ export const GIFT = `<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20"
 // Настройки бонуса для гостей (bonus.js, миграции 015, 023)
 export const BONUS_COLUMNS =
   "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions,bonus_daily_limit," +
-  "stamps_goal,stamps_prize";
+  "stamps_goal,stamps_prize,friend_gift,friend_reward";
 
 const BUSINESS_COLUMNS =
   "id,slug,name,tagline,category,logo_url,brand_color,google_url,yandex_url,twogis_url," +
@@ -503,7 +503,7 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
 
   // Подарок для гостей (bonus.js): только при скане карты, появляется через несколько секунд,
   // не зависит от отзыва. Без JavaScript — обычная форма.
-  const discount = bonusBlock(business, source, cardCode, guest ? guest.stamps : null);
+  const discount = bonusBlock(business, source, cardCode, guest ? guest.stamps : null, guest ? guest.rewards : 0);
 
   if (business.rating_first) {
     return ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, discount, design });
@@ -956,6 +956,8 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
     .stamp-gift svg { display: block; width: 100%; height: 100%; }
     .stamp-ready { opacity: 1; animation: stamp-pulse 1.6s ease-in-out infinite; }
     @keyframes stamp-pulse { 50% { transform: scale(1.12); } }
+    .bonus-friend { margin: 0 0 10px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 14%, transparent);
+      font-size: 13.5px; font-weight: 650; line-height: 1.4; color: var(--text); }
     .stamps-text { margin: 6px 0 0; font-size: 13px; font-weight: 600; color: var(--text); }
     @media (prefers-reduced-motion: reduce) { .stamp-ready { animation: none; } }
     /* «Сейчас у нас» */
@@ -1186,7 +1188,7 @@ ${extraCss}
   });
 }
 
-function isHttpsUrl(value) {
+export function isHttpsUrl(value) {
   if (!value) return false;
   try {
     return new URL(value).protocol === "https:";

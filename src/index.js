@@ -13,6 +13,7 @@
 //   POST /s/:token/fb    — владелец отмечает сообщение гостя «Разобрано» (stats-page.js)
 //   /k/:token            — касса для персонала: только проверить и погасить код (stats-page.js)
 //   POST /bonus          — выдать гостю код подарка, колесо призов (bonus.js)
+//   /f/:code             — «Подарите другу»: подарок новому гостю по приглашению (friends.js)
 //   /m/:id               — картинки «Своего дизайна»: фон и логотип заведения (media.js)
 //   /r/:slug             — ссылка-приглашение заведения: учёт перехода → главная с ?ref= (referral.js)
 // Все остальные адреса отдаются как обычные файлы (index.html, admin/, 404.html и т.д.).
@@ -24,6 +25,7 @@ import { handleStatsPage, handleBonusDesk, handleStaffDesk, handleFeedbackResolv
 import { handleBonus } from "./bonus.js";
 import { handleOwnerSettings } from "./owner-settings.js";
 import { purgeOldVisits } from "./guests.js";
+import { handleFriend } from "./friends.js";
 import { handleWrapped, monthlyWrapped } from "./wrapped.js";
 import { handleRef } from "./referral.js";
 import { handleOrder, orderReminders } from "./orders.js";
@@ -64,6 +66,11 @@ export default {
     const refMatch = url.pathname.match(/^\/r\/([^/]+)\/?$/);
     if (refMatch && isRead) {
       return handleRef(request, env, ctx, refMatch[1]);
+    }
+
+    const friendMatch = url.pathname.match(/^\/f\/([^/]+)\/?$/);
+    if (friendMatch && isRead) {
+      return handleFriend(request, env, friendMatch[1]);
     }
 
     const mediaMatch = url.pathname.match(/^\/m\/([^/]+)$/);

@@ -19,6 +19,7 @@ import { isBot, visitorHashOf } from "./analytics.js";
 import { renderPage, escapeHtml, GIFT, DEFAULT_ACCENT, BONUS_COLUMNS, customDesign } from "./public-page.js";
 import { isExpired } from "./billing.js";
 import { deviceFrom, visitorKeyOf, stampsOn, stampCount } from "./guests.js";
+import { friendOn, inviteFor, inviterRewards, inviteBlock } from "./friends.js";
 
 // Коды подарков — 6 цифр (быстро набрать на кассе). Старые коды с буквами по-прежнему принимаются.
 const CODE_DIGITS = "0123456789";
@@ -66,7 +67,7 @@ export function stampsHtml(business, count) {
     </div>`;
 }
 
-export function bonusBlock(business, source, cardCode, stamps = null) {
+export function bonusBlock(business, source, cardCode, stamps = null, rewards = 0) {
   if (!bonusEnabled(business) || (source !== "nfc" && source !== "qr")) return "";
   const wheel = business.bonus_mode === "wheel";
   const ready = stampsOn(business) && stamps !== null && stamps >= business.stamps_goal;
@@ -78,6 +79,7 @@ export function bonusBlock(business, source, cardCode, stamps = null) {
   return `
     <div class="bonus">
       ${stampsHtml(business, stamps)}
+      ${rewards ? `<p class="bonus-friend">🎉 Ваш друг пришёл по приглашению — для вас подарок «${escapeHtml(business.friend_reward || "")}». Нажмите кнопку, код будет сверху.</p>` : ""}
       <p class="bonus-note">Подарок на следующий визит</p>
       <a class="button bonus-button" href="/bonus?${escapeHtml(params.toString())}" rel="nofollow">
         <span class="icon bonus-icon">${GIFT}</span>
@@ -126,54 +128,37 @@ export async function handleBonus(request, env) {
     const visitorKey = await visitorKeyOf(env, deviceId, business.id);
     const backUrl = cardCode ? `/c/${cardCode}?s=${source}` : `/b/${business.slug}?s=${source}`;
 
-    // Уже получал бонус за последние N дней — показываем тот же код, без нового розыгрыша
+    // Уже получал бонус за последние N дней — показываем тот же код, без нового розыгрыша.
+    // Подарок «за друга» (reward_kind = inviter) сюда не входит: он показывается отдельно и не мешает обычному.
     const since = new Date(Date.now() - business.bonus_cooldown_days * DAY).toISOString();
     const existing = await db(
       env,
       `bonus_codes?business_id=eq.${business.id}&visitor_key=eq.${visitorKey}` +
-        `&created_at=gt.${encodeURIComponent(since)}&select=code,prize,conditions,valid_from,valid_until,redeemed_at,created_at,stamp_reward` +
+        `&created_at=gt.${encodeURIComponent(since)}&or=(reward_kind.is.null,reward_kind.eq.friend)&select=${CODE_FIELDS}` +
         `&order=created_at.desc&limit=1`
     );
-    // Штампы (миграция 028): сколько набрано с последнего приза за штампы
-    const stamps = stampsOn(business) ? await stampCount(env, business, visitorKey) : null;
+    // Штампы (миграция 028), подарки за приглашённых друзей и ссылка «Подарите другу» (миграция 030)
+    const [stamps, rewards, invite] = await Promise.all([
+      stampsOn(business) ? stampCount(env, business, visitorKey) : null,
+      friendOn(business) ? inviterRewards(env, business, visitorKey) : [],
+      friendOn(business) ? inviteFor(env, business, visitorKey) : null
+    ]);
+    const extras = { stamps, rewards, invite };
 
     if (existing.length) {
       // Для колеса показываем его уже остановленным на выпавшем призе — так понятно, что розыгрыш был
       const prizes = prizesOf(business);
-      const index = business.bonus_mode === "wheel" && !existing[0].stamp_reward ? prizes.findIndex((p) => p.label === existing[0].prize) : -1;
+      const index = business.bonus_mode === "wheel" && !existing[0].stamp_reward && !existing[0].reward_kind
+        ? prizes.findIndex((p) => p.label === existing[0].prize)
+        : -1;
       const wheel = index >= 0 ? { prizes, index } : null;
-      return withCookie(resultPage(business, existing[0], { repeat: true, backUrl, wheel, stamps }), setCookie);
+      return withCookie(resultPage(business, existing[0], { repeat: true, backUrl, wheel, ...extras }), setCookie);
     }
 
-    const now = Date.now();
-    const dayStart = Math.floor((now + MSK_OFFSET) / DAY) * DAY - MSK_OFFSET;
-
-    // Защита от накрутки (миграция 023):
-    //  1) один код в день с одного телефона, даже в инкогнито / после очистки cookie —
-    //     по суточному обезличенному отпечатку «сеть + браузер» (IP не хранится);
-    //  2) не больше bonus_daily_limit кодов в день на заведение.
-    const deviceDay = await sha256(`${await visitorHashOf(request, env)}|${business.id}`);
-    const limit = business.bonus_daily_limit || 50;
-    const [sameDevice, today] = await Promise.all([
-      db(env, `bonus_codes?business_id=eq.${business.id}&device_day=eq.${deviceDay}&select=id&limit=1`),
-      db(
-        env,
-        `bonus_codes?business_id=eq.${business.id}&created_at=gte.${encodeURIComponent(new Date(dayStart).toISOString())}` +
-          `&select=id&limit=${limit}`
-      )
-    ]);
-    if (sameDevice.length) {
-      return withCookie(
-        limitPage(business, backUrl, "Подарок с этого телефона сегодня уже получен",
-          "Код был на экране, когда вы получали подарок. Новый подарок можно будет получить в другой день."),
-        setCookie
-      );
-    }
-    if (today.length >= limit) {
-      return withCookie(
-        limitPage(business, backUrl, "Подарки на сегодня закончились", "Приходите завтра — подарки снова будут ждать вас."),
-        setCookie
-      );
+    // Защита от накрутки (миграция 023): один код в день с телефона и лимит кодов в день на заведение
+    const guard = await dailyGuard(request, env, business);
+    if (guard.blocked) {
+      return withCookie(limitPage(business, backUrl, guard.blocked.heading, guard.blocked.text, rewards), setCookie);
     }
 
     const prizes = prizesOf(business);
@@ -181,11 +166,6 @@ export async function handleBonus(request, env) {
     const reward = stamps !== null && stamps >= business.stamps_goal;
     const index = reward ? -1 : pickWeighted(prizes);
     const prizeLabel = reward ? String(business.stamps_prize).slice(0, 60) : prizes[index].label;
-    // Дни — по Москве. С задержкой: с начала дня через N дней и ещё bonus_valid_days дней.
-    // Без задержки: с этой минуты до конца (bonus_valid_days)-го дня, считая сегодняшний.
-    const delayed = business.bonus_from_days > 0;
-    const validFrom = delayed ? dayStart + business.bonus_from_days * DAY : now;
-    const validUntil = (delayed ? validFrom : dayStart) + business.bonus_valid_days * DAY;
 
     let cardId = null;
     if (cardCode) {
@@ -193,37 +173,20 @@ export async function handleBonus(request, env) {
       cardId = cards.length ? cards[0].id : null;
     }
 
-    let saved = null;
-    for (let attempt = 0; attempt < 10 && !saved; attempt++) {
-      try {
-        const inserted = await db(env, "bonus_codes?select=code,prize,conditions,valid_from,valid_until,redeemed_at,stamp_reward", {
-          method: "POST",
-          body: {
-            code: randomString(CODE_DIGITS, CODE_LENGTH),
-            business_id: business.id,
-            card_id: cardId,
-            prize: prizeLabel,
-            conditions: business.bonus_conditions || null,
-            visitor_key: visitorKey,
-            device_day: deviceDay,
-            ...(reward ? { stamp_reward: true } : {}),
-            valid_from: new Date(validFrom).toISOString(),
-            valid_until: new Date(validUntil).toISOString()
-          },
-          prefer: "return=representation"
-        });
-        saved = inserted[0];
-      } catch (error) {
-        if (error.code !== "23505") throw error; // совпал код — пробуем другой
-      }
-    }
-    if (!saved) throw new Error("Не удалось подобрать свободный код");
+    const saved = await issueCode(env, business, {
+      prize: prizeLabel,
+      visitorKey,
+      deviceDay: guard.deviceDay,
+      cardId,
+      extra: reward ? { stamp_reward: true } : {}
+    });
 
     return withCookie(
       resultPage(business, saved, {
         repeat: false,
         backUrl,
         wheel: business.bonus_mode === "wheel" && !reward ? { prizes, index } : null,
+        ...extras,
         stamps: reward ? 0 : stamps
       }),
       setCookie
@@ -232,6 +195,75 @@ export async function handleBonus(request, env) {
     console.error(`Bonus error: ${error.message}\n${error.stack}`);
     return infoPage(500, "Не удалось выдать бонус. Попробуйте ещё раз через минуту.");
   }
+}
+
+export const CODE_FIELDS = "code,prize,conditions,valid_from,valid_until,redeemed_at,created_at,stamp_reward,reward_kind";
+
+// Защита от накрутки (миграция 023):
+//  1) один код в день с одного телефона, даже в инкогнито / после очистки cookie —
+//     по суточному обезличенному отпечатку «сеть + браузер» (IP не хранится);
+//  2) не больше bonus_daily_limit кодов в день на заведение.
+// → { deviceDay, blocked: null | { heading, text } }
+export async function dailyGuard(request, env, business) {
+  const dayStart = Math.floor((Date.now() + MSK_OFFSET) / DAY) * DAY - MSK_OFFSET;
+  const deviceDay = await sha256(`${await visitorHashOf(request, env)}|${business.id}`);
+  const limit = business.bonus_daily_limit || 50;
+  const [sameDevice, today] = await Promise.all([
+    db(env, `bonus_codes?business_id=eq.${business.id}&device_day=eq.${deviceDay}&select=id&limit=1`),
+    db(
+      env,
+      `bonus_codes?business_id=eq.${business.id}&created_at=gte.${encodeURIComponent(new Date(dayStart).toISOString())}` +
+        `&select=id&limit=${limit}`
+    )
+  ]);
+  if (sameDevice.length) {
+    return {
+      deviceDay,
+      blocked: {
+        heading: "Подарок с этого телефона сегодня уже получен",
+        text: "Код был на экране, когда вы получали подарок. Новый подарок можно будет получить в другой день."
+      }
+    };
+  }
+  if (today.length >= limit) {
+    return { deviceDay, blocked: { heading: "Подарки на сегодня закончились", text: "Приходите завтра — подарки снова будут ждать вас." } };
+  }
+  return { deviceDay, blocked: null };
+}
+
+// Новый одноразовый код подарка со сроками заведения. extra — stamp_reward / reward_kind / invite_code.
+// Дни — по Москве. С задержкой: с начала дня через N дней и ещё bonus_valid_days дней.
+// Без задержки: с этой минуты до конца (bonus_valid_days)-го дня, считая сегодняшний.
+export async function issueCode(env, business, { prize, visitorKey, deviceDay = null, cardId = null, extra = {}, noDelay = false }) {
+  const now = Date.now();
+  const dayStart = Math.floor((now + MSK_OFFSET) / DAY) * DAY - MSK_OFFSET;
+  const delayed = !noDelay && business.bonus_from_days > 0;
+  const validFrom = delayed ? dayStart + business.bonus_from_days * DAY : now;
+  const validUntil = (delayed ? validFrom : dayStart) + (business.bonus_valid_days || 14) * DAY;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    try {
+      const inserted = await db(env, `bonus_codes?select=${CODE_FIELDS}`, {
+        method: "POST",
+        body: {
+          code: randomString(CODE_DIGITS, CODE_LENGTH),
+          business_id: business.id,
+          card_id: cardId,
+          prize: String(prize).slice(0, 60),
+          conditions: business.bonus_conditions || null,
+          visitor_key: visitorKey,
+          device_day: deviceDay,
+          ...extra,
+          valid_from: new Date(validFrom).toISOString(),
+          valid_until: new Date(validUntil).toISOString()
+        },
+        prefer: "return=representation"
+      });
+      return inserted[0];
+    } catch (error) {
+      if (error.code !== "23505") throw error; // совпал код — пробуем другой
+    }
+  }
+  throw new Error("Не удалось подобрать свободный код");
 }
 
 function pickWeighted(prizes) {
@@ -319,7 +351,7 @@ export function validityText(c) {
   return `Действует с ${dayLabel(from)} по ${dayLabel(lastDay)}`;
 }
 
-function resultPage(business, c, { repeat, backUrl, wheel = null, stamps = null }) {
+function resultPage(business, c, { repeat, backUrl, wheel = null, stamps = null, rewards = [], invite = null }) {
   // Штампы: приз за штампы — праздничная надпись; обычный код — прогресс и «штамп поставят на кассе»
   let stampBox = "";
   if (stampsOn(business) && stamps !== null) {
@@ -337,7 +369,7 @@ function resultPage(business, c, { repeat, backUrl, wheel = null, stamps = null 
     : "";
   const result = `
     <div class="br ${wheel && !repeat ? "br-after-spin" : "br-fade"}">
-      <p class="br-kicker">${c.stamp_reward ? "Подарок за штампы" : repeat ? "Ваш подарок уже ждёт вас" : wheel ? "Ваш приз" : "Ваш подарок"}</p>
+      <p class="br-kicker">${c.stamp_reward ? "Подарок за штампы" : c.reward_kind === "friend" ? "Подарок от друга" : repeat ? "Ваш подарок уже ждёт вас" : wheel ? "Ваш приз" : "Ваш подарок"}</p>
       <p class="br-prize">${escapeHtml(c.prize)}</p>
       <p class="br-code" aria-label="Код ${escapeHtml(c.code.split("").join(" "))}">${escapeHtml(formatCode(c.code))}</p>
       <p class="br-valid">${escapeHtml(validityText(c))}</p>
@@ -359,16 +391,35 @@ function resultPage(business, c, { repeat, backUrl, wheel = null, stamps = null 
     body: `
       <h1 class="name name-long">${escapeHtml(business.name)}</h1>
       <div class="divider"></div>
+      ${rewardsHtml(rewards)}
       ${wheel ? wheelHtml(wheel.prizes, wheel.index, repeat, business.theme) : `<div class="br-gift" aria-hidden="true">${GIFT}</div>`}
       ${result}
       ${stampBox}
+      ${invite ? inviteBlock(business, invite) : ""}
       <p class="br-rules">Подарок не зависит от отзыва. Один подарок на устройство за ${business.bonus_cooldown_days} ${plural(business.bonus_cooldown_days, "день", "дня", "дней")}.</p>
       <a class="br-back" href="${escapeHtml(backUrl)}">← Вернуться к странице заведения</a>`
   });
 }
 
 // Отказ в оформлении заведения (лимит подарков) — с кнопкой назад к странице заведения
-function limitPage(business, backUrl, heading, text) {
+// Подарки «за друга», которые ждут гостя (друг пришёл и погасил свой код) — сверху страницы подарка
+export function rewardsHtml(rewards) {
+  if (!rewards || !rewards.length) return "";
+  return rewards
+    .map((c) => `
+      <div class="br br-friend">
+        <p class="br-kicker">🎉 Ваш друг пришёл — подарок вам</p>
+        <p class="br-prize">${escapeHtml(c.prize)}</p>
+        <p class="br-code" aria-label="Код ${escapeHtml(c.code.split("").join(" "))}">${escapeHtml(formatCode(c.code))}</p>
+        <p class="br-valid">${escapeHtml(validityText(c))}</p>
+        ${c.conditions ? `<p class="br-cond">Условия: ${escapeHtml(c.conditions)}</p>` : ""}
+      </div>`)
+    .join("");
+}
+
+export { BONUS_PAGE_CSS, formatCode, plural, infoPage, withCookie };
+
+function limitPage(business, backUrl, heading, text, rewards = []) {
   return renderPage({
     status: 200,
     title: `Подарок — ${business.name}`,
@@ -380,6 +431,7 @@ function limitPage(business, backUrl, heading, text) {
     body: `
       <h1 class="name name-long">${escapeHtml(business.name)}</h1>
       <div class="divider"></div>
+      ${rewardsHtml(rewards)}
       <div class="br-gift" aria-hidden="true">${GIFT}</div>
       <h2 class="thanks">${escapeHtml(heading)}</h2>
       <p class="lead">${escapeHtml(text)}</p>
@@ -479,6 +531,16 @@ const BONUS_PAGE_CSS = `
   .br-back { display: inline-block; margin-top: 14px; font-size: 14px; color: var(--text); text-underline-offset: 3px; }
   .br .stamps, .br ~ .stamps { margin-top: 16px; }
   .br-stamp { margin: 14px 0 0; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 14%, transparent); font-size: 14px; font-weight: 600; color: var(--text); }
+  .br-friend { margin: 0 0 16px; border-style: solid; border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, #fffdf6); }
+  .invite { margin-top: 18px; padding: 16px; border-radius: 18px; border: 1px solid var(--btn-border); background: var(--btn-bg); text-align: left; }
+  .invite-title { margin: 0 0 4px; font-size: 16px; font-weight: 800; color: var(--text); }
+  .invite-text { margin: 0 0 12px; font-size: 14px; line-height: 1.45; color: var(--muted); }
+  .invite-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .invite-btn { display: grid; place-items: center; min-height: 44px; border-radius: 12px; color: #fff; font-size: 14px; font-weight: 700; text-decoration: none; }
+  .invite-tg { background: #229ed9; }
+  .invite-wa { background: #25a244; }
+  .invite-link { margin: 10px 0 0; padding: 9px 12px; border-radius: 10px; background: rgba(127,127,127,0.08); font-size: 13.5px; font-weight: 600; color: var(--text); overflow-wrap: anywhere; user-select: all; -webkit-user-select: all; }
+  .invite-hint { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
   .br-stamp-note { margin: 6px 0 0; font-size: 12.5px; color: var(--muted); }
   @media (prefers-reduced-motion: reduce) {
     .wheel { animation: none; transform: rotate(var(--end)); }
@@ -504,7 +566,7 @@ export async function findCode(env, code, businessIds) {
   const rows = await db(
     env,
     `bonus_codes?code=eq.${code}&business_id=in.(${businessIds.join(",")})` +
-      `&select=id,code,business_id,prize,conditions,valid_from,valid_until,redeemed_at,created_at&limit=1`
+      `&select=id,code,business_id,prize,conditions,valid_from,valid_until,redeemed_at,created_at,reward_kind,invite_code&limit=1`
   );
   if (!rows.length) return null;
   const row = rows[0];

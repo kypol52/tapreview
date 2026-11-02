@@ -6,6 +6,7 @@
 // Штамп — код подарка, погашенный на кассе: подделать его гость не может.
 
 import { db } from "./supabase.js";
+import { friendOn, inviterRewards } from "./friends.js";
 
 export const DEVICE_COOKIE = "tr_device";
 const DEVICE_RE = /^[A-Za-z0-9]{24}$/;
@@ -51,7 +52,7 @@ export async function guestOf(request, env, business, source) {
   if (source !== "nfc" && source !== "qr") return null;
   const { deviceId, setCookie } = deviceFrom(request);
   const key = await visitorKeyOf(env, deviceId, business.id);
-  const [visits, stamps] = await Promise.all([
+  const [visits, stamps, rewards] = await Promise.all([
     db(env, "rpc/log_visit", { method: "POST", body: { p_business_id: business.id, p_key: key } }).catch((error) => {
       console.error(`log_visit: ${error.message}`);
       return null;
@@ -61,9 +62,13 @@ export async function guestOf(request, env, business, source) {
           console.error(`stampCount: ${error.message}`);
           return null;
         })
+      : 0,
+    // Подарки «за друга», которые ждут гостя (friends.js)
+    friendOn(business) && !setCookie
+      ? inviterRewards(env, business, key).then((rows) => rows.length).catch(() => 0)
       : 0
   ]);
-  return { visits: Number(visits) || null, stamps, setCookie };
+  return { visits: Number(visits) || null, stamps, rewards, setCookie };
 }
 
 // Раз в день: визиты старше VISITS_KEEP_DAYS удаляем
