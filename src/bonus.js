@@ -463,6 +463,18 @@ export async function bonusCounts(env, businessIds, days = 30) {
   return { issued: rows.length, redeemed, byPrize };
 }
 
+// Для воронки в статистике: коды, выданные за период (и сколько из них уже погашено). cardId — одна карта.
+export async function bonusFunnel(env, businessIds, { from, to, cardId = null }) {
+  const rows = await db(
+    env,
+    `bonus_codes?business_id=in.(${businessIds.join(",")})` +
+      `&created_at=gte.${encodeURIComponent(new Date(from).toISOString())}&created_at=lt.${encodeURIComponent(new Date(to).toISOString())}` +
+      (cardId ? `&card_id=eq.${cardId}` : "") +
+      `&select=redeemed_at&limit=10000`
+  );
+  return { issued: rows.length, redeemed: rows.filter((r) => r.redeemed_at).length };
+}
+
 // ---------- Мелочи ----------
 
 function withCookie(response, cookie) {

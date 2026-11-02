@@ -3,7 +3,7 @@
 // (две попытки подряд) или копия базы на Яндекс Диске старше 2 суток — пишет администратору в Telegram.
 // Повторное сообщение — не чаще раза в 30 минут, и одно «снова работает», когда всё починилось.
 //
-// Секреты Worker (Settings → Variables and Secrets, тип Secret): TG_BOT_TOKEN, ALERT_CHAT_ID.
+// Секреты Worker (Settings → Variables and Secrets, тип Secret): TG_BOT_TOKEN, ALERT_CHAT_ID (можно несколько через запятую).
 
 import { tg } from "./telegram.js";
 
@@ -25,12 +25,18 @@ export async function uptimeCheck(env) {
   // перезапустит Worker, в худшем случае придёт лишнее повторное сообщение)
   if (problem) {
     if (lastAlertAt && Date.now() - lastAlertAt < REMIND_S * 1000) return;
-    await tg(env, "sendMessage", { chat_id: env.ALERT_CHAT_ID, text: `🚨 TapReview: ${problem}` });
+    await notify(env, `🚨 TapReview: ${problem}`);
     lastAlertAt = Date.now();
   } else if (lastAlertAt) {
     lastAlertAt = 0;
-    await tg(env, "sendMessage", { chat_id: env.ALERT_CHAT_ID, text: "✅ TapReview снова работает" });
+    await notify(env, "✅ TapReview снова работает");
   }
+}
+
+// ALERT_CHAT_ID — один chat_id или несколько через запятую
+async function notify(env, text) {
+  const ids = String(env.ALERT_CHAT_ID).split(",").map((s) => s.trim()).filter(Boolean);
+  await Promise.allSettled(ids.map((chat_id) => tg(env, "sendMessage", { chat_id, text })));
 }
 
 let lastAlertAt = 0;

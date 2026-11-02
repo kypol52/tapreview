@@ -6,7 +6,7 @@ import { db } from "./supabase.js";
 import { PERIODS, PLATFORMS, loadReports, loadDaily, sumTotals, formatDateRange, formatCardCode } from "./report.js";
 import { ICONS } from "./public-page.js";
 import { formatDay } from "./billing.js";
-import { normalizeCode, findCode, redeemCode, bonusCounts, validityText } from "./bonus.js";
+import { normalizeCode, findCode, redeemCode, bonusCounts, bonusFunnel, validityText } from "./bonus.js";
 import { ratingStats } from "./rating.js";
 import { refUrl, refStats } from "./referral.js";
 
@@ -113,7 +113,20 @@ async function statsPage(request, env, ctx, token) {
   });
   const names = new Map(allVenues.map((v) => [v.id, v.name]));
 
-  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn: bonusRows.length > 0, invite, ratings, names };
+  // Подарки за тот же период — для воронки «Путь гостя»
+  const bonusOn = bonusRows.length > 0;
+  const bonus = bonusOn
+    ? await bonusFunnel(env, view.dailyIds, {
+        from: venues[0].range.from,
+        to: venues[0].range.to,
+        cardId: view.card ? view.card.id : null
+      }).catch((error) => {
+        console.error(`bonusFunnel: ${error.message}`);
+        return null;
+      })
+    : null;
+
+  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn, invite, ratings, names, bonus };
   return html(200, `Статистика · ${view.title}`, renderBody(view, daily, page));
 }
 
@@ -531,6 +544,7 @@ function renderBody(view, daily, page) {
         ${conversion}
       </div>
     </section>
+    ${empty ? "" : funnelSection(cur, page.ratings, page.bonus)}
     ${ratingsSection(page.ratings, page.names, view.kind === "all")}
     ${sections}
     ${page.invite || ""}
@@ -617,6 +631,35 @@ function chartSection(daily, period) {
       <div class="legend"><span><i class="dot dot-navy"></i>открыли страницу</span><span><i class="dot dot-gold"></i>перешли к отзыву</span></div>
       <div class="chart${month ? " chart-month" : ""}" role="img" aria-label="График по дням">${cols}</div>
     </section>`;
+}
+
+// «Путь гостя»: сколько гостей дошло до каждого шага, доля — от открывших страницу.
+// Шаги «Оценили» и подарки показываем, только если они есть у заведения (оценка включена / подарки включены).
+function funnelSection(cur, ratings, bonus) {
+  const steps = [{ label: "Открыли страницу", value: cur.views, cls: "bar-navy" }];
+  if (ratings && ratings.count) steps.push({ label: "Оценили визит", value: ratings.count, cls: "bar-navy" });
+  steps.push({ label: "Перешли к отзыву", value: cur.clicks, cls: "bar-gold" });
+  if (bonus) {
+    steps.push({ label: "Получили подарок", value: bonus.issued, cls: "bar-gold" });
+    steps.push({ label: "Пришли за подарком", value: bonus.redeemed, cls: "bar-gold" });
+  }
+  if (steps.length < 3) return ""; // только «открыли → перешли» — это уже есть в цифрах сверху
+  const base = cur.views || 1;
+  const items = steps
+    .map((s, i) => {
+      const share = Math.min(100, Math.round((s.value / base) * 100));
+      return `<li class="row funnel-row">
+          <span class="row-label"><span class="funnel-n">${i + 1}</span>${esc(s.label)}</span>
+          <span class="row-value">${num(s.value)}${i ? `<small>${share}%</small>` : ""}</span>
+          <span class="row-bar"><span class="${s.cls}" style="width:${i ? share : 100}%"></span></span>
+        </li>`;
+    })
+    .join("");
+  const redeemNote = bonus && bonus.issued
+    ? ` «Пришли за подарком» — коды этого периода, погашенные на кассе (часть гостей ещё придёт).`
+    : "";
+  return `<section class="panel"><h2>Путь гостя</h2><ul class="rows">${items}</ul>
+    <p class="hint funnel-hint">Проценты — от тех, кто открыл страницу.${redeemNote}</p></section>`;
 }
 
 function barsSection(title, rows, total, barClass) {
@@ -858,6 +901,9 @@ const CSS = `
   .row:not(:has(.row-icon)) .row-bar { grid-column: 1 / -1; }
   .row-bar span { display: block; height: 100%; border-radius: 3px; }
   .bar-navy { background: var(--navy); }
+  .funnel-n { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: 8px; border-radius: 50%;
+    background: #f1f3f8; color: var(--muted); font-size: 11px; font-weight: 700; vertical-align: 1px; }
+  .funnel-hint { margin: 10px 0 0; }
   .bar-gold { background: var(--gold); }
   .back { display: inline-block; margin-top: 10px; padding: 4px 0; color: var(--gold-soft); font-size: 14px;
     font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
