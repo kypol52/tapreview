@@ -482,6 +482,10 @@
     .plan-featured li svg { color: var(--gold); }
     .plan .btn { width: 100%; }
     .plan-featured .btn-ghost { background: transparent; color: #fff; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.3) inset; }
+    .tiers { width: 100%; margin: 0 0 12px; border-collapse: collapse; font-size: 14.5px; }
+    .tiers td { padding: 7px 0; border-bottom: 1px solid var(--line); color: var(--text); font-weight: 600; }
+    .tiers td:last-child { text-align: right; color: var(--ink); font-weight: 750; font-variant-numeric: tabular-nums; }
+    .tiers tr:first-child td { color: var(--navy); }
     .pricing-foot { display: grid; gap: 10px; margin-top: 22px; font-size: 14px; color: var(--muted); }
     .pricing-foot p { margin: 0; display: flex; gap: 10px; }
     .pricing-foot svg { width: 18px; height: 18px; flex: none; margin-top: 3px; color: var(--navy); }
@@ -667,8 +671,10 @@
             </a>
             <a class="btn btn-gold" href="/b/yarik">Посмотреть пример</a>
           </div>
-          <!-- ЦЕНЫ: подключение 100 ₽ за карту, подписка 200 ₽/мес или 2 000 ₽/год (меняются здесь и в разделе «Цены») -->
-          <p class="hero-price reveal" style="--d:.2s">Карта — <b>100&nbsp;₽</b>, подписка от <b>167&nbsp;₽/мес</b> за карту · <a href="#pricing">все цены</a></p>
+          <!-- ЦЕНЫ: чем больше карт, тем дешевле каждая. Подписка: 1-я карта 169 ₽/мес, 2–5-я по 49, 6–10-я по 39, 11–20-я по 29, дальше 19.
+               Подключение: 1–2-я по 150 ₽, 3–5-я по 130, дальше 100. Год = 10 мес, первый месяц бесплатно.
+               Меняются здесь, в разделе «Цены», в order/index.html, src/orders.js и в оферте (п. 3.4) -->
+          <p class="hero-price reveal" style="--d:.2s">Подписка от <b>169&nbsp;₽/мес</b>, каждая следующая карта дешевле · <b>первый месяц бесплатно</b> · <a href="#pricing">все цены</a></p>
           <ul class="hero-meta reveal" style="--d:.25s">
             <li><svg aria-hidden="true"><use href="#i-check"/></svg>Без приложений</li>
             <li><svg aria-hidden="true"><use href="#i-check"/></svg>Без сбора телефонов гостей</li>
@@ -948,16 +954,16 @@
       <div class="wrap">
         <div class="section-head reveal">
           <p class="kicker">Цены</p>
-          <h2>Понятная цена без сюрпризов</h2>
-          <p>За каждую карту: один раз 100&nbsp;₽ за подключение, дальше — подписка 200&nbsp;₽ в месяц или 2&nbsp;000&nbsp;₽ в год.</p>
+          <h2>Одна подписка — всё включено</h2>
+          <p>Чем больше карт, тем дешевле каждая следующая — и подписка, и подключение. Первый месяц подписки бесплатно.</p>
         </div>
 
         <div class="plans">
           <article class="plan reveal">
             <h3>Месяц</h3>
-            <p class="plan-sub">Чтобы попробовать</p>
-            <p class="price"><strong>200&nbsp;₽</strong><span>в месяц за карту</span></p>
-            <p class="price-note">+&nbsp;100&nbsp;₽ за&nbsp;подключение каждой карты</p>
+            <p class="plan-sub">Первый месяц — бесплатно</p>
+            <p class="price"><strong>169&nbsp;₽</strong><span>в месяц за первую карту</span></p>
+            <p class="price-note">2–5-я карта — по&nbsp;49&nbsp;₽, дальше ещё дешевле · подключение от&nbsp;100&nbsp;₽ за&nbsp;карту</p>
             <ul>
               <li><svg aria-hidden="true"><use href="#i-check"/></svg>Карта NFC + QR — вертикальная или горизонтальная</li>
               <li><svg aria-hidden="true"><use href="#i-check"/></svg>Страница отзывов под ваше заведение</li>
@@ -973,8 +979,8 @@
             <span class="plan-badge">Выгоднее</span>
             <h3>Год</h3>
             <p class="plan-sub">Для тех, кто уже решил</p>
-            <p class="price"><strong>2&nbsp;000&nbsp;₽</strong><span>в год за карту</span></p>
-            <p class="price-note">≈&nbsp;167&nbsp;₽ в&nbsp;месяц · +&nbsp;100&nbsp;₽ за&nbsp;подключение карты</p>
+            <p class="price"><strong>1&nbsp;690&nbsp;₽</strong><span>в год за первую карту</span></p>
+            <p class="price-note">≈&nbsp;141&nbsp;₽ в&nbsp;месяц · 2–5-я карта — по&nbsp;490&nbsp;₽ в&nbsp;год, дальше ещё дешевле</p>
             <ul>
               <li><svg aria-hidden="true"><use href="#i-check"/></svg>Всё, что в тарифе «Месяц»</li>
               <li><svg aria-hidden="true"><use href="#i-check"/></svg>Два месяца бесплатно</li>
@@ -985,10 +991,16 @@
           </article>
 
           <article class="plan reveal" style="--d:.12s">
-            <h3>Сеть</h3>
-            <p class="plan-sub">Несколько точек или много карт</p>
-            <p class="price"><strong class="price-text">Индивидуально</strong></p>
-            <p class="price-note">Карта — 100&nbsp;₽ + подписка 200&nbsp;₽/мес</p>
+            <h3>Больше карт — дешевле каждая</h3>
+            <p class="plan-sub">Подписка в месяц за все карты</p>
+            <table class="tiers" aria-label="Подписка в месяц по числу карт">
+              <tr><td>1 карта</td><td>169&nbsp;₽</td></tr>
+              <tr><td>3 карты</td><td>267&nbsp;₽</td></tr>
+              <tr><td>5 карт</td><td>365&nbsp;₽</td></tr>
+              <tr><td>10 карт</td><td>560&nbsp;₽</td></tr>
+              <tr><td>20 карт</td><td>850&nbsp;₽</td></tr>
+            </table>
+            <p class="price-note">Карта: 1-я — 169&nbsp;₽, 2–5-я — по&nbsp;49&nbsp;₽, 6–10-я — по&nbsp;39&nbsp;₽, 11–20-я — по&nbsp;29&nbsp;₽, дальше по&nbsp;19&nbsp;₽. Подключение: 1–2-я по&nbsp;150&nbsp;₽, 3–5-я по&nbsp;130&nbsp;₽, дальше по&nbsp;100&nbsp;₽. Карты всех ваших точек считаются вместе.</p>
             <ul>
               <li><svg aria-hidden="true"><use href="#i-check"/></svg>Карты на каждый стол или мастера</li>
               <li><svg aria-hidden="true"><use href="#i-check"/></svg>Статистика по каждой карте</li>
@@ -1000,6 +1012,7 @@
         </div>
 
         <div class="pricing-foot reveal">
+          <p><svg aria-hidden="true"><use href="#i-check"/></svg>Первый месяц подписки бесплатно — при заказе вы платите только за подключение карт.</p>
           <p><svg aria-hidden="true"><use href="#i-check"/></svg>Без автосписаний — каждый период вы оплачиваете сами, за 5 дней до конца напомним.</p>
           <p><svg aria-hidden="true"><use href="#i-check"/></svg>Смена ссылок и перепривязка карт — бесплатно, пока действует подписка.</p>
         </div>

@@ -223,13 +223,13 @@
         <form id="order-form" novalidate>
           <section class="panel" aria-labelledby="calc-title">
             <h2 id="calc-title">Расчёт</h2>
-            <p class="panel-sub">За каждую карту: 100 ₽ за подключение и подписка — 200 ₽ в месяц или 2 000 ₽ в год.</p>
+            <p class="panel-sub">Чем больше карт, тем дешевле каждая следующая. Подписка: первая карта 169 ₽ в месяц, 2–5-я — по 49 ₽, 6–10-я — по 39 ₽, 11–20-я — по 29 ₽, дальше по 19 ₽. Подключение: 1–2-я карта по 150 ₽, 3–5-я по 130 ₽, дальше по 100 ₽. Первый месяц подписки бесплатно.</p>
 
             <div class="seg" role="radiogroup" aria-label="Тариф">
               <input type="radio" name="plan" id="plan-month" value="month" checked>
-              <label for="plan-month"><b>Месяц</b><span>200 ₽ в месяц за карту</span></label>
+              <label for="plan-month"><b>Месяц</b><span>от 169 ₽ в месяц</span></label>
               <input type="radio" name="plan" id="plan-year" value="year">
-              <label for="plan-year"><b>Год <span class="save">−2 мес</span></b><span>2 000 ₽ в год за карту</span></label>
+              <label for="plan-year"><b>Год <span class="save">−2 мес</span></b><span>от 1 690 ₽ в год</span></label>
             </div>
 
             <div class="counter">
@@ -242,7 +242,7 @@
             </div>
 
             <div class="counter">
-              <div class="counter-text"><b id="cards-label">Карт</b><span>Обычно 1–3 на заведение: касса, столики, ресепшен</span></div>
+              <div class="counter-text"><b id="cards-label">Карт</b><span>На каждый стол, кассу, ресепшен — чем больше карт, тем дешевле каждая</span></div>
               <div class="stepper">
                 <button type="button" data-step="cards" data-dir="-1" aria-label="Меньше карт">−</button>
                 <input id="cards" name="cards" type="number" inputmode="numeric" min="1" max="500" value="1" aria-labelledby="cards-label">
@@ -305,13 +305,14 @@
         <section class="panel summary" id="summary" aria-labelledby="sum-title" aria-live="polite">
           <h2 id="sum-title">Итого</h2>
           <ul class="sum-rows">
-            <li><span>Подключение<small id="s-conn-note">1 карта × 100 ₽</small></span><span id="s-conn">100 ₽</span></li>
-            <li><span>Подписка<small id="s-sub-note">1 карта × 200 ₽ в месяц</small></span><span id="s-sub">200 ₽</span></li>
+            <li><span>Подключение<small id="s-conn-note">1 карта</small></span><span id="s-conn">150 ₽</span></li>
+            <li><span>Подписка<small id="s-sub-note">1 карта · 169 ₽ в месяц</small></span><span id="s-sub">0 ₽ первый месяц</span></li>
           </ul>
-          <div class="total"><span>При заказе</span><strong id="s-total">300 ₽</strong></div>
-          <p class="next">Дальше — <b id="s-next">200 ₽ в месяц</b></p>
+          <div class="total"><span>При заказе</span><strong id="s-total">150 ₽</strong></div>
+          <p class="next">Через месяц — <b id="s-next">169 ₽ в месяц</b></p>
           <ul class="sum-notes">
-            <li id="ref-note" hidden><svg aria-hidden="true"><use href="#i-check"/></svg><b>По приглашению: первый месяц подписки в подарок</b></li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg><b>Первый месяц подписки бесплатно</b></li>
+            <li id="ref-note" hidden><svg aria-hidden="true"><use href="#i-check"/></svg><b>По приглашению: ещё месяц подписки в подарок</b></li>
             <li><svg aria-hidden="true"><use href="#i-check"/></svg>Оплата после подтверждения заказа</li>
             <li><svg aria-hidden="true"><use href="#i-check"/></svg>Без автосписаний — продлеваете сами</li>
             <li><svg aria-hidden="true"><use href="#i-check"/></svg>Смена ссылок без перепечатки</li>
@@ -322,7 +323,7 @@
   </main>
 
   <div class="mbar" id="mbar" aria-hidden="true">
-    <div>При заказе<strong id="m-total">300 ₽</strong><span id="m-next">дальше 200 ₽ в месяц</span></div>
+    <div>При заказе<strong id="m-total">150 ₽</strong><span id="m-next">через месяц 169 ₽ в месяц</span></div>
     <a href="#summary">Подробнее</a>
   </div>
 
@@ -344,7 +345,23 @@
       var ORDER_ENDPOINT = "/api/order";
       var FORM_ENABLED = ORDER_ENDPOINT !== "";
       // Цены — те же, что на главной и в src/orders.js (сервер пересчитывает итог сам)
-      var PRICES = { card: 100, month: 200, year: 2000 };
+      // Чем больше карт, тем дешевле каждая следующая (каждая карта — по своей ступени; так же считает сервер, src/orders.js).
+      // Год = 10 месяцев, первый месяц подписки бесплатно.
+      var PRICES = {
+        monthly: [{ upTo: 1, price: 169 }, { upTo: 5, price: 49 }, { upTo: 10, price: 39 }, { upTo: 20, price: 29 }, { upTo: Infinity, price: 19 }],
+        connection: [{ upTo: 2, price: 150 }, { upTo: 5, price: 130 }, { upTo: Infinity, price: 100 }],
+        yearMonths: 10
+      };
+      function tieredTotal(tiers, n) {
+        var sum = 0, from = 0;
+        for (var i = 0; i < tiers.length; i++) {
+          var count = Math.min(n, tiers[i].upTo) - from;
+          if (count <= 0) break;
+          sum += count * tiers[i].price;
+          from = tiers[i].upTo;
+        }
+        return sum;
+      }
       var form = document.getElementById("order-form");
       var venuesInput = document.getElementById("venues");
       var cardsInput = document.getElementById("cards");
@@ -380,25 +397,28 @@
         venuesInput.value = venues;
         cardsInput.value = cards;
         var p = plan();
-        var conn = cards * PRICES.card;
-        var sub = cards * PRICES[p]; // подписка — за каждую карту
+        var conn = tieredTotal(PRICES.connection, cards);
+        var monthly = tieredTotal(PRICES.monthly, cards);
+        var sub = p === "year" ? monthly * PRICES.yearMonths : monthly;
         var per = p === "year" ? "в год" : "в месяц";
 
-        document.getElementById("s-conn-note").textContent = cards + " " + plural(cards, "карта", "карты", "карт") + " × " + rub(PRICES.card);
+        document.getElementById("s-conn-note").textContent = cards + " " + plural(cards, "карта", "карты", "карт") +
+          (cards > 1 ? " · в среднем " + rub(Math.round(conn / cards)) + " за карту" : "");
         document.getElementById("s-conn").textContent = rub(conn);
-        document.getElementById("s-sub-note").textContent = cards + " " + plural(cards, "карта", "карты", "карт") + " × " + rub(PRICES[p]) + " " + per;
-        document.getElementById("s-sub").textContent = rub(sub);
-        document.getElementById("s-total").textContent = rub(conn + sub);
+        document.getElementById("s-sub-note").textContent = cards + " " + plural(cards, "карта", "карты", "карт") + " · " + rub(monthly) + " в месяц" +
+          (cards > 1 ? ", в среднем " + rub(Math.round(monthly / cards)) + " за карту" : "");
+        document.getElementById("s-sub").textContent = "0 ₽ первый месяц";
+        document.getElementById("s-total").textContent = rub(conn);
         document.getElementById("s-next").textContent = rub(sub) + " " + per;
-        document.getElementById("m-total").textContent = rub(conn + sub);
-        document.getElementById("m-next").textContent = "дальше " + rub(sub) + " " + per;
+        document.getElementById("m-total").textContent = rub(conn);
+        document.getElementById("m-next").textContent = "через месяц " + rub(sub) + " " + per;
         document.getElementById("calc-text").textContent =
           "Здравствуйте! Хочу заказать " + cards + " " + plural(cards, "карту", "карты", "карт") + " TapReview.\n" +
           "Тариф: " + (p === "year" ? "Год" : "Месяц") + "\n" +
           "Заведений: " + venues + ", карт: " + cards + "\n" +
-          "При заказе: " + rub(conn + sub) + " (подключение " + rub(conn) + " + подписка " + rub(sub) + ")\n" +
+          "При заказе: " + rub(conn) + " (подключение карт), первый месяц подписки бесплатно\n" +
           "Дальше: " + rub(sub) + " " + per + "\n" +
-          (REF ? "По приглашению: " + REF + " (первый месяц в подарок)\n" : "") +
+          (REF ? "По приглашению: " + REF + " (ещё месяц в подарок)\n" : "") +
           "Заведение: ";
         document.getElementById("network-hint").hidden = venues < 3;
 

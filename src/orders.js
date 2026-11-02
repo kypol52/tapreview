@@ -16,8 +16,30 @@
 import { db } from "./supabase.js";
 import { tg } from "./telegram.js";
 
-// Цены — те же, что на главной и на странице заказа (order/index.html)
-export const PRICES = { card: 100, month: 200, year: 2000 };
+// Цены — те же, что на главной, на странице заказа (order/index.html) и в оферте (п. 3.4).
+// Чем больше карт, тем дешевле каждая следующая: каждая карта стоит по своей ступени
+// (как «первая карта 169 ₽, со 2-й по 5-ю — по 49 ₽ …»), поэтому сумма растёт плавно, без скачков вниз.
+// Карты считаются по всем заведениям заказчика вместе. Год = 10 месяцев. Первый месяц подписки бесплатно.
+//   upTo — по какую карту включительно действует цена
+export const PRICES = {
+  monthly: [{ upTo: 1, price: 169 }, { upTo: 5, price: 49 }, { upTo: 10, price: 39 }, { upTo: 20, price: 29 }, { upTo: Infinity, price: 19 }],
+  connection: [{ upTo: 2, price: 150 }, { upTo: 5, price: 130 }, { upTo: Infinity, price: 100 }],
+  yearMonths: 10,
+  trialMonths: 1
+};
+
+// Сумма за n карт по ступеням
+export function tieredTotal(tiers, n) {
+  let sum = 0;
+  let from = 0;
+  for (const t of tiers) {
+    const count = Math.min(n, t.upTo) - from;
+    if (count <= 0) break;
+    sum += count * t.price;
+    from = t.upTo;
+  }
+  return sum;
+}
 export const PLAN_LABELS = { month: "Месяц", year: "Год" };
 // Меняется вместе с текстом согласия (consent/index.html)
 const CONSENT_VERSION = "2026-11-01";
@@ -193,10 +215,14 @@ export function validate(data, { manual = false } = {}) {
   };
 }
 
-// Подключение каждой карты + подписка за каждую карту
+// Подключение и подписка по ступеням за все карты заказчика. Первый месяц бесплатно:
+// при заказе платится только подключение, подписка (за месяц или за год) — после бесплатного месяца.
 export function orderTotals({ cards, plan }) {
-  const subscription = cards * PRICES[plan];
-  return { connection: cards * PRICES.card, subscription, now: cards * PRICES.card + subscription, next: subscription };
+  const n = Math.max(1, cards);
+  const monthly = tieredTotal(PRICES.monthly, n);
+  const subscription = plan === "year" ? monthly * PRICES.yearMonths : monthly;
+  const connection = tieredTotal(PRICES.connection, n);
+  return { connection, monthly, subscription, now: connection, next: subscription };
 }
 
 async function checkRate(env, order) {
@@ -259,7 +285,7 @@ export function orderText(o, env = {}) {
   return [
     `🆕 <b>Заявка №${o.id}</b>`,
     `🃏 Карт: <b>${o.cards}</b> · заведений: <b>${o.venues}</b> · тариф: <b>${PLAN_LABELS[o.plan]}</b>`,
-    `💳 При заказе: <b>${rub(t.now)}</b> · дальше ${rub(t.next)} ${o.plan === "year" ? "в год" : "в месяц"}`,
+    `💳 При заказе: <b>${rub(t.now)}</b> (карты) · месяц бесплатно, дальше ${rub(t.next)} ${o.plan === "year" ? "в год" : "в месяц"}`,
     `👉 Контакты и детали — в админке: <a href="${esc(admin)}">${esc(admin.replace(/^https?:\/\//, ""))}</a> → «Заявки»`
   ].join("\n");
 }

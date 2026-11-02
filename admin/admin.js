@@ -996,8 +996,9 @@ function openEditor(business) {
   updateXlinkAdd();
   $("f-rating-first").checked = business ? business.rating_first !== false : true;
   $("f-active").checked = business ? business.is_active : true;
-  $("f-paid-until").value = business ? business.paid_until || "" : "";
-  $("f-price").value = business && business.monthly_price != null ? String(business.monthly_price) : "";
+  // Новое заведение: первый месяц бесплатно (оплачено до = сегодня + 1 месяц) и базовая цена 169 ₽ (до 10 карт)
+  $("f-paid-until").value = business ? business.paid_until || "" : addMonths(mskToday(), 1);
+  $("f-price").value = business && business.monthly_price != null ? String(business.monthly_price) : business ? "" : "169";
   $("f-billing-note").value = business ? business.billing_note || "" : "";
   fillReferredBy(business);
   loadReferrals(business);
