@@ -7,7 +7,7 @@ import { PERIODS, PLATFORMS, loadReports, loadDaily, sumTotals, formatDateRange,
 import { ICONS } from "./public-page.js";
 import { formatDay } from "./billing.js";
 import { normalizeCode, findCode, redeemCode, bonusCounts, bonusFunnel, validityText } from "./bonus.js";
-import { ratingStats } from "./rating.js";
+import { ratingStats, setFeedbackResolved, LIKES, PHONE_KEEP_DAYS } from "./rating.js";
 import { refUrl, refStats } from "./referral.js";
 
 const TOKEN_RE = /^[A-Za-z0-9]{24}$/;
@@ -545,7 +545,7 @@ function renderBody(view, daily, page) {
       </div>
     </section>
     ${empty ? "" : funnelSection(cur, page.ratings, page.bonus)}
-    ${ratingsSection(page.ratings, page.names, view.kind === "all")}
+    ${ratingsSection(page.ratings, page.names, view.kind === "all", token, `p=${period}${view.query}`)}
     ${sections}
     ${page.invite || ""}
     <section class="note">
@@ -564,8 +564,8 @@ function renderBody(view, daily, page) {
   </footer>`;
 }
 
-// Оценки 1–5 и анонимные сообщения гостей с оценкой 1–3
-function ratingsSection(r, names, showVenue) {
+// Оценки 1–5, «что понравилось» (4–5) и сообщения гостей с оценкой 1–3 с отметкой «Разобрано»
+function ratingsSection(r, names, showVenue, token, back) {
   if (!r || (!r.count && !r.feedback.length)) return "";
   const avg = r.avg != null ? r.avg.toLocaleString("ru-RU", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "—";
   const bars = [5, 4, 3, 2, 1]
@@ -575,13 +575,37 @@ function ratingsSection(r, names, showVenue) {
       return `<li class="rate-row"><span class="rate-n">${n} ★</span><span class="track"><span class="fill ${n >= 4 ? "bar-gold" : "bar-low"}" style="width:${pct}%"></span></span><span class="rate-v">${num(v)}</span></li>`;
     })
     .join("");
-  const items = r.feedback
-    .map((f) => {
-      const when = new Date(f.created_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" });
-      const venue = showVenue && names.get(f.business_id) ? ` · ${esc(names.get(f.business_id))}` : "";
-      return `<li class="fb-item"><div class="fb-meta"><span class="fb-stars">${"★".repeat(f.score)}<span>${"★".repeat(5 - f.score)}</span></span> ${when}${venue}</div><p>${esc(f.text)}</p></li>`;
-    })
-    .join("");
+  // «Что понравилось» — доля от довольных гостей, которые что-то отметили; самое частое сверху
+  const likeRows = r.liked
+    ? LIKES.map((l) => ({ ...l, v: r.likes.get(l.key) || 0 }))
+        .filter((l) => l.v)
+        .sort((a, b) => b.v - a.v)
+        .map((l) => {
+          const pct = Math.round((l.v / r.liked) * 100);
+          return `<li class="rate-row like-row"><span class="rate-n">${l.label}</span><span class="track"><span class="fill bar-gold" style="width:${pct}%"></span></span><span class="rate-v">${pct}%</span></li>`;
+        })
+        .join("")
+    : "";
+  const fbItem = (f) => {
+    const when = new Date(f.created_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" });
+    const venue = showVenue && names.get(f.business_id) ? ` · ${esc(names.get(f.business_id))}` : "";
+    const done = Boolean(f.resolved_at);
+    const phone = f.phone && !done
+      ? `<a class="fb-phone" href="tel:${esc(f.phone)}">📞 ${esc(formatPhone(f.phone))}</a><span class="fb-phone-note">просит перезвонить</span>`
+      : f.phone ? `<span class="fb-phone-note">📞 ${esc(formatPhone(f.phone))}</span>` : "";
+    const button = `<form class="fb-act" method="post" action="/s/${token}/fb">
+        <input type="hidden" name="id" value="${f.id}"><input type="hidden" name="done" value="${done ? 0 : 1}"><input type="hidden" name="back" value="${esc(back)}">
+        <button type="submit" class="${done ? "fb-undo" : "fb-done"}">${done ? "Вернуть" : "✓ Разобрано"}</button>
+      </form>`;
+    return `<li class="fb-item${done ? " fb-closed" : ""}"><div class="fb-meta"><span class="fb-stars">${"★".repeat(f.score)}<span>${"★".repeat(5 - f.score)}</span></span> ${when}${venue}</div><p>${esc(f.text)}</p>${phone ? `<div class="fb-contact">${phone}</div>` : ""}${button}</li>`;
+  };
+  const open = r.feedback.filter((f) => !f.resolved_at);
+  const closed = r.feedback.filter((f) => f.resolved_at);
+  const messages = r.feedback.length
+    ? `<h3 class="fb-title" id="fb">Сообщения владельцу ${open.length ? `<span class="fb-count">Не разобрано: ${num(open.length)}</span>` : `<span class="fb-count fb-count-ok">Всё разобрано</span>`}</h3>
+      ${open.length ? `<ul class="fb-list">${open.map(fbItem).join("")}</ul>` : ""}
+      ${closed.length ? `<details class="fb-closed-list"><summary>Разобранные (${num(closed.length)})</summary><ul class="fb-list">${closed.map(fbItem).join("")}</ul></details>` : ""}`
+    : "";
   return `<section class="panel">
     <h2>Оценки гостей</h2>
     <div class="rate-head">
@@ -589,9 +613,45 @@ function ratingsSection(r, names, showVenue) {
       <div><div class="rate-avg rate-low">${num(r.low)}</div><div class="kpi-sub">${plural(r.low, "недовольный гость", "недовольных гостя", "недовольных гостей")} (1–3 ★)</div></div>
     </div>
     <ul class="rows rate-rows">${bars}</ul>
-    ${items ? `<h3 class="fb-title">Сообщения владельцу</h3><ul class="fb-list">${items}</ul>` : ""}
-    <p class="hint">Гости с оценкой 1–3 пишут вам напрямую — сообщение сразу приходит в Telegram-бот. Кнопки Яндекса и 2ГИС доступны всем гостям.</p>
+    ${likeRows ? `<h3 class="fb-title">Что нравится гостям</h3><ul class="rows rate-rows">${likeRows}</ul>
+      <p class="hint">Из ${num(r.liked)} ${plural(r.liked, "довольного гостя", "довольных гостей", "довольных гостей")} (4–5 ★), которые отметили, что понравилось. Можно выбрать несколько пунктов.</p>` : ""}
+    ${messages}
+    <p class="hint">Гости с оценкой 1–3 пишут вам напрямую — сообщение сразу приходит в Telegram-бот. Если гость просит перезвонить, его номер виден только здесь и удаляется через ${PHONE_KEEP_DAYS} дней. Кнопки Яндекса и 2ГИС доступны всем гостям.</p>
   </section>`;
+}
+
+function formatPhone(p) {
+  const d = p.slice(2);
+  return `+7 ${d.slice(0, 3)} ${d.slice(3, 6)}-${d.slice(6, 8)}-${d.slice(8)}`;
+}
+
+// POST /s/:token/fb — «Разобрано» / «Вернуть». Без скриптов: обычная форма, потом обратно к сообщениям
+export async function handleFeedbackResolve(request, env, token) {
+  try {
+    if (!TOKEN_RE.test(token)) return notFound();
+    const text = await request.text();
+    if (text.length > 2000) return new Response("Слишком большой запрос", { status: 413 });
+    const form = new URLSearchParams(text);
+    const links = await db(env, `stats_links?token=eq.${token}&select=business_id,business_ids`);
+    if (!links.length) return notFound();
+    const ids = [...new Set(links[0].business_ids && links[0].business_ids.length ? links[0].business_ids : [links[0].business_id])];
+    await setFeedbackResolved(env, ids, Number(form.get("id")), form.get("done") === "1");
+    // Возвращаем на тот же вид статистики: только p, b, c из исходного адреса
+    const from = new URLSearchParams(String(form.get("back") || ""));
+    const back = new URLSearchParams();
+    for (const key of ["p", "b", "c"]) {
+      const v = from.get(key);
+      if (v && /^[A-Za-z0-9_-]{1,32}$/.test(v)) back.set(key, v);
+    }
+    const query = back.toString();
+    return new Response(null, {
+      status: 303,
+      headers: { Location: `/s/${token}${query ? `?${query}` : ""}#fb`, "Cache-Control": "no-store" }
+    });
+  } catch (error) {
+    console.error(`Feedback resolve error: ${error.message}`);
+    return new Response("Не получилось сохранить, обновите страницу и попробуйте ещё раз", { status: 500 });
+  }
 }
 
 function chartSection(daily, period) {
@@ -854,6 +914,19 @@ const CSS = `
   .fb-meta { font-size: 12.5px; color: var(--muted); }
   .fb-stars { color: var(--gold); letter-spacing: 1px; }
   .fb-stars span { color: var(--line); }
+  .like-row { grid-template-columns: 112px 1fr 40px; }
+  .fb-count { margin-left: 6px; padding: 2px 9px; border-radius: 99px; background: #fde8e8; color: #b42318; font-size: 12px; font-weight: 700; vertical-align: 1px; }
+  .fb-count-ok { background: #e6f6ec; color: #18794e; }
+  .fb-contact { margin-top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+  .fb-phone { padding: 6px 12px; border-radius: 99px; background: var(--navy); color: #fff; font-size: 14px; font-weight: 700; text-decoration: none; }
+  .fb-phone-note { font-size: 12.5px; color: var(--muted); }
+  .fb-act { margin: 8px 0 0; }
+  .fb-act button { padding: 6px 12px; border-radius: 99px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .fb-done { border: 1px solid #18794e; background: #fff; color: #18794e; }
+  .fb-undo { border: 1px solid var(--line); background: #fff; color: var(--muted); }
+  .fb-closed { opacity: 0.6; }
+  .fb-closed-list { margin-top: 10px; }
+  .fb-closed-list summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); padding: 4px 0 8px; }
   .kpi, .panel { background: #fff; border-radius: 18px; padding: 16px;
     box-shadow: 0 1px 2px rgba(20,26,43,0.04), 0 8px 24px rgba(20,26,43,0.06); }
   .kpi-label { font-size: 13px; color: var(--muted); font-weight: 600; }

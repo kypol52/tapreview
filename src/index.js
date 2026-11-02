@@ -8,6 +8,7 @@
 //   /tg/webhook          — сообщения Telegram-боту для владельцев (telegram.js)
 //   /s/:token            — статистика для владельца по личной ссылке (stats-page.js)
 //   /s/:token/bonus      — касса владельца: проверить и погасить код подарка + счётчики (stats-page.js)
+//   POST /s/:token/fb    — владелец отмечает сообщение гостя «Разобрано» (stats-page.js)
 //   /k/:token            — касса для персонала: только проверить и погасить код (stats-page.js)
 //   POST /bonus          — выдать гостю код подарка, колесо призов (bonus.js)
 //   /m/:id               — картинки «Своего дизайна»: фон и логотип заведения (media.js)
@@ -17,11 +18,11 @@
 import { handleBusinessPage, handleCardPage, handleGroupPage, handleGo } from "./public-page.js";
 import { handleApi } from "./admin-api.js";
 import { handleTelegramWebhook, handleTelegramRelay, weeklyReports } from "./telegram.js";
-import { handleStatsPage, handleBonusDesk, handleStaffDesk } from "./stats-page.js";
+import { handleStatsPage, handleBonusDesk, handleStaffDesk, handleFeedbackResolve } from "./stats-page.js";
 import { handleBonus } from "./bonus.js";
 import { handleRef } from "./referral.js";
 import { handleOrder, orderReminders } from "./orders.js";
-import { handleFeedback } from "./rating.js";
+import { handleFeedback, purgeOldPhones } from "./rating.js";
 import { handleMedia } from "./media.js";
 import { uptimeCheck, UPTIME_CRON } from "./uptime.js";
 import { db } from "./supabase.js";
@@ -78,6 +79,11 @@ export default {
       return handleBonusDesk(request, env, deskMatch[1]);
     }
 
+    const fbMatch = url.pathname.match(/^\/s\/([^/]+)\/fb\/?$/);
+    if (fbMatch && request.method === "POST") {
+      return handleFeedbackResolve(request, env, fbMatch[1]);
+    }
+
     const staffMatch = url.pathname.match(/^\/k\/([^/]+)\/?$/);
     if (staffMatch) {
       return handleStaffDesk(request, env, staffMatch[1]);
@@ -123,6 +129,7 @@ export default {
       ctx.waitUntil(
         orderReminders(env).catch((error) => console.error(`Order reminders failed: ${error.message}\n${error.stack}`))
       );
+      ctx.waitUntil(purgeOldPhones(env).catch((error) => console.error(`Phone purge failed: ${error.message}`)));
       return;
     }
     if (controller.cron === WEEKLY_REPORT_CRON) {

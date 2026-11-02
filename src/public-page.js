@@ -9,7 +9,7 @@ import { db } from "./supabase.js";
 import { logEvent, sourceFrom } from "./analytics.js";
 import { isExpired } from "./billing.js";
 import { bonusBlock } from "./bonus.js";
-import { flowFrom, logRating } from "./rating.js";
+import { flowFrom, logRating, LIKES, PHONE_KEEP_DAYS } from "./rating.js";
 
 const SLUG_RE = /^[A-Za-z0-9_-]{3,64}$/;
 const COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
@@ -128,7 +128,7 @@ export async function handleBusinessPage(request, env, ctx, slug) {
     logEvent(request, env, { businessId: business.id, eventType: "page_view", source })
   );
   if (business.rating_first && flow.score && !flow.sent && !flow.all) {
-    ctx.waitUntil(logRating(request, env, { businessId: business.id, score: flow.score, source }));
+    ctx.waitUntil(logRating(request, env, { businessId: business.id, score: flow.score, source, likes: flow.likes }));
   }
 
   if (isExpired(business.paid_until)) return pausedResponse(business);
@@ -266,7 +266,7 @@ export async function handleCardPage(request, env, ctx, rawCode) {
     })
   );
   if (business.rating_first && flow.score && !flow.sent && !flow.all) {
-    ctx.waitUntil(logRating(request, env, { businessId: business.id, cardId: card.id, score: flow.score, source }));
+    ctx.waitUntil(logRating(request, env, { businessId: business.id, cardId: card.id, score: flow.score, source, likes: flow.likes }));
   }
 
   if (isExpired(business.paid_until)) return pausedResponse(business);
@@ -528,18 +528,35 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
       <div class="rate-scale"><span>Плохо</span><span>Отлично</span></div>
       ${publicLink("Сразу оставить отзыв на картах →")}`;
   } else if (all || score >= 4) {
-    // 2а. Довольный гость (или сам выбрал «сразу на картах») — площадки
+    // 2а. Довольный гость (или сам выбрал «сразу на картах») — площадки.
+    // Под ними — необязательное «Что понравилось?»: каждое касание — ссылка, которая включает/выключает пункт (?l=…)
+    let likes = "";
+    if (score >= 4) {
+      const chips = LIKES.map(({ key, label }) => {
+        const on = flow.likes.includes(key);
+        const next = on ? flow.likes.filter((k) => k !== key) : [...flow.likes, key];
+        const href = `${link({ r: score, ...(next.length ? { l: next.join(",") } : {}) })}#like`;
+        return `<a class="like${on ? " like-on" : ""}" href="${href}" rel="nofollow"${on ? ' aria-pressed="true"' : ""}>${on ? "✓ " : ""}${label}</a>`;
+      }).join("");
+      likes = `
+      <div class="likes" id="like">
+        <p class="likes-q">${flow.likes.length ? "Спасибо! Передадим команде 💛" : "Что понравилось больше всего?"}</p>
+        <div class="likes-row">${chips}</div>
+      </div>`;
+    }
     step = `
       <h2 class="thanks">${score >= 4 ? "Спасибо за высокую оценку!" : "Спасибо за ваш визит!"}</h2>
       ${chosen}
       <p class="lead">Поделитесь впечатлением — это очень поможет нам.</p>
-      ${platforms}`;
+      ${platforms}
+      ${likes}`;
   } else if (sent) {
     // 2б. Сообщение отправлено
     step = `
       <h2 class="thanks">Спасибо, что рассказали</h2>
       ${chosen}
       <p class="lead">Владелец уже получил ваше сообщение и разберётся. Будем рады видеть вас снова.</p>
+      ${flow.phoneLost ? `<p class="fb-warn">Номер не похож на российский, поэтому мы его не сохранили. Сообщение владелец получил.</p>` : ""}
       ${publicLink("Оставить отзыв на картах")}`;
   } else {
     // 2в. Оценка 1–3 — сообщение владельцу
@@ -554,7 +571,14 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
         <input type="hidden" name="r" value="${score}">
         <input class="fb-trap" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
         <textarea name="text" rows="4" maxlength="1000" required placeholder="Например: долго ждали заказ, остыл кофе…" aria-label="Ваше сообщение"></textarea>
-        <p class="fb-hint">Сообщение анонимное. Не указывайте имя и телефон.</p>
+        <input class="fb-call-box" type="checkbox" name="call" value="1" id="fb-call">
+        <label class="fb-call" for="fb-call">Перезвоните мне</label>
+        <div class="fb-phone">
+          <input type="tel" name="phone" inputmode="tel" autocomplete="tel" maxlength="20" placeholder="+7 900 000-00-00" aria-label="Ваш телефон">
+          <p class="fb-consent">Отмечая «Перезвоните мне» и указывая номер, вы соглашаетесь, что ${escapeHtml(business.name)} позвонит вам по этому сообщению.
+            Номер видит только владелец, он не уходит в рекламу и удаляется через ${PHONE_KEEP_DAYS} дней. <a href="/privacy/#guests" target="_blank" rel="noopener">Подробнее</a></p>
+        </div>
+        <p class="fb-hint">Без отметки сообщение анонимное — имя и телефон в тексте не пишите.</p>
         <button class="fb-send" type="submit">Отправить владельцу</button>
       </form>
       ${publicLink("Оставить отзыв на картах")}`;
@@ -651,7 +675,8 @@ function designCss(d) {
     .xlink { background: var(--btn-bg); }
     .xlink:hover { border-color: var(--accent); box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 30%, transparent); }
     .bonus-button { box-shadow: ${glow("var(--accent)")}; }
-    .fb textarea { background: rgba(0, 0, 0, 0.35); }
+    .fb textarea, .fb-phone input, .like { background: rgba(0, 0, 0, 0.35); }
+    .like-on { background: color-mix(in srgb, var(--accent) 22%, rgba(0, 0, 0, 0.35)); box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 35%, transparent); }
     .footer:not(.footer-cta-btn) { background: rgba(18, 13, 10, 0.6); border-color: rgba(255, 236, 214, 0.2); color: var(--muted); }
   `;
 }
@@ -866,6 +891,29 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
     }
     .fb-send:active { transform: scale(0.98); }
     .fb-trap { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+    /* «Перезвоните мне»: поле телефона появляется только после отметки (без скриптов) */
+    .fb-call-box { width: 20px; height: 20px; margin: 14px 8px 0 2px; vertical-align: -4px; accent-color: var(--accent); cursor: pointer; }
+    .fb-call { font-size: 15px; font-weight: 650; cursor: pointer; }
+    .fb-phone { display: none; margin-top: 10px; }
+    .fb-call-box:checked ~ .fb-phone { display: block; }
+    .fb-phone input {
+      display: block; width: 100%; padding: 12px 14px; border-radius: 14px;
+      border: 1px solid var(--btn-border); background: var(--btn-bg); color: var(--text); font: inherit; font-size: 16px;
+    }
+    .fb-phone input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .fb-consent { margin: 8px 2px 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .fb-consent a { color: inherit; }
+    .fb-warn { margin: 0 0 8px; color: var(--muted); font-size: 13px; }
+    /* «Что понравилось?» после 4–5 */
+    .likes { margin-top: 20px; }
+    .likes-q { margin: 0 0 10px; color: var(--muted); font-size: 14px; font-weight: 600; }
+    .likes-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+    .like {
+      padding: 8px 14px; border-radius: 999px; border: 1px solid var(--btn-border); background: var(--btn-bg);
+      color: var(--text); font-size: 14px; font-weight: 600; text-decoration: none; -webkit-tap-highlight-color: transparent;
+    }
+    .like-on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--btn-bg)); }
+    .like:active { transform: scale(0.96); }
     /* ссылки заведения вверху — как карточка заведения */
     .xlinks-top { margin: 18px 0 4px; }
 
