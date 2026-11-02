@@ -23,6 +23,7 @@ import { handleRef } from "./referral.js";
 import { handleOrder, orderReminders } from "./orders.js";
 import { handleFeedback } from "./rating.js";
 import { handleMedia } from "./media.js";
+import { uptimeCheck, UPTIME_CRON } from "./uptime.js";
 import { db } from "./supabase.js";
 
 // Должно совпадать с расписанием в server/server.mjs
@@ -113,7 +114,11 @@ export default {
   // Старый Cloudflare Worker теперь только посредник для Telegram: у него нет DB_URL, и по расписанию
   // он ничего не делает — иначе разослал бы отчёты по устаревшей базе Supabase.
   async scheduled(controller, env, ctx) {
-    if (!env.DB_URL) return;
+    // На Cloudflare (без своей базы) расписание только одно — сторож сайта (uptime.js)
+    if (!env.DB_URL) {
+      if (controller.cron === UPTIME_CRON) ctx.waitUntil(uptimeCheck(env).catch((e) => console.error(`Uptime: ${e.message}`)));
+      return;
+    }
     if (controller.cron === DAILY_CRON) {
       ctx.waitUntil(
         orderReminders(env).catch((error) => console.error(`Order reminders failed: ${error.message}\n${error.stack}`))

@@ -21,11 +21,11 @@
     "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_6tOGONYM3yQkS8ZOeJDLHQ_f9u75f0d"
   },
   "keep_vars": true,
-  // "17 3 * * *" — каждый день в 06:17 МСК: запрос к базе, чтобы Supabase не «уснул»
-  // "0 6 * * 1"  — по понедельникам в 09:00 МСК: отчёт за неделю владельцам в Telegram
-  //               (если меняете — поменяйте и WEEKLY_REPORT_CRON в src/index.js)
+  // "*/5 * * * *" — сторож: каждые 5 минут проверяет https://tapreview.ru/health и пишет
+  //                 администратору в Telegram, если сайт лёг (src/uptime.js; секреты TG_BOT_TOKEN, ALERT_CHAT_ID).
+  // Отчёты и напоминания теперь отправляет сам сервер в России (server/server.mjs).
   "triggers": {
-    "crons": ["17 3 * * *", "0 6 * * 1"]
+    "crons": ["*/5 * * * *"]
   },
   "observability": {
     "enabled": true

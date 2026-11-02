@@ -35,10 +35,23 @@ sudo systemctl status tapreview          # работает ли сайт
 sudo journalctl -u tapreview -n 50       # последние сообщения сайта
 sudo /usr/local/bin/tapreview-update     # забрать обновление из GitHub сейчас
 ls /var/backups/tapreview                # резервные копии базы (14 дней)
+curl -s 127.0.0.1:8787/health            # база жива? сколько часов назад копия ушла на Яндекс Диск
 ```
 
 Восстановить базу из копии:
 `sudo -u postgres pg_restore --clean --if-exists -d tapreview /var/backups/tapreview/tapreview-ДАТА.dump`
+
+## Копии на Яндекс Диске (если сервер пропал)
+
+Включить один раз: `sudo bash /opt/tapreview/site/server/offsite-setup.sh` (логин Яндекса + пароль приложения
+«Файлы / WebDAV»). Каждую ночь в 03:45 зашифрованная копия кладётся в папку `TapReview-backups` на Диске
+(`tapreview-ДД.dump.enc`, ДД — день месяца). Сторож сайта пишет в Telegram, если копия старше 2 суток.
+
+Восстановить на новом сервере (после `setup.sh`): скачать файл с Диска, затем
+```
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in tapreview-ДД.dump.enc -out tapreview.dump   # спросит пароль шифрования
+sudo -u postgres pg_restore --clean --if-exists -d tapreview tapreview.dump
+```
 
 ## Обновления сайта
 

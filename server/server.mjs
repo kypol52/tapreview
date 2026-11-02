@@ -153,8 +153,33 @@ function clientIp(req) {
   return forwarded || req.socket.remoteAddress || "";
 }
 
+// ---------- /health — для внешней проверки «сайт жив» (Cloudflare Worker, src/uptime.js) ----------
+// Без персональных данных: ok/ошибка базы и возраст последней копии базы на Яндекс Диске.
+// Файл-отметку пишет server/offsite-backup.sh после успешной выгрузки.
+const OFFSITE_MARK = "/var/lib/tapreview-offsite/last-ok";
+
+async function health(res) {
+  const out = { ok: true, db: "ok", backup_hours: null };
+  try {
+    const r = await fetch(`${String(env.DB_URL || "").replace(/\/+$/, "")}/businesses?select=id&limit=1`, { signal: AbortSignal.timeout(4000) });
+    if (!r.ok) throw new Error(String(r.status));
+  } catch {
+    out.ok = false;
+    out.db = "down";
+  }
+  try {
+    const stat = await fs.stat(OFFSITE_MARK);
+    out.backup_hours = Math.round((Date.now() - stat.mtimeMs) / 36e5);
+  } catch {
+    // копия на Яндекс Диск ещё не настроена
+  }
+  res.writeHead(out.ok ? 200 : 503, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+  res.end(JSON.stringify(out));
+}
+
 const server = http.createServer(async (req, res) => {
   const waits = [];
+  if (req.url === "/health") return health(res);
   try {
     const host = req.headers["x-forwarded-host"] || req.headers.host || "tapreview.ru";
     const proto = req.headers["x-forwarded-proto"] || "https";
