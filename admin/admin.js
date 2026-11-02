@@ -145,6 +145,8 @@ function bindEvents() {
   // Заявки
   $("tab-orders").addEventListener("click", () => showTab("orders"));
   $("o-refresh").addEventListener("click", loadOrders);
+  $("tab-health").addEventListener("click", () => showTab("health"));
+  $("h-refresh").addEventListener("click", loadHealth);
   $("o-tg-invite").addEventListener("click", onOrderTgInvite);
   for (const [value, label] of Object.entries(ORDER_STATUS_LABELS)) {
     const option = el("option", "", label);
@@ -430,6 +432,10 @@ function showApp() {
       state.orders = rows;
       renderOrdersBadge();
     })
+    .catch(() => {});
+  // Красный счётчик на вкладке «Здоровье» — сколько заведений с проблемой
+  api("/api/admin/health")
+    .then((report) => renderHealth(report.businesses))
     .catch(() => {});
 }
 
@@ -749,7 +755,7 @@ async function onOrderTgInvite() {
   }
 }
 
-const TABS = ["businesses", "groups", "cards", "orders"];
+const TABS = ["businesses", "groups", "cards", "orders", "health"];
 
 function showTab(name) {
   for (const tab of TABS) {
@@ -759,6 +765,97 @@ function showTab(name) {
   if (name === "groups" && !state.groupsLoaded) loadGroups();
   if (name === "cards" && !state.cardsLoaded) loadCards();
   if (name === "orders") loadOrders();
+  if (name === "health") loadHealth();
+}
+
+// ================= Здоровье: заведения и сервис =================
+
+async function loadHealth() {
+  $("h-loading").hidden = false;
+  hideError("h-error");
+  loadSystemHealth();
+  try {
+    const report = await api("/api/admin/health");
+    renderHealth(report.businesses);
+  } catch (error) {
+    showError("h-error", `Не удалось загрузить: ${error.message}`);
+  } finally {
+    $("h-loading").hidden = true;
+  }
+}
+
+// Сайт, база и резервная копия — тот же /health, который проверяет сторож (uptime.js)
+async function loadSystemHealth() {
+  const box = $("h-system");
+  const pill = (level, text) => {
+    const el = document.createElement("span");
+    el.className = `h-pill h-${level}`;
+    el.textContent = text;
+    return el;
+  };
+  try {
+    const res = await fetch("/health", { cache: "no-store" });
+    const h = await res.json();
+    const backup = h.backup_hours == null
+      ? pill("warn", "Копия на Яндекс Диске: нет данных")
+      : pill(h.backup_hours > 48 ? "bad" : "ok", `Копия на Яндекс Диске: ${h.backup_hours} ч назад`);
+    box.replaceChildren(pill("ok", "Сайт работает"), pill(h.db === "ok" ? "ok" : "bad", h.db === "ok" ? "База в порядке" : "База не отвечает"), backup);
+  } catch {
+    box.replaceChildren(pill("bad", "Не удалось проверить сервер"));
+  }
+}
+
+function renderHealth(list) {
+  const counts = { bad: 0, warn: 0, ok: 0 };
+  for (const b of list) counts[b.level]++;
+  const badge = $("health-badge");
+  badge.hidden = !counts.bad;
+  badge.textContent = String(counts.bad);
+
+  const summary = document.createElement("p");
+  summary.className = "h-summary-line";
+  summary.textContent = `Проблема: ${counts.bad} · Внимание: ${counts.warn} · В порядке: ${counts.ok}`;
+  $("h-summary").replaceChildren(summary);
+
+  const cards = list.map((b) => {
+    const card = document.createElement("div");
+    card.className = `h-card h-card-${b.level}`;
+    const head = document.createElement("div");
+    head.className = "h-head";
+    const name = document.createElement("button");
+    name.type = "button";
+    name.className = "h-name";
+    name.textContent = b.name;
+    name.title = "Открыть настройки заведения";
+    name.addEventListener("click", () => {
+      const business = (state.businesses || []).find((x) => x.id === b.id);
+      if (business) openEditor(business);
+    });
+    const nums = document.createElement("span");
+    nums.className = "h-nums muted";
+    nums.textContent = `Открытий ${b.views_7d} (${b.views_prev_7d}) · переходов ${b.clicks_7d}`;
+    head.append(name, nums);
+    card.append(head);
+    if (b.issues.length) {
+      const ul = document.createElement("ul");
+      ul.className = "h-issues";
+      for (const issue of b.issues) {
+        const li = document.createElement("li");
+        li.className = `h-issue h-${issue.level}`;
+        li.textContent = issue.text;
+        ul.append(li);
+      }
+      card.append(ul);
+    } else {
+      const ok = document.createElement("p");
+      ok.className = "h-fine muted";
+      ok.textContent = "Всё в порядке";
+      card.append(ok);
+    }
+    return card;
+  });
+  $("h-list").replaceChildren(...cards);
+  if (!list.length) $("h-list").textContent = "Нет активных заведений.";
 }
 
 // ================= Список бизнесов =================

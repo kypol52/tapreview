@@ -532,6 +532,26 @@ input[type="color"]:disabled { opacity: 0.4; }
 .design-prev:not(.has-img)::after { content: "нет"; }
 .design-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .design-actions label.btn { cursor: pointer; }
+/* Здоровье */
+.h-system { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
+.h-pill { padding: 5px 11px; border-radius: 99px; font-size: 13px; font-weight: 600; }
+.h-pill.h-ok { background: var(--success-bg); color: var(--success-text); }
+.h-pill.h-warn { background: #fef3c7; color: #92400e; }
+.h-pill.h-bad { background: #fee2e2; color: #991b1b; }
+.h-summary-line { margin: 0 0 10px; font-weight: 600; }
+.h-list { display: grid; gap: 10px; margin-bottom: 14px; }
+.h-card { padding: 12px 14px; border: 1px solid var(--border); border-left: 4px solid #22c55e; border-radius: var(--radius); background: var(--surface); }
+.h-card-warn { border-left-color: #f59e0b; }
+.h-card-bad { border-left-color: #dc2626; }
+.h-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.h-name { padding: 0; border: 0; background: none; font: inherit; font-weight: 700; font-size: 16px; color: var(--text); cursor: pointer; text-align: left; }
+.h-name:hover { text-decoration: underline; }
+.h-nums { font-size: 13px; }
+.h-issues { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.h-issue { position: relative; padding-left: 16px; font-size: 14px; }
+.h-issue::before { content: ""; position: absolute; left: 2px; top: 7px; width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; }
+.h-issue.h-bad::before { background: #dc2626; }
+.h-fine { margin: 6px 0 0; font-size: 13px; }
 #m-text { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; resize: vertical; }
 #m-text:focus { outline: 2px solid #93c5fd; border-color: #60a5fa; }
 @media (max-width: 480px) { .design-grid { grid-template-columns: 1fr; } }

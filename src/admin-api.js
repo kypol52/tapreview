@@ -6,6 +6,7 @@
 //   DELETE /api/admin/businesses/:id     — удалить бизнес
 //   GET    /api/admin/businesses/:id/stats?days=30&tz=Europe/Moscow — статистика по дням
 //   GET    /api/admin/stats-summary?days=30 — итоги по всем бизнесам (для списка)
+//   GET    /api/admin/health             — «Здоровье»: что не так с каждым активным заведением (миграция 026)
 //   POST   /api/admin/media          — загрузить картинку «Своего дизайна» { kind: bg|logo, data: dataURL } → { id }
 //   GET    /api/admin/groups             — список групп (один QR → несколько заведений)
 //   POST   /api/admin/groups             — создать группу
@@ -49,6 +50,7 @@ import { bonusCounts } from "./bonus.js";
 import { refUrl, refStats } from "./referral.js";
 import { localAuthEnabled, verifyToken, handleLogin } from "./admin-auth.js";
 import { saveMedia, MEDIA_ID_RE } from "./media.js";
+import { billingState, formatDay } from "./billing.js";
 
 const CATEGORIES = ["restaurant", "beauty", "shop", "hotel", "auto", "other"];
 
@@ -138,6 +140,10 @@ export async function handleApi(request, env, url) {
 
       if (path === "/api/admin/stats-summary" && method === "GET") {
         return await statsSummary(env, url);
+      }
+
+      if (path === "/api/admin/health" && method === "GET") {
+        return json(await healthReport(env));
       }
 
       if (path === "/api/admin/groups") {
@@ -781,6 +787,76 @@ async function businessStats(env, id, url) {
     body: { p_business_id: Number(id), p_days: days, p_tz: tz }
   });
   return json({ days, tz, rows });
+}
+
+// ---------- «Здоровье» заведений ----------
+// bad — гости или деньги теряются прямо сейчас; warn — стоит написать владельцу. Самые проблемные — сверху.
+async function healthReport(env, now = Date.now()) {
+  const [rows, businesses] = await Promise.all([
+    db(env, "rpc/admin_health", { method: "POST", body: {} }),
+    db(env, "businesses?is_active=eq.true&select=id,name,slug,paid_until,yandex_url,twogis_url,google_url,bonus_mode,created_at&order=name.asc")
+  ]);
+  const byId = new Map(rows.map((r) => [r.business_id, r]));
+  const DAY = 86400000;
+  const daysSince = (iso) => (iso ? Math.floor((now - Date.parse(iso)) / DAY) : null);
+  const list = businesses.map((b) => {
+    const h = byId.get(b.id) || {};
+    const n = (v) => Number(v) || 0;
+    const issues = [];
+    const add = (level, text) => issues.push({ level, text });
+
+    const bill = billingState(b.paid_until, now);
+    if (bill.state === "expired") add("bad", "Подписка закончилась — карты ведут сразу на Яндекс, статистика на паузе");
+    else if (bill.state === "grace") add("bad", `Подписка закончилась, отсрочка до ${formatDay(bill.lastDay)}`);
+    else if (bill.state === "ending") add("warn", `Подписка до ${formatDay(bill.paidUntil)}`);
+
+    if (!b.yandex_url && !b.twogis_url && !b.google_url) add("bad", "Нет ни одной ссылки на отзывы");
+
+    const age = daysSince(b.created_at);
+    const quiet = daysSince(h.last_view_at);
+    if (quiet === null) {
+      if (age !== null && age >= 3) add("warn", "Карту ещё ни разу не открывали");
+    } else if (quiet >= 7) {
+      add("bad", `Нет открытий ${quiet} ${plural(quiet, "день", "дня", "дней")}`);
+    } else if (n(h.views_prev_7d) >= 10 && n(h.views_7d) <= n(h.views_prev_7d) / 2) {
+      add("warn", `Открытий меньше на ${Math.round((1 - n(h.views_7d) / n(h.views_prev_7d)) * 100)}% к прошлой неделе`);
+    }
+
+    if (n(h.open_feedback)) {
+      const k = n(h.open_feedback);
+      add(k >= 3 ? "bad" : "warn", `${k} ${plural(k, "неразобранное сообщение", "неразобранных сообщения", "неразобранных сообщений")} от недовольных гостей`);
+    }
+    if (!n(h.tg_chats)) add("warn", "Владелец не подключил Telegram-бота — не узнает о жалобах сразу");
+    const seen = daysSince(h.stats_opened_at);
+    if (seen === null) add("warn", "Владелец ни разу не открывал статистику");
+    else if (seen >= 14) add("warn", `Владелец не смотрел статистику ${seen} ${plural(seen, "день", "дня", "дней")}`);
+    if (b.bonus_mode && b.bonus_mode !== "off" && n(h.bonus_issued_30d) >= 5 && !n(h.bonus_redeemed_30d)) {
+      add("warn", `Подарков выдано ${n(h.bonus_issued_30d)}, погашено 0 — касса не проверяет коды?`);
+    }
+
+    const level = issues.some((i) => i.level === "bad") ? "bad" : issues.length ? "warn" : "ok";
+    return {
+      id: b.id,
+      name: b.name,
+      slug: b.slug,
+      level,
+      issues,
+      views_7d: n(h.views_7d),
+      views_prev_7d: n(h.views_prev_7d),
+      clicks_7d: n(h.clicks_7d),
+      last_view_at: h.last_view_at || null
+    };
+  });
+  const rank = { bad: 0, warn: 1, ok: 2 };
+  list.sort((a, b) => rank[a.level] - rank[b.level] || b.issues.length - a.issues.length);
+  return { generated_at: new Date(now).toISOString(), businesses: list };
+}
+
+function plural(n, one, few, many) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
 }
 
 async function statsSummary(env, url) {

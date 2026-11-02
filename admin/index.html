@@ -49,7 +49,26 @@
         <button id="tab-groups" class="tab" type="button">Группы заведений</button>
         <button id="tab-cards" class="tab" type="button">Карты</button>
         <button id="tab-orders" class="tab" type="button">Заявки <span id="orders-badge" class="tab-badge" hidden></span></button>
+        <button id="tab-health" class="tab" type="button">Здоровье <span id="health-badge" class="tab-badge" hidden></span></button>
       </nav>
+
+      <!-- Здоровье: что не так с заведениями и с самим сервисом -->
+      <section id="health-section" hidden>
+        <div class="page-head">
+          <div>
+            <h1>Здоровье</h1>
+            <p class="muted">Кому из владельцев стоит написать сегодня. Сверху — самые срочные.</p>
+          </div>
+          <button id="h-refresh" class="btn btn-secondary" type="button">Обновить</button>
+        </div>
+        <div id="h-system" class="h-system"></div>
+        <p id="h-error" class="error" hidden></p>
+        <p id="h-loading" class="muted" hidden>Загрузка…</p>
+        <div id="h-summary" class="h-summary"></div>
+        <div id="h-list" class="h-list"></div>
+        <p class="muted field-hint">Красное — гости или деньги теряются прямо сейчас. Жёлтое — стоит написать владельцу.
+          Открытия и переходы — за последние 7 дней, в скобках — за 7 дней до них.</p>
+      </section>
 
       <section id="businesses-section">
       <div class="page-head">
