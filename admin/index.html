@@ -458,6 +458,50 @@
         <button id="f-xlink-add" class="btn btn-secondary btn-small" type="button">+ Добавить ссылку</button>
       </fieldset>
 
+      <fieldset class="billing">
+        <legend>Сейчас у нас — новость, событие, акция</legend>
+        <p class="muted field-hint">Карточка видна гостю после оценки (4–5, после сообщения владельцу и «сразу на картах»), под кнопками отзывов.
+          Например: «Живая музыка в пятницу», «Новое сезонное меню». Пустые заголовок и текст — блока нет.</p>
+        <label class="field">
+          <span>Заголовок</span>
+          <input id="m-title" type="text" maxlength="60" placeholder="Живая музыка в эту пятницу">
+        </label>
+        <label class="field">
+          <span>Текст</span>
+          <textarea id="m-text" rows="3" maxlength="300" placeholder="С 20:00 — кавер-группа «Ветер». Вход свободный, столы лучше забронировать."></textarea>
+        </label>
+        <div class="design-slot">
+          <span class="design-title">Фото (необязательно)</span>
+          <div id="m-photo-prev" class="design-prev design-prev-bg"></div>
+          <div class="design-actions">
+            <label class="btn btn-ghost btn-small">Выбрать фото<input id="m-photo-file" type="file" accept="image/*" hidden></label>
+            <button id="m-photo-clear" class="btn btn-ghost btn-small" type="button">Убрать</button>
+          </div>
+          <p id="m-status" class="muted field-hint"></p>
+        </div>
+        <div class="grid-2">
+          <label class="field">
+            <span>Ссылка (необязательно)</span>
+            <input id="m-url" type="url" placeholder="https://…">
+          </label>
+          <label class="field">
+            <span>Текст кнопки</span>
+            <input id="m-button" type="text" maxlength="30" placeholder="Забронировать стол">
+          </label>
+        </div>
+        <div class="grid-2">
+          <label class="field">
+            <span>Показывать с</span>
+            <input id="m-from" type="date">
+          </label>
+          <label class="field">
+            <span>по (включительно)</span>
+            <input id="m-to" type="date">
+          </label>
+        </div>
+        <p class="muted field-hint">Без дат — показывается всегда. После окончания блок пропадает сам. После изменения нажмите «Сохранить».</p>
+      </fieldset>
+
       <fieldset class="billing bonus-box">
         <legend>Подарок для гостей</legend>
         <label class="field">

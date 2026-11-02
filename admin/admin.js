@@ -111,6 +111,8 @@ function bindEvents() {
   $("d-bg-clear").addEventListener("click", () => { designState.bg = null; showDesignPreview(); });
   $("d-logo-clear").addEventListener("click", () => { designState.logo = null; showDesignPreview(); });
   $("d-dim").addEventListener("input", () => { $("d-dim-val").textContent = $("d-dim").value; });
+  $("m-photo-file").addEventListener("change", onMomentPhoto);
+  $("m-photo-clear").addEventListener("click", () => { momentState.photo = null; showMomentPhoto(); });
   $("f-color-on").addEventListener("change", () => {
     $("f-color").disabled = !$("f-color-on").checked;
   });
@@ -891,6 +893,7 @@ function openEditor(business) {
   const theme = (business && business.theme) || "classic";
   for (const radio of document.querySelectorAll('input[name="f-theme"]')) radio.checked = radio.value === theme;
   fillDesign(business);
+  fillMoment(business);
   fillBonus(business);
   $("f-xlinks").replaceChildren(...((business && business.extra_links) || []).map(xlinkRow));
   updateXlinkAdd();
@@ -1335,8 +1338,64 @@ function readForm() {
     theme: (document.querySelector('input[name="f-theme"]:checked') || {}).value || "classic",
     design: readDesign(),
     extra_links: readXlinks(),
-    rating_first: $("f-rating-first").checked
+    rating_first: $("f-rating-first").checked,
+    moment: readMoment()
   };
+}
+
+// ================= «Сейчас у нас»: новость, событие, акция (миграция 025) =================
+
+const momentState = { photo: null };
+
+function fillMoment(business) {
+  const m = (business && business.moment) || {};
+  $("m-title").value = m.title || "";
+  $("m-text").value = m.text || "";
+  $("m-url").value = m.url || "";
+  $("m-button").value = m.button || "";
+  $("m-from").value = m.from || "";
+  $("m-to").value = m.to || "";
+  momentState.photo = m.photo || null;
+  $("m-status").textContent = "";
+  showMomentPhoto();
+}
+
+function showMomentPhoto() {
+  const box = $("m-photo-prev");
+  box.style.backgroundImage = momentState.photo ? `url(/m/${momentState.photo})` : "";
+  box.classList.toggle("has-img", Boolean(momentState.photo));
+  $("m-photo-clear").hidden = !momentState.photo;
+}
+
+function readMoment() {
+  return {
+    title: $("m-title").value,
+    text: $("m-text").value,
+    photo: momentState.photo,
+    url: $("m-url").value,
+    button: $("m-button").value,
+    from: $("m-from").value,
+    to: $("m-to").value
+  };
+}
+
+async function onMomentPhoto() {
+  const input = $("m-photo-file");
+  const file = input.files && input.files[0];
+  input.value = "";
+  if (!file) return;
+  const status = $("m-status");
+  status.textContent = "Обрабатываю фото…";
+  try {
+    const data = await compressPhoto(file);
+    status.textContent = "Загружаю…";
+    const res = await api("/api/admin/media", { method: "POST", body: { kind: "moment", data } });
+    momentState.photo = res.id;
+    showMomentPhoto();
+    status.textContent = "Готово. Нажмите «Сохранить».";
+  } catch (error) {
+    status.textContent = `Не получилось: ${error.message}`;
+  }
 }
 
 // ================= Свой дизайн: фон-фото и логотип (тема custom, миграция 022) =================

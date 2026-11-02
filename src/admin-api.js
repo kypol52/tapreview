@@ -57,7 +57,7 @@ const ADMIN_COLUMNS =
   "google_url,yandex_url,twogis_url,discount_code,discount_text,is_active," +
   "paid_until,monthly_price,billing_note," +
   "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions,bonus_daily_limit," +
-  "referred_by,ref_reward_at,theme,design,extra_links,rating_first," +
+  "referred_by,ref_reward_at,theme,design,extra_links,rating_first,moment," +
   "created_at,updated_at";
 
 const EXTRA_LINK_TYPES = ["menu", "catalog", "services", "booking", "delivery", "site", "tips", "pay", "custom"];
@@ -603,6 +603,7 @@ function validateBusiness(input) {
     design: cleanDesign(input.design),
     extra_links: cleanExtraLinks(input.extra_links),
     rating_first: input.rating_first !== false,
+    moment: cleanMoment(input.moment),
     ...cleanBonus(input)
   };
 }
@@ -631,6 +632,33 @@ function cleanDesign(value) {
     logo: id(d.logo),
     dim: Number.isFinite(dim) ? Math.min(85, Math.max(30, dim)) : 60,
     glow: d.glow !== false
+  };
+}
+
+// «Сейчас у нас» (миграция 025): новость / событие / акция. Пустой заголовок и текст — блок выключен
+function cleanMoment(value) {
+  const m = value && typeof value === "object" ? value : {};
+  const title = cleanText(m.title, 60, "«Сейчас у нас»: заголовок");
+  const text = cleanText(m.text, 300, "«Сейчас у нас»: текст");
+  if (!title && !text) return {};
+  const day = (v, label) => {
+    const s = String(v || "");
+    if (!s) return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || Number.isNaN(Date.parse(s))) throw new HttpError(400, `«Сейчас у нас»: ${label} — неверная дата`);
+    return s;
+  };
+  const from = day(m.from, "показывать с");
+  const to = day(m.to, "показывать по");
+  if (from && to && from > to) throw new HttpError(400, "«Сейчас у нас»: дата окончания раньше даты начала");
+  const url = cleanUrl(m.url, "«Сейчас у нас»");
+  return {
+    title: title || null,
+    text: text || null,
+    photo: MEDIA_ID_RE.test(String(m.photo || "")) ? String(m.photo) : null,
+    url,
+    button: url ? cleanText(m.button, 30, "«Сейчас у нас»: текст кнопки") || null : null,
+    from,
+    to
   };
 }
 

@@ -74,7 +74,7 @@ export const BONUS_COLUMNS =
 
 const BUSINESS_COLUMNS =
   "id,slug,name,tagline,category,logo_url,brand_color,google_url,yandex_url,twogis_url," +
-  "discount_code,discount_text,paid_until,theme,design,extra_links,rating_first," + BONUS_COLUMNS;
+  "discount_code,discount_text,paid_until,theme,design,extra_links,rating_first,moment," + BONUS_COLUMNS;
 
 // Ссылки заведения под кнопками отзывов (миграция 020): меню, каталог, услуги…
 // Значки — тонкие линии в цвете текста темы, чтобы не спорить с логотипами площадок
@@ -92,6 +92,30 @@ export const EXTRA_LINKS = {
   pay: { label: "Оплатить счёт", icon: LINK_ICON("M3 7h18v11H3zM3 11h18M7 15h3") },
   custom: { label: "Ссылка", icon: LINK_ICON("M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1") }
 };
+
+// «Сейчас у нас» (миграция 025): новость, событие или акция заведения — в даты показа (МСК, включительно)
+function momentBlock(business, now = Date.now()) {
+  const m = business.moment;
+  if (!m || (!m.title && !m.text)) return "";
+  const today = new Date(now + 3 * 3600 * 1000).toISOString().slice(0, 10);
+  if ((m.from && today < m.from) || (m.to && today > m.to)) return "";
+  const photo = m.photo && /^[0-9a-f-]{36}$/.test(m.photo)
+    ? `<img class="moment-photo" src="/m/${m.photo}" alt="" loading="lazy">`
+    : "";
+  const button = m.url && isHttpsUrl(m.url)
+    ? `<a class="moment-link" href="${escapeHtml(m.url)}" target="_blank" rel="noopener nofollow">${escapeHtml(m.button || "Подробнее")} →</a>`
+    : "";
+  return `
+    <section class="moment">
+      ${photo}
+      <div class="moment-body">
+        <p class="moment-kicker">Сейчас у нас</p>
+        ${m.title ? `<h3 class="moment-title">${escapeHtml(m.title)}</h3>` : ""}
+        ${m.text ? `<p class="moment-text">${escapeHtml(m.text)}</p>` : ""}
+        ${button}
+      </div>
+    </section>`;
+}
 
 function extraLinksBlock(business, top = false) {
   const links = (Array.isArray(business.extra_links) ? business.extra_links : []).filter((l) => l && isHttpsUrl(l.url));
@@ -492,6 +516,7 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
       <div class="divider"></div>
       <h2 class="thanks">Спасибо за ваш визит!</h2>
       ${actions}
+      ${momentBlock(business)}
       ${extraLinksBlock(business)}
       ${discount}`
   });
@@ -599,6 +624,7 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
       ${tagline}
       <div class="divider"></div>
       ${step}
+      ${all || sent || score >= 4 ? momentBlock(business) : ""}
       ${extraLinksBlock(business)}
       ${score || all ? discount : ""}`
   });
@@ -675,7 +701,8 @@ function designCss(d) {
     .xlink { background: var(--btn-bg); }
     .xlink:hover { border-color: var(--accent); box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 30%, transparent); }
     .bonus-button { box-shadow: ${glow("var(--accent)")}; }
-    .fb textarea, .fb-phone input, .like { background: rgba(0, 0, 0, 0.35); }
+    .fb textarea, .fb-phone input, .like, .moment { background: rgba(0, 0, 0, 0.35); }
+    .moment { border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
     .like-on { background: color-mix(in srgb, var(--accent) 22%, rgba(0, 0, 0, 0.35)); box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 35%, transparent); }
     .footer:not(.footer-cta-btn) { background: rgba(18, 13, 10, 0.6); border-color: rgba(255, 236, 214, 0.2); color: var(--muted); }
   `;
@@ -904,6 +931,14 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
     .fb-consent { margin: 8px 2px 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
     .fb-consent a { color: inherit; }
     .fb-warn { margin: 0 0 8px; color: var(--muted); font-size: 13px; }
+    /* «Сейчас у нас» */
+    .moment { margin-top: 22px; overflow: hidden; border-radius: 18px; border: 1px solid var(--btn-border); background: var(--btn-bg); text-align: left; }
+    .moment-photo { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
+    .moment-body { padding: 14px 16px 16px; }
+    .moment-kicker { margin: 0 0 4px; color: var(--accent); font-size: 11.5px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+    .moment-title { margin: 0 0 4px; color: var(--text); font-size: 18px; line-height: 1.25; }
+    .moment-text { margin: 0; color: var(--muted); font-size: 14.5px; line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; }
+    .moment-link { display: inline-block; margin-top: 10px; color: var(--text); font-size: 14.5px; font-weight: 700; text-decoration: none; border-bottom: 2px solid var(--accent); }
     /* «Что понравилось?» после 4–5 */
     .likes { margin-top: 20px; }
     .likes-q { margin: 0 0 10px; color: var(--muted); font-size: 14px; font-weight: 600; }

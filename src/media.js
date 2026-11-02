@@ -1,4 +1,4 @@
-// Картинки «Своего дизайна» (миграция 022): фон-фото заведения и логотип.
+// Картинки «Своего дизайна» (миграция 022): фон-фото заведения и логотип; фото блока «Сейчас у нас» (025).
 //   GET /m/:id — отдать картинку (кэш браузера на год: у новой картинки всегда новый id)
 // Загрузка — из админки (admin-api.js → saveMedia): браузер уже сжал картинку,
 // здесь проверяем тип по первым байтам и размер.
@@ -33,7 +33,7 @@ export async function handleMedia(request, env, id) {
 
 // dataUrl — "data:image/jpeg;base64,...". Возвращает id или бросает Error с понятным текстом.
 export async function saveMedia(env, kind, dataUrl) {
-  if (kind !== "bg" && kind !== "logo") throw new Error("Неизвестный тип картинки");
+  if (!["bg", "logo", "moment"].includes(kind)) throw new Error("Неизвестный тип картинки");
   const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String(dataUrl || ""));
   if (!match) throw new Error("Картинка должна быть JPG, PNG или WebP");
   const [, mime, data] = match;
