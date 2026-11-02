@@ -198,8 +198,7 @@
     }
 
     /* Подставка с картой */
-    /* Горизонтальная карта 85,6 × 54 мм в акриловой подставке */
-    .stand { position: absolute; z-index: 2; left: 18px; bottom: 150px; width: 262px; transform: perspective(1100px) rotateY(14deg) rotateX(2deg); transform-origin: bottom center; }
+    .stand { position: absolute; z-index: 2; left: 64px; bottom: 112px; width: 194px; transform: perspective(1100px) rotateY(16deg) rotateX(2deg); transform-origin: bottom center; }
     .stand-shadow { position: absolute; left: -26px; right: -40px; bottom: -36px; height: 34px; border-radius: 50%; background: radial-gradient(closest-side, rgba(70, 45, 15, 0.32), transparent); filter: blur(2px); }
     .card-img { position: relative; display: block; width: 100%; height: auto; border-radius: 12px; box-shadow: 0 2px 6px rgba(10, 42, 92, 0.12), 0 24px 40px -12px rgba(10, 42, 92, 0.3); }
     /* Акриловое стекло поверх карты: блик и тонкая кромка */
@@ -356,6 +355,17 @@
     .col-navy { background: var(--navy); }
     .col-gold { background: var(--gold); }
 
+    /* Два формата карты */
+    .formats-section { padding-top: 0; }
+    .formats { display: grid; gap: 16px; }
+    .format { display: flex; flex-direction: column; margin: 0; padding: 20px; border-radius: var(--r-lg); background: #fff; box-shadow: 0 0 0 1px var(--line) inset; }
+    .format-img { display: grid; place-items: center; height: 300px; margin-bottom: 20px; border-radius: var(--r); background: var(--soft); }
+    .format-img img { height: auto; border-radius: 10px; box-shadow: 0 2px 6px rgba(10, 42, 92, 0.1), 0 18px 36px -12px rgba(10, 42, 92, 0.3); }
+    .format-img-v img { width: auto; max-height: 250px; }
+    .format-img-h img { width: min(370px, 86%); }
+    .format h3 { margin-bottom: 2px; }
+    .format-size { margin: 0 0 8px !important; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; color: var(--gold-600) !important; }
+    .format p { margin: 0; color: var(--muted); font-size: 15px; }
     .how-note { max-width: 760px; margin: 22px 0 0; padding: 14px 18px; border-radius: 14px; background: var(--gold-50); box-shadow: 0 0 0 1px #f0d48a inset; font-size: 14.5px; color: #6b4a00; }
 
     /* Функции: карточка с мини-иллюстрацией сверху */
@@ -538,6 +548,10 @@
       .steps { grid-template-columns: repeat(3, 1fr); }
       .benefits { grid-template-columns: repeat(2, 1fr); }
       .feats { grid-template-columns: repeat(2, 1fr); }
+      .formats { grid-template-columns: repeat(2, 1fr); }
+      .format { padding: 24px; }
+      .format-img { height: 340px; }
+      .format-img-v img { max-height: 290px; }
       .design-strip { grid-template-columns: 280px 1fr; gap: 32px; padding: 24px 32px 24px 24px; }
       .plans { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .order { grid-template-columns: repeat(4, 1fr); gap: 20px; }
@@ -643,7 +657,7 @@
           <h1 class="reveal" style="--d:.05s">Отзывы <span class="accent">в одно</span> касание</h1>
           <p class="lead reveal" style="--d:.1s">
             Гость прикладывает телефон к карте на столе и ставит оценку. Довольные сразу попадают в форму отзыва на
-            <b>Яндекс Картах, 2ГИС или Google</b>, а недовольные пишут <b>вам</b> — пока они ещё в зале.
+            <b>Яндекс Картах, 2ГИС или Google Maps</b>, а недовольные пишут <b>вам</b> — пока они ещё в зале.
             Плюс подарки, штампы и VIP-гости, чтобы возвращались.
           </p>
           <div class="actions reveal" style="--d:.15s">
@@ -669,7 +683,7 @@
           <div class="stand">
             <div class="stand-shadow"></div>
             <div class="stand-base"></div>
-            <img class="card-img" src="/assets/card-front-h.png" width="1000" height="631" alt="">
+            <img class="card-img" src="/assets/card-front.png" width="640" height="1015" alt="">
             <div class="stand-glass"></div>
           </div>
           <div class="nfc"><i></i><i></i><i></i></div>
@@ -744,6 +758,35 @@
           </li>
         </ol>
         <p class="how-note reveal">Кнопки площадок доступны при любой оценке, а подарок не зависит от отзыва — так требуют правила Яндекс Карт и 2ГИС. Мы не скрываем негатив, а даём вам шанс исправить ситуацию первым.</p>
+      </div>
+    </section>
+
+    <!-- ---------- два формата карты ---------- -->
+    <section class="formats-section" id="formats">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <p class="kicker">Карта</p>
+          <h2>Два формата — выбирайте под своё место</h2>
+          <p>Обе карты работают одинаково: NFC-метка внутри и QR-код на лицевой стороне. Размер — как у банковской карты.</p>
+        </div>
+        <div class="formats">
+          <figure class="format reveal">
+            <div class="format-img format-img-v"><img src="/assets/card-front.png" width="640" height="1015" alt="Вертикальная карта TapReview" loading="lazy"></div>
+            <figcaption>
+              <h3>Вертикальная</h3>
+              <p class="format-size">54 × 85,6 мм</p>
+              <p>Хорошо смотрится в подставке на столе и у кассы — QR сразу на уровне глаз.</p>
+            </figcaption>
+          </figure>
+          <figure class="format reveal" style="--d:.08s">
+            <div class="format-img format-img-h"><img src="/assets/card-front-h.png" width="1000" height="631" alt="Горизонтальная карта TapReview" loading="lazy"></div>
+            <figcaption>
+              <h3>Горизонтальная</h3>
+              <p class="format-size">85,6 × 54 мм</p>
+              <p>Удобна на стойке, ресепшене или в папке со счётом — текст слева, крупный QR справа.</p>
+            </figcaption>
+          </figure>
+        </div>
       </div>
     </section>
 
@@ -916,7 +959,7 @@
             <p class="price"><strong>200&nbsp;₽</strong><span>в месяц за карту</span></p>
             <p class="price-note">+&nbsp;100&nbsp;₽ за&nbsp;подключение каждой карты</p>
             <ul>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Карта NFC + QR</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Карта NFC + QR — вертикальная или горизонтальная</li>
               <li><svg aria-hidden="true"><use href="#i-check"/></svg>Страница отзывов под ваше заведение</li>
               <li><svg aria-hidden="true"><use href="#i-check"/></svg>Оценки и сообщения недовольных — вам</li>
               <li><svg aria-hidden="true"><use href="#i-check"/></svg>Подарки, штампы, VIP-гости</li>
