@@ -7,6 +7,7 @@
 
 import { db } from "./supabase.js";
 import { friendOn, inviterRewards } from "./friends.js";
+import { has } from "./tariffs.js";
 
 export const DEVICE_COOKIE = "tr_device";
 const DEVICE_RE = /^[A-Za-z0-9]{24}$/;
@@ -30,12 +31,12 @@ export async function visitorKeyOf(env, deviceId, businessId) {
 }
 
 export function stampsOn(business) {
-  return Boolean(business.stamps_goal && business.stamps_prize && business.bonus_mode && business.bonus_mode !== "off");
+  return Boolean(business.stamps_goal && business.stamps_prize && business.bonus_mode && business.bonus_mode !== "off") && has(business, "gifts");
 }
 
 // VIP-уровень (миграция 032): включён, если заданы порог визитов и VIP-подарок (и подарки вообще включены)
 export function vipOn(business) {
-  return Boolean(business.vip_visits && business.vip_gift && business.bonus_mode && business.bonus_mode !== "off");
+  return Boolean(business.vip_visits && business.vip_gift && business.bonus_mode && business.bonus_mode !== "off") && has(business, "gifts");
 }
 
 // Сколько визитов у гостя в заведении (дни с касанием карты)

@@ -544,7 +544,8 @@ function renderOrder(order) {
   const sum = el(
     "div",
     "o-sum",
-    `Карт: ${order.cards} · заведений: ${order.venues} · тариф «${order.plan === "year" ? "Год" : "Месяц"}» · ` +
+    `Карт: ${order.cards} · заведений: ${order.venues} · тариф «${({ start: "Старт", standard: "Стандарт", plus: "Плюс" })[order.tariff] || "Стандарт"}», ` +
+      `оплата за ${order.plan === "year" ? "год" : "месяц"}${order.custom_design ? " · + свой дизайн" : ""} · ` +
       `при заказе ${rub(order.total_now)}, дальше ${rub(order.total_next)} ${per}`
   );
 
@@ -998,7 +999,8 @@ function openEditor(business) {
   $("f-active").checked = business ? business.is_active : true;
   // Новое заведение: первый месяц бесплатно (оплачено до = сегодня + 1 месяц) и базовая цена 169 ₽ (до 10 карт)
   $("f-paid-until").value = business ? business.paid_until || "" : addMonths(mskToday(), 1);
-  $("f-price").value = business && business.monthly_price != null ? String(business.monthly_price) : business ? "" : "169";
+  $("f-tariff").value = (business && business.tariff) || "standard";
+  $("f-price").value = business && business.monthly_price != null ? String(business.monthly_price) : business ? "" : "189";
   $("f-billing-note").value = business ? business.billing_note || "" : "";
   fillReferredBy(business);
   loadReferrals(business);
@@ -1480,6 +1482,7 @@ function readForm() {
     design: readDesign(),
     extra_links: readXlinks(),
     rating_first: $("f-rating-first").checked,
+    tariff: $("f-tariff").value,
     moment: readMoment()
   };
 }

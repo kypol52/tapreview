@@ -20,6 +20,7 @@ import { renderPage, escapeHtml, GIFT, DEFAULT_ACCENT, BONUS_COLUMNS, customDesi
 import { isExpired } from "./billing.js";
 import { deviceFrom, visitorKeyOf, stampsOn, stampCount, vipOn, visitCount } from "./guests.js";
 import { friendOn, inviteFor, inviterRewards, inviteBlock } from "./friends.js";
+import { has } from "./tariffs.js";
 
 // Коды подарков — 6 цифр (быстро набрать на кассе). Старые коды с буквами по-прежнему принимаются.
 const CODE_DIGITS = "0123456789";
@@ -121,7 +122,7 @@ export async function handleBonus(request, env) {
         `&select=id,slug,name,discount_text,paid_until,theme,design,${BONUS_COLUMNS}&limit=1`
     );
     const business = rows[0];
-    if (!business || isExpired(business.paid_until) || !bonusEnabled(business)) {
+    if (!business || isExpired(business.paid_until) || !bonusEnabled(business) || !has(business, "gifts")) {
       return infoPage(404, "Бонус сейчас недоступен");
     }
 

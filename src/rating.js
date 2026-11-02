@@ -11,6 +11,7 @@
 import { db } from "./supabase.js";
 import { tg } from "./telegram.js";
 import { isBot, sha256, visitorHashOf } from "./analytics.js";
+import { has } from "./tariffs.js";
 
 const DEDUPE_WINDOW_MINUTES = 30;
 const SLUG_RE = /^[A-Za-z0-9_-]{3,64}$/;
@@ -110,8 +111,8 @@ export async function handleFeedback(request, env, ctx) {
   if (isBot(request) || String(form.get("website") || "").trim() || !message) return done();
 
   try {
-    const rows = await db(env, `businesses?slug=eq.${encodeURIComponent(slug)}&is_active=eq.true&select=id,name&limit=1`);
-    if (!rows.length) return done();
+    const rows = await db(env, `businesses?slug=eq.${encodeURIComponent(slug)}&is_active=eq.true&select=id,name,tariff&limit=1`);
+    if (!rows.length || !has(rows[0], "rating")) return done();
     const business = rows[0];
     const visitor = await visitorHashOf(request, env);
 

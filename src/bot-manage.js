@@ -9,6 +9,7 @@
 
 import { db } from "./supabase.js";
 import { cleanMoment } from "./admin-api.js";
+import { has } from "./tariffs.js";
 
 const MANAGE_RE = /^\/(manage|gifts_on|gifts_off|news|news_off)(?:@\w+)?(?=\s|$)/i;
 
@@ -22,9 +23,15 @@ async function managedBusinesses(env, chatId) {
   const ids = subs.map((s) => s.business_id);
   const rows = await db(
     env,
-    `businesses?id=in.(${ids.join(",")})&select=id,name,bonus_mode,bonus_prizes,discount_text,moment`
+    `businesses?id=in.(${ids.join(",")})&select=id,name,bonus_mode,bonus_prizes,discount_text,moment,tariff`
   );
   return ids.map((id) => rows.find((r) => r.id === id)).filter(Boolean);
+}
+
+// Управление из Telegram — тариф «Плюс» (tariffs.js)
+async function plusBusinesses(env, chatId) {
+  const all = await managedBusinesses(env, chatId);
+  return { all, list: all.filter((b) => has(b, "bot")) };
 }
 
 // → ответ бота (HTML) или null, если команда не про управление
@@ -34,9 +41,12 @@ export async function handleManage(env, chat, text) {
   const name = match[1].toLowerCase();
   let rest = text.slice(match[0].length).replace(/^[ \t]+/, "");
 
-  const list = await managedBusinesses(env, chat.id);
-  if (!list.length) {
+  const { all, list } = await plusBusinesses(env, chat.id);
+  if (!all.length) {
     return "⚙ Управление из бота для этого чата не включено. Напишите нам — включим для владельца заведения.";
+  }
+  if (!list.length) {
+    return "⚙ Управление из Telegram доступно в тарифе «Плюс». Чтобы подключить, напишите в TapReview.";
   }
   if (name === "manage") return overview(env, list);
 

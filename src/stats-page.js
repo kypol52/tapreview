@@ -11,6 +11,7 @@ import { ratingStats, setFeedbackResolved, LIKES, PHONE_KEEP_DAYS } from "./rati
 import { refUrl, refStats } from "./referral.js";
 import { recentScore, scoreHtml, SCORE_CSS } from "./score.js";
 import { rewardInviter } from "./friends.js";
+import { has } from "./tariffs.js";
 
 const TOKEN_RE = /^[A-Za-z0-9]{24}$/;
 // Куда владелец пишет, чтобы продлить подписку (личный Telegram TapReview)
@@ -62,9 +63,12 @@ async function statsPage(request, env, ctx, token) {
   const [reports, extraRows] = await Promise.all([
     loadReports(env, linkIds, period, now),
     // slug — для ссылки-приглашения; bonus_mode — показывать ли кнопку кассы подарков
-    db(env, `businesses?id=in.(${linkIds.join(",")})&select=id,slug,bonus_mode,vip_visits,vip_gift`).catch(() => [])
+    db(env, `businesses?id=in.(${linkIds.join(",")})&select=id,slug,bonus_mode,vip_visits,vip_gift,tariff`).catch(() => [])
   ]);
-  const bonusRows = extraRows.filter((b) => b.bonus_mode && b.bonus_mode !== "off");
+  const bonusRows = extraRows.filter((b) => b.bonus_mode && b.bonus_mode !== "off" && has(b, "gifts"));
+  // Тарифы (tariffs.js): что показывать владельцу — по заведению на экране (сводка — если есть хоть у одного)
+  const rowOf = (id) => extraRows.find((b) => b.id === id) || {};
+  const anyHas = (feature) => extraRows.length === 0 || extraRows.some((b) => has(b, feature));
   const slugs = new Map(extraRows.map((b) => [b.id, b.slug]));
   // Удалённые заведения просто пропускаем, порядок — как в ссылке
   const allVenues = linkIds.map((id) => reports.get(id)).filter(Boolean);
@@ -130,7 +134,7 @@ async function statsPage(request, env, ctx, token) {
 
   // Гости по уровням за 90 дней (миграция 032) — на странице одного заведения
   let levels = null;
-  if (view.kind === "venue") {
+  if (view.kind === "venue" && has(rowOf(view.dailyIds[0]), "guests")) {
     const row = extraRows.find((b) => b.id === view.dailyIds[0]) || {};
     const vip = row.vip_visits && row.vip_gift && row.bonus_mode !== "off" ? row.vip_visits : null;
     const since = new Date(now + 3 * 3600 * 1000 - 90 * 86400000).toISOString().slice(0, 10);
@@ -143,14 +147,15 @@ async function statsPage(request, env, ctx, token) {
   }
 
   // TapReview Score за последние 30 дней (score.js) — на странице одного заведения
-  const score = view.kind === "venue"
+  const score = view.kind === "venue" && has(rowOf(view.dailyIds[0]), "score")
     ? await recentScore(env, view.dailyIds[0], now).catch((error) => {
         console.error(`Score: ${error.message}`);
         return null;
       })
     : null;
 
-  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn, invite, ratings, names, bonus, score, levels, canEdit: Boolean(link.can_edit) };
+  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn, invite, ratings, names, bonus, score, levels,
+    canEdit: Boolean(link.can_edit) && anyHas("settings"), wrappedOn: anyHas("wrapped") };
   return html(200, `Статистика · ${view.title}`, renderBody(view, daily, page));
 }
 
@@ -555,7 +560,7 @@ function renderBody(view, daily, page) {
       <p class="range">${p.title} · ${formatDateRange(period, range)}</p>
       <nav class="tabs" aria-label="Период">${tabs}</nav>
       ${page.bonusOn ? `<a class="desk-link" href="/s/${token}/bonus">🎁 Проверить код подарка</a>` : ""}
-      <a class="desk-link" href="/s/${token}/wrapped${view.kind === "all" ? "" : `?b=${view.dailyIds[0]}`}">✨ Итоги месяца</a>
+      ${page.wrappedOn ? `<a class="desk-link" href="/s/${token}/wrapped${view.kind === "all" ? "" : `?b=${view.dailyIds[0]}`}">✨ Итоги месяца</a>` : ""}
       ${page.canEdit ? `<a class="desk-link" href="/s/${token}/settings${view.kind === "all" ? "" : `?b=${view.dailyIds[0]}`}">⚙ Настройки</a>` : ""}
     </div>
   </header>

@@ -14,6 +14,7 @@ import { renderPage, escapeHtml, GIFT, BONUS_COLUMNS, customDesign, isHttpsUrl }
 import { isBot } from "./analytics.js";
 import { isExpired } from "./billing.js";
 import { deviceFrom, visitorKeyOf } from "./guests.js";
+import { has } from "./tariffs.js";
 import { issueCode, dailyGuard, validityText, formatCode, BONUS_PAGE_CSS, CODE_FIELDS, infoPage, withCookie } from "./bonus.js";
 
 const CODE_RE = /^[a-z0-9]{8}$/;
@@ -22,7 +23,7 @@ const FRIENDS_PER_MONTH = 3;
 const DAY = 86400000;
 
 export function friendOn(business) {
-  return Boolean(business.friend_gift && business.friend_reward && business.bonus_mode && business.bonus_mode !== "off");
+  return Boolean(business.friend_gift && business.friend_reward && business.bonus_mode && business.bonus_mode !== "off") && has(business, "gifts");
 }
 
 // Ссылка гостя для друзей: { code, url }. Одна на гостя и заведение — создаём при первом показе.

@@ -8,6 +8,7 @@
 import { db } from "./supabase.js";
 import { logEvent, sourceFrom, isBot } from "./analytics.js";
 import { guestOf, vipOn } from "./guests.js";
+import { has } from "./tariffs.js";
 import { isExpired } from "./billing.js";
 import { bonusBlock } from "./bonus.js";
 import { flowFrom, logRating, LIKES, PHONE_KEEP_DAYS } from "./rating.js";
@@ -72,7 +73,7 @@ export const GIFT = `<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20"
 // Настройки бонуса для гостей (bonus.js, миграции 015, 023)
 export const BONUS_COLUMNS =
   "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions,bonus_daily_limit," +
-  "stamps_goal,stamps_prize,friend_gift,friend_reward,vip_visits,vip_gift";
+  "stamps_goal,stamps_prize,friend_gift,friend_reward,vip_visits,vip_gift,tariff";
 
 const BUSINESS_COLUMNS =
   "id,slug,name,tagline,category,logo_url,brand_color,google_url,yandex_url,twogis_url," +
@@ -97,6 +98,7 @@ export const EXTRA_LINKS = {
 
 // «Сейчас у нас» (миграция 025): новость, событие или акция заведения — в даты показа (МСК, включительно)
 function momentBlock(business, now = Date.now()) {
+  if (!has(business, "moment")) return "";
   const m = business.moment;
   if (!m || (!m.title && !m.text)) return "";
   const today = new Date(now + 3 * 3600 * 1000).toISOString().slice(0, 10);
@@ -120,6 +122,7 @@ function momentBlock(business, now = Date.now()) {
 }
 
 function extraLinksBlock(business, top = false) {
+  if (!has(business, "links")) return "";
   const links = (Array.isArray(business.extra_links) ? business.extra_links : []).filter((l) => l && isHttpsUrl(l.url));
   if (!links.length) return "";
   const items = links
@@ -153,7 +156,7 @@ export async function handleBusinessPage(request, env, ctx, slug) {
   ctx.waitUntil(
     logEvent(request, env, { businessId: business.id, eventType: "page_view", source })
   );
-  if (business.rating_first && flow.score && !flow.sent && !flow.all) {
+  if (business.rating_first && has(business, "rating") && flow.score && !flow.sent && !flow.all) {
     ctx.waitUntil(logRating(request, env, { businessId: business.id, score: flow.score, source, likes: flow.likes }));
   }
 
@@ -298,7 +301,7 @@ export async function handleCardPage(request, env, ctx, rawCode) {
       cardId: card.id
     })
   );
-  if (business.rating_first && flow.score && !flow.sent && !flow.all) {
+  if (business.rating_first && has(business, "rating") && flow.score && !flow.sent && !flow.all) {
     ctx.waitUntil(logRating(request, env, { businessId: business.id, cardId: card.id, score: flow.score, source, likes: flow.likes }));
   }
 
@@ -492,7 +495,7 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
   // «С возвращением!» — со второго дня визитов (guests.js); визиты считаются только при касании карты или QR
   // VIP-уровни (миграция 032): VIP — свой значок, остальным — сколько визитов до VIP
   let welcome = "";
-  if (guest && guest.visits >= 2) {
+  if (guest && guest.visits >= 2 && has(business, "guests")) {
     const vip = vipOn(business) ? business.vip_visits : null;
     if (vip && guest.visits >= vip) {
       welcome = `<p class="welcome welcome-vip">⭐ VIP-гость · вы у нас ${guest.visits}-й раз</p>`;
@@ -512,9 +515,10 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
 
   // Подарок для гостей (bonus.js): только при скане карты, появляется через несколько секунд,
   // не зависит от отзыва. Без JavaScript — обычная форма.
-  const discount = bonusBlock(business, source, cardCode, guest ? guest.stamps : null, guest ? guest.rewards : 0, guest ? guest.visits : 0);
+  // Подарки — только в тарифе «Плюс» (tariffs.js)
+  const discount = !has(business, "gifts") ? "" : bonusBlock(business, source, cardCode, guest ? guest.stamps : null, guest ? guest.rewards : 0, guest ? guest.visits : 0);
 
-  if (business.rating_first) {
+  if (business.rating_first && has(business, "rating")) {
     return ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, discount, design });
   }
 

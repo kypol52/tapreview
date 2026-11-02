@@ -10,6 +10,7 @@ import { html, esc, notFound, TOKEN_RE } from "./stats-page.js";
 import { cleanMoment, cleanBonus, cleanExtraLinks, EXTRA_LINK_MAX } from "./admin-api.js";
 import { BONUS_COLUMNS, EXTRA_LINKS } from "./public-page.js";
 import { saveMedia } from "./media.js";
+import { has } from "./tariffs.js";
 
 const MAX_PRIZES = 8;
 const MAX_BODY = 1200000; // фото уже сжато в браузере до ~300 КБ (≈ 400 КБ в base64)
@@ -39,6 +40,15 @@ export async function handleOwnerSettings(request, env, token) {
     const rows = await db(env, `businesses?id=eq.${id}&select=id,name,slug,discount_text,moment,extra_links,${BONUS_COLUMNS}`);
     if (!rows.length) return notFound();
     const business = rows[0];
+    // Тарифы (tariffs.js): «Настройки» — с «Стандарта», раздел подарков — только в «Плюсе»
+    if (!has(business, "settings")) {
+      return html(200, "Настройки", `${header(token, business.name, "", `/s/${token}`, "Статистика")}
+  <main class="wrap"><section class="panel">
+    <p>В тарифе «Старт» страница ведёт гостей сразу к отзывам, и настраивать здесь нечего.
+      «Сейчас у нас», кнопки «Меню», «Запись», «Чаевые» и оценка гостей есть в тарифе «Стандарт», подарки и штампы — в «Плюсе».
+      Чтобы сменить тариф, напишите в TapReview.</p>
+  </section></main>`);
+    }
 
     if (!form) {
       const ok = SECTIONS[url.searchParams.get("ok")] ? url.searchParams.get("ok") : null;
@@ -49,7 +59,10 @@ export async function handleOwnerSettings(request, env, token) {
     let patch;
     try {
       if (section === "moment") patch = await momentPatch(env, form, business);
-      else if (section === "bonus") patch = bonusPatch(form);
+      else if (section === "bonus") {
+        if (!has(business, "gifts")) throw new Error("Подарки доступны в тарифе «Плюс» — напишите в TapReview, чтобы сменить тариф");
+        patch = bonusPatch(form);
+      }
       else if (section === "links") patch = linksPatch(form);
       else throw new Error("Неизвестный раздел");
     } catch (error) {
@@ -195,7 +208,8 @@ function settingsBody(token, multi, b, { ok = null, error = null } = {}) {
   return `${header(token, b.name, `<a class="set-preview" href="/b/${esc(b.slug)}?v=all" target="_blank" rel="noopener">Посмотреть, как видит гость ↗</a>`, backHref, multi ? "Все заведения" : "Статистика")}
   <main class="wrap">
     ${momentSection(b, hidden, flash("moment"))}
-    ${bonusSection(b, hidden, flash("bonus"))}
+    ${has(b, "gifts") ? bonusSection(b, hidden, flash("bonus")) : `<section class="panel" id="bonus"><h2>Подарок для гостей</h2>
+      <p class="set-hint">Колесо подарков, штампы, VIP-гости и «Подарите другу» — в тарифе «Плюс». Чтобы подключить, напишите в TapReview.</p></section>`}
     ${linksSection(b, hidden, flash("links"))}
     ${multi ? `<a class="back back-dark" href="/s/${token}">← Статистика</a>` : ""}
   </main>`;

@@ -52,6 +52,7 @@ import { refUrl, refStats } from "./referral.js";
 import { localAuthEnabled, verifyToken, handleLogin } from "./admin-auth.js";
 import { saveMedia, MEDIA_ID_RE } from "./media.js";
 import { billingState, formatDay } from "./billing.js";
+import { TARIFF_KEYS } from "./tariffs.js";
 
 const CATEGORIES = ["restaurant", "beauty", "shop", "hotel", "auto", "other"];
 
@@ -61,7 +62,7 @@ const ADMIN_COLUMNS =
   "paid_until,monthly_price,billing_note," +
   "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions,bonus_daily_limit," +
   "stamps_goal,stamps_prize,friend_gift,friend_reward,vip_visits,vip_gift," +
-  "referred_by,ref_reward_at,theme,design,extra_links,rating_first,moment," +
+  "referred_by,ref_reward_at,theme,design,extra_links,rating_first,moment,tariff," +
   "created_at,updated_at";
 
 const EXTRA_LINK_TYPES = ["menu", "catalog", "services", "booking", "delivery", "site", "tips", "pay", "custom"];
@@ -614,6 +615,7 @@ function validateBusiness(input) {
     design: cleanDesign(input.design),
     extra_links: cleanExtraLinks(input.extra_links),
     rating_first: input.rating_first !== false,
+    tariff: TARIFF_KEYS.includes(input.tariff) ? input.tariff : "standard",
     moment: cleanMoment(input.moment),
     ...cleanBonus(input)
   };

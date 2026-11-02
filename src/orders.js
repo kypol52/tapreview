@@ -15,18 +15,26 @@
 
 import { db } from "./supabase.js";
 import { tg } from "./telegram.js";
+import { TARIFFS, DESIGN_PRICE } from "./tariffs.js";
 
 // Цены — те же, что на главной, на странице заказа (order/index.html) и в оферте (п. 3.4).
-// Чем больше карт, тем дешевле каждая следующая: каждая карта стоит по своей ступени
-// (как «первая карта 169 ₽, со 2-й по 5-ю — по 49 ₽ …»), поэтому сумма растёт плавно, без скачков вниз.
-// Карты считаются по всем заведениям заказчика вместе. Год = 10 месяцев. Первый месяц подписки бесплатно.
+// Первая карта стоит по тарифу (tariffs.js: Старт 129 ₽, Стандарт 189 ₽, Плюс 299 ₽ в месяц),
+// каждая следующая — одинаково во всех тарифах и тем дешевле, чем больше карт: каждая карта по своей ступени,
+// поэтому сумма растёт плавно, без скачков вниз. Карты считаются по всем заведениям заказчика вместе.
+// Год = 10 месяцев. Первый месяц подписки бесплатно. «Свой дизайн» — разово 990 ₽.
 //   upTo — по какую карту включительно действует цена
 export const PRICES = {
-  monthly: [{ upTo: 1, price: 169 }, { upTo: 5, price: 49 }, { upTo: 10, price: 39 }, { upTo: 20, price: 29 }, { upTo: Infinity, price: 19 }],
+  extraCards: [{ upTo: 5, price: 49 }, { upTo: 10, price: 39 }, { upTo: 20, price: 29 }, { upTo: Infinity, price: 19 }],
   connection: [{ upTo: 2, price: 150 }, { upTo: 5, price: 130 }, { upTo: Infinity, price: 100 }],
   yearMonths: 10,
   trialMonths: 1
 };
+
+// Подписка в месяц за n карт в тарифе
+export function monthlyTotal(tariff, n) {
+  const base = (TARIFFS[tariff] || TARIFFS.standard).base;
+  return base + tieredTotal([{ upTo: 1, price: 0 }, ...PRICES.extraCards], Math.max(1, n));
+}
 
 // Сумма за n карт по ступеням
 export function tieredTotal(tiers, n) {
@@ -176,10 +184,13 @@ export function validate(data, { manual = false } = {}) {
     throw new OrderError(400, "Карт: не меньше, чем заведений, и не больше 500");
   }
   const plan = data.plan === "year" ? "year" : data.plan === "month" ? "month" : null;
-  if (!plan) throw new OrderError(400, "Выберите тариф");
+  if (!plan) throw new OrderError(400, "Выберите оплату: месяц или год");
+  // Тариф и «Свой дизайн» (миграция 033); старые формы без поля — «Стандарт»
+  const tariff = TARIFFS[data.tariff] ? data.tariff : "standard";
+  const customDesign = data.custom_design === true;
   if (!manual && data.consent !== true) throw new OrderError(400, "Нужно согласие на обработку персональных данных");
 
-  const totals = orderTotals({ venues, cards, plan });
+  const totals = orderTotals({ venues, cards, plan, tariff, custom_design: customDesign });
   if (manual) {
     return {
       name,
@@ -191,6 +202,8 @@ export function validate(data, { manual = false } = {}) {
       venues,
       cards,
       plan,
+      tariff,
+      custom_design: customDesign,
       total_now: totals.now,
       total_next: totals.next,
       source: "manual",
@@ -208,6 +221,8 @@ export function validate(data, { manual = false } = {}) {
     venues,
     cards,
     plan,
+    tariff,
+    custom_design: customDesign,
     total_now: totals.now,
     total_next: totals.next,
     consent_at: new Date().toISOString(),
@@ -217,12 +232,13 @@ export function validate(data, { manual = false } = {}) {
 
 // Подключение и подписка по ступеням за все карты заказчика. Первый месяц бесплатно:
 // при заказе платится только подключение, подписка (за месяц или за год) — после бесплатного месяца.
-export function orderTotals({ cards, plan }) {
+export function orderTotals({ cards, plan, tariff = "standard", custom_design = false }) {
   const n = Math.max(1, cards);
-  const monthly = tieredTotal(PRICES.monthly, n);
+  const monthly = monthlyTotal(tariff, n);
   const subscription = plan === "year" ? monthly * PRICES.yearMonths : monthly;
   const connection = tieredTotal(PRICES.connection, n);
-  return { connection, monthly, subscription, now: connection, next: subscription };
+  const design = custom_design ? DESIGN_PRICE : 0;
+  return { connection, design, monthly, subscription, now: connection + design, next: subscription };
 }
 
 async function checkRate(env, order) {
@@ -284,8 +300,9 @@ export function orderText(o, env = {}) {
   const admin = `${String(env.PUBLIC_BASE_URL || "https://tapreview.ru").replace(/\/+$/, "")}/admin/`;
   return [
     `🆕 <b>Заявка №${o.id}</b>`,
-    `🃏 Карт: <b>${o.cards}</b> · заведений: <b>${o.venues}</b> · тариф: <b>${PLAN_LABELS[o.plan]}</b>`,
-    `💳 При заказе: <b>${rub(t.now)}</b> (карты) · месяц бесплатно, дальше ${rub(t.next)} ${o.plan === "year" ? "в год" : "в месяц"}`,
+    `🃏 Карт: <b>${o.cards}</b> · заведений: <b>${o.venues}</b> · тариф: <b>${(TARIFFS[o.tariff] || TARIFFS.standard).label}</b>, оплата за ${o.plan === "year" ? "год" : "месяц"}` +
+      (o.custom_design ? " · <b>+ свой дизайн</b>" : ""),
+    `💳 При заказе: <b>${rub(t.now)}</b> (карты${o.custom_design ? " и дизайн" : ""}) · месяц бесплатно, дальше ${rub(t.next)} ${o.plan === "year" ? "в год" : "в месяц"}`,
     `👉 Контакты и детали — в админке: <a href="${esc(admin)}">${esc(admin.replace(/^https?:\/\//, ""))}</a> → «Заявки»`
   ].join("\n");
 }

@@ -8,6 +8,7 @@ import { html, esc, notFound, TOKEN_RE } from "./stats-page.js";
 import { billingState } from "./billing.js";
 import { tg } from "./telegram.js";
 import { LIKES } from "./rating.js";
+import { has } from "./tariffs.js";
 import { computeScore, scoreContext, activeDaysIn, daysBetween, scoreHtml, SCORE_CSS } from "./score.js";
 
 const MSK = 3 * 3600 * 1000;
@@ -65,8 +66,14 @@ export async function handleWrapped(request, env, token) {
     const wanted = Number(url.searchParams.get("b"));
     if (wanted && !linkIds.includes(wanted)) return notFound();
 
-    const venues = (await db(env, `businesses?id=in.(${linkIds.join(",")})&select=id,name,paid_until`))
-      .filter((v) => billingState(v.paid_until).state !== "expired");
+    const linked = await db(env, `businesses?id=in.(${linkIds.join(",")})&select=id,name,paid_until,tariff`);
+    // «Итоги месяца» — с тарифа «Стандарт» (tariffs.js)
+    if (linked.length && !linked.some((v) => has(v, "wrapped"))) {
+      return html(200, "Итоги месяца", `<main class="wrap wrap-center"><section class="panel">
+        <h1 class="lost">Итоги месяца — в тарифе «Стандарт»</h1><p>Чтобы подключить, напишите в TapReview.</p>
+        <a class="back back-dark" href="/s/${token}">← Статистика</a></section></main>`);
+    }
+    const venues = linked.filter((v) => billingState(v.paid_until).state !== "expired" && has(v, "wrapped"));
     if (!venues.length) {
       return html(200, "Итоги на паузе", `<main class="wrap wrap-center"><section class="panel">
         <h1 class="lost">Статистика на паузе</h1><p>Продлите подписку, чтобы снова видеть итоги месяца.</p>
@@ -308,7 +315,8 @@ export async function monthlyWrapped(env, now = Date.now()) {
   const subs = await db(env, "tg_subscribers?weekly_report=eq.true&select=chat_id,business_id&limit=1000");
   if (!subs.length) return;
   const ids = [...new Set(subs.map((s) => s.business_id))];
-  const businesses = await db(env, `businesses?id=in.(${ids.join(",")})&is_active=eq.true&select=id,name,paid_until`);
+  const businesses = (await db(env, `businesses?id=in.(${ids.join(",")})&is_active=eq.true&select=id,name,paid_until,tariff`))
+    .filter((b) => has(b, "wrapped"));
   const base = String(env.PUBLIC_BASE_URL || "").replace(/\/+$/, "");
   const texts = new Map();
   for (const b of businesses) {
