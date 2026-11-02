@@ -8,6 +8,7 @@ import { html, esc, notFound, TOKEN_RE } from "./stats-page.js";
 import { billingState } from "./billing.js";
 import { tg } from "./telegram.js";
 import { LIKES } from "./rating.js";
+import { computeScore, scoreContext, activeDaysIn, daysBetween, scoreHtml, SCORE_CSS } from "./score.js";
 
 const MSK = 3 * 3600 * 1000;
 const MONTHS = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
@@ -86,13 +87,28 @@ export async function handleWrapped(request, env, token) {
       if (pick.from <= cur.from && pick.from >= oldest.from) month = pick;
     }
     const prevMonth = monthOf(month.y, month.m - 1);
-    const [data, prev] = await Promise.all([loadMonth(env, ids, month), loadMonth(env, ids, prevMonth)]);
+    const [data, prev, ctx] = await Promise.all([
+      loadMonth(env, ids, month),
+      loadMonth(env, ids, prevMonth),
+      // Score — только для одного заведения; открытия по дням сразу за два месяца
+      ids.length === 1 ? scoreContext(env, ids[0], prevMonth.from, now).catch(() => null) : null
+    ]);
+    let score = null;
+    if (ctx) {
+      const end = Math.min(month.to, now);
+      const opts = (from, to) => ({ activeDays: activeDaysIn(ctx.daily, from, to), periodDays: daysBetween(from, to), hasBot: ctx.hasBot, hasMoment: ctx.hasMoment });
+      score = {
+        cur: computeScore(data, opts(month.from, end)),
+        prev: computeScore(prev, opts(prevMonth.from, prevMonth.to)),
+        hasPrev: Number(prev.views) > 0
+      };
+    }
 
     const query = (key) => `/s/${token}/wrapped?m=${key}${wanted ? `&b=${wanted}` : ""}`;
     const nav = Array.from({ length: 6 }, (_, i) => monthOf(cur.y, cur.m - i))
       .map((x) => `<a class="wr-month${x.key === month.key ? " wr-month-on" : ""}" href="${query(x.key)}">${MONTHS[x.m - 1]}${x.y !== cur.y ? ` ${x.y}` : ""}</a>`)
       .join("");
-    return html(200, `Итоги ${MONTHS_GEN[month.m - 1]} · ${title}`, wrappedBody({ token, title, month, prevMonth, data, prev, nav, isCurrent: month.key === cur.key }));
+    return html(200, `Итоги ${MONTHS_GEN[month.m - 1]} · ${title}`, wrappedBody({ token, title, month, prevMonth, data, prev, nav, score, isCurrent: month.key === cur.key }));
   } catch (error) {
     console.error(`Wrapped error: ${error.message}\n${error.stack}`);
     return html(500, "Итоги временно недоступны", `<main class="wrap wrap-center"><section class="panel">
@@ -124,7 +140,7 @@ function card(cls, inner) {
   return `<section class="wr-card ${cls}">${inner}</section>`;
 }
 
-function wrappedBody({ token, title, month, prevMonth, data, prev, nav, isCurrent }) {
+function wrappedBody({ token, title, month, prevMonth, data, prev, nav, score, isCurrent }) {
   const views = Number(data.views) || 0;
   const clicks = data.clicks || {};
   const totalClicks = Object.values(clicks).reduce((s, n) => s + Number(n), 0);
@@ -223,8 +239,16 @@ function wrappedBody({ token, title, month, prevMonth, data, prev, nav, isCurren
     cards.push(card("", `<p class="wr-mid">Ни одной жалобы за месяц 👏</p><p class="wr-note">Гости, которым что-то не понравилось бы, написали бы вам напрямую.</p>`));
   }
 
+  // TapReview Score месяца — последней карточкой, с изменением к прошлому месяцу
+  if (score && (views || totalClicks)) {
+    cards.push(scoreHtml(score.cur, {
+      prevTotal: score.hasPrev ? score.prev.total : null,
+      note: score.hasPrev ? `За ${MONTHS[prevMonth.m - 1]} было ${score.prev.total}.` : "Как заведение работает с гостями: отзывы, оценки, жалобы, возвраты."
+    }).replace('class="panel sc"', 'class="wr-card sc"'));
+  }
+
   return `
-  <style>${WRAPPED_CSS}</style>
+  <style>${WRAPPED_CSS}${SCORE_CSS}</style>
   <header class="top">
     <div class="top-inner">
       <div class="brand">TapReview <span>· итоги месяца</span></div>
@@ -272,6 +296,7 @@ const WRAPPED_CSS = `
   .wr-col { display: block; width: 100%; border-radius: 6px; background: #dfe5f0; }
   .wr-col-on { color: var(--navy); }
   .wr-col-on .wr-col { background: var(--navy); }
+  .wr-card.sc h2 { margin: 0 0 12px; font-size: 16px; font-weight: 700; }
   .wr-share { margin: 4px 0 8px; text-align: center; font-size: 13px; color: var(--muted); }
 `;
 
@@ -289,10 +314,14 @@ export async function monthlyWrapped(env, now = Date.now()) {
   for (const b of businesses) {
     if (billingState(b.paid_until, now).state === "expired") continue;
     try {
-      const [data, links] = await Promise.all([
+      const [data, links, ctx] = await Promise.all([
         loadMonth(env, [b.id], month),
-        db(env, `stats_links?or=(business_id.eq.${b.id},business_ids.cs.{${b.id}})&select=token&limit=1`)
+        db(env, `stats_links?or=(business_id.eq.${b.id},business_ids.cs.{${b.id}})&select=token&limit=1`),
+        scoreContext(env, b.id, month.from, now).catch(() => null)
       ]);
+      const score = ctx && Number(data.views)
+        ? computeScore(data, { activeDays: activeDaysIn(ctx.daily, month.from, month.to), periodDays: daysBetween(month.from, month.to), hasBot: ctx.hasBot, hasMoment: ctx.hasMoment })
+        : null;
       const clicks = Object.values(data.clicks || {}).reduce((s, n) => s + Number(n), 0);
       const r = data.ratings || {};
       const avg = Number(r.count) ? ` · ★ ${Number(r.avg).toLocaleString("ru-RU", { maximumFractionDigits: 1, minimumFractionDigits: 1 })}` : "";
@@ -300,7 +329,8 @@ export async function monthlyWrapped(env, now = Date.now()) {
       const link = links.length ? `\n\nВсе итоги — красиво, на одной странице:\n${base}/s/${links[0].token}/wrapped?m=${month.key}&b=${b.id}` : "";
       texts.set(b.id,
         `✨ <b>Итоги ${MONTHS_GEN[month.m - 1]}</b> · ${escTg(b.name)}\n\n` +
-        `👀 Открыли страницу: <b>${num(data.views)}</b>\n⭐ Перешли оставить отзыв: <b>${num(clicks)}</b>${avg}${back}${link}`);
+        `👀 Открыли страницу: <b>${num(data.views)}</b>\n⭐ Перешли оставить отзыв: <b>${num(clicks)}</b>${avg}${back}` +
+        (score ? `\n📈 TapReview Score: <b>${score.total}</b> из 100 — ${score.level.toLowerCase()}` : "") + link);
     } catch (error) {
       console.error(`Monthly wrapped ${b.id}: ${error.message}`);
     }

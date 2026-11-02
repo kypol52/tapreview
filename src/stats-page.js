@@ -9,6 +9,7 @@ import { formatDay } from "./billing.js";
 import { normalizeCode, findCode, redeemCode, bonusCounts, bonusFunnel, validityText } from "./bonus.js";
 import { ratingStats, setFeedbackResolved, LIKES, PHONE_KEEP_DAYS } from "./rating.js";
 import { refUrl, refStats } from "./referral.js";
+import { recentScore, scoreHtml, SCORE_CSS } from "./score.js";
 
 const TOKEN_RE = /^[A-Za-z0-9]{24}$/;
 // Куда владелец пишет, чтобы продлить подписку (личный Telegram TapReview)
@@ -126,7 +127,15 @@ async function statsPage(request, env, ctx, token) {
       })
     : null;
 
-  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn, invite, ratings, names, bonus, canEdit: Boolean(link.can_edit) };
+  // TapReview Score за последние 30 дней (score.js) — на странице одного заведения
+  const score = view.kind === "venue"
+    ? await recentScore(env, view.dailyIds[0], now).catch((error) => {
+        console.error(`Score: ${error.message}`);
+        return null;
+      })
+    : null;
+
+  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn, invite, ratings, names, bonus, score, canEdit: Boolean(link.can_edit) };
   return html(200, `Статистика · ${view.title}`, renderBody(view, daily, page));
 }
 
@@ -546,6 +555,7 @@ function renderBody(view, daily, page) {
         ${conversion}
       </div>
     </section>
+    ${page.score ? scoreHtml(page.score, { note: "За последние 30 дней. Как заведение работает с гостями: отзывы, оценки, жалобы, возвраты." }) : ""}
     ${empty ? "" : funnelSection(cur, page.ratings, page.bonus)}
     ${ratingsSection(page.ratings, page.names, view.kind === "all", token, `p=${period}${view.query}`)}
     ${sections}
@@ -556,6 +566,9 @@ function renderBody(view, daily, page) {
         Один и тот же человек считается не чаще раза в 30 минут, роботы не считаются.</p>
       <p><b>Перешли к отзыву</b> — сколько раз нажали кнопку Яндекс Карт, Google или 2ГИС.
         Сам отзыв человек пишет уже на площадке, поэтому опубликованные отзывы здесь не считаются.</p>
+      ${page.score ? `<p><b>TapReview Score</b> — от 0 до 100 за последние 30 дней: отзывы (30 баллов — сколько открывших перешли к отзыву, цель 30%),
+        оценка гостей (20), ответ на жалобы (15), постоянные гости (15), регулярность — сколько дней карту открывали (10),
+        Telegram-бот и блок «Сейчас у нас» (10). 90+ — высший класс, 70+ — отлично, 40+ — хорошо.</p>` : ""}
       ${view.kind === "card" ? "<p>На этой странице — только переходы с этой карты.</p>" : ""}
       <p>Сравнение — ${p.compare}.</p>
     </section>
@@ -1086,4 +1099,5 @@ const CSS = `
     .kpi-value { font-size: 32px; }
     .name { font-size: 22px; }
   }
+  ${SCORE_CSS}
 `;
