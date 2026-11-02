@@ -641,6 +641,9 @@ function cleanDesign(value) {
   };
 }
 
+// Проверки, которые использует и вкладка «Настройки» владельца (owner-settings.js)
+export { cleanMoment, cleanBonus, cleanExtraLinks, HttpError, EXTRA_LINK_MAX };
+
 // «Сейчас у нас» (миграция 025): новость / событие / акция. Пустой заголовок и текст — блок выключен
 function cleanMoment(value) {
   const m = value && typeof value === "object" ? value : {};
@@ -1129,7 +1132,7 @@ function statsLinkUrl(env, token) {
   return `${String(env.PUBLIC_BASE_URL || "").replace(/\/+$/, "")}/s/${token}`;
 }
 
-const STATS_LINK_COLUMNS = "token,business_id,business_ids,created_at,last_opened_at";
+const STATS_LINK_COLUMNS = "token,business_id,business_ids,can_edit,created_at,last_opened_at";
 const MAX_STATS_LINK_BUSINESSES = 50;
 
 // Ссылки, в которых есть это заведение (одна ссылка может показывать несколько заведений)
@@ -1177,8 +1180,18 @@ async function createStatsLink(env, businessId) {
 // Что показывает ссылка:
 //   { business_ids: [id, ...] } — список заведений по порядку, первое — главное
 //   { add_card: "W6A-P37" }     — добавить карту по номеру (добавляется заведение, к которому она привязана)
+//   { can_edit: true|false }    — можно ли по ссылке менять настройки (вкладка «Настройки», миграция 027)
 async function updateStatsLink(request, env, token) {
   const data = await readJson(request);
+  if (typeof data.can_edit === "boolean") {
+    const rows = await db(env, `stats_links?token=eq.${token}&select=${STATS_LINK_COLUMNS}`, {
+      method: "PATCH",
+      body: { can_edit: data.can_edit },
+      prefer: "return=representation"
+    });
+    if (!rows.length) throw new HttpError(404, "Ссылка не найдена");
+    return json(statsLinkOut(env, rows[0]));
+  }
   if (data.add_card !== undefined) {
     data.business_ids = await idsWithCard(env, token, data.add_card);
   }

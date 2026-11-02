@@ -48,7 +48,7 @@ export async function handleStatsPage(request, env, ctx, token) {
 async function statsPage(request, env, ctx, token) {
   if (!TOKEN_RE.test(token)) return notFound();
 
-  const links = await db(env, `stats_links?token=eq.${token}&select=business_id,business_ids`);
+  const links = await db(env, `stats_links?token=eq.${token}&select=business_id,business_ids,can_edit`);
   if (!links.length) return notFound();
   const link = links[0];
   const linkIds = [...new Set(link.business_ids && link.business_ids.length ? link.business_ids : [link.business_id])];
@@ -126,7 +126,7 @@ async function statsPage(request, env, ctx, token) {
       })
     : null;
 
-  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn, invite, ratings, names, bonus };
+  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn, invite, ratings, names, bonus, canEdit: Boolean(link.can_edit) };
   return html(200, `Статистика · ${view.title}`, renderBody(view, daily, page));
 }
 
@@ -527,6 +527,7 @@ function renderBody(view, daily, page) {
       <p class="range">${p.title} · ${formatDateRange(period, range)}</p>
       <nav class="tabs" aria-label="Период">${tabs}</nav>
       ${page.bonusOn ? `<a class="desk-link" href="/s/${token}/bonus">🎁 Проверить код подарка</a>` : ""}
+      ${page.canEdit ? `<a class="desk-link" href="/s/${token}/settings${view.kind === "all" ? "" : `?b=${view.dailyIds[0]}`}">⚙ Настройки</a>` : ""}
     </div>
   </header>
   <main class="wrap">
@@ -842,6 +843,9 @@ ${script ? `<script nonce="${nonce}">${script}</script>` : ""}
   });
 }
 
+// Для вкладки «Настройки» (owner-settings.js) — та же оболочка страницы
+export { html, esc, notFound, TOKEN_RE };
+
 // ---------- Мелочи ----------
 
 function num(n) {
@@ -1003,6 +1007,36 @@ const CSS = `
   .desk-link { display: inline-block; margin-top: 14px; padding: 8px 14px; border-radius: 999px; background: rgba(255,255,255,0.12);
     color: #fff; font-size: 14px; font-weight: 600; text-decoration: none; }
   .desk-link:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .desk-link + .desk-link { margin-left: 6px; }
+  /* Настройки владельца (owner-settings.js) */
+  .set-preview { color: var(--gold-soft); font-size: 13.5px; text-underline-offset: 3px; }
+  .set-hint { margin: -4px 0 12px; font-size: 13px; line-height: 1.5; color: var(--muted); }
+  .set-form { display: grid; gap: 12px; }
+  .set-form label { display: grid; gap: 5px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .set-form input:not([type=checkbox]), .set-form textarea, .set-form select {
+    width: 100%; min-width: 0; padding: 11px 12px; border: 0; border-radius: 12px; box-shadow: 0 0 0 1.5px var(--line) inset;
+    background: #fff; font: inherit; font-size: 16px; font-weight: 500; color: var(--text); }
+  .set-form textarea { resize: vertical; line-height: 1.4; }
+  .set-form input:focus, .set-form textarea:focus, .set-form select:focus { outline: none; box-shadow: 0 0 0 2px var(--navy) inset; }
+  .set-form input[type=file] { padding: 9px 10px; font-size: 14px; }
+  .set-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: end; }
+  .set-prizes { margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 14px; display: grid; gap: 8px; }
+  .set-prizes legend { padding: 0 4px; font-size: 13px; font-weight: 700; color: var(--text); }
+  .set-prizes .set-hint { margin: 0 0 4px; }
+  .set-prize { display: grid; grid-template-columns: 1fr 76px; gap: 8px; }
+  .set-link { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+  .set-link input[name^=u] { grid-column: 1 / -1; order: 3; }
+  .set-photo { display: flex; align-items: center; gap: 12px; }
+  .set-photo img { width: 120px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; }
+  .set-form .set-check { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text); }
+  .set-check input { width: 18px; height: 18px; accent-color: var(--navy); }
+  .set-save { min-height: 50px; border: 0; border-radius: 12px; background: var(--navy); color: #fff; font: inherit; font-size: 16px; font-weight: 700; cursor: pointer; }
+  .set-msg { margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; font-size: 14px; font-weight: 600; }
+  .set-ok { background: #e6f6ec; color: #18794e; }
+  .set-err { background: #fdecec; color: #991b1b; }
+  .set-venues { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+  .set-venue { display: block; padding: 14px; border-radius: 12px; background: var(--bg); color: var(--text); font-weight: 700; text-decoration: none; }
+  .back-dark { color: var(--navy); margin-top: 14px; }
   .desk-form { display: flex; gap: 8px; }
   .desk-form input { flex: 1; min-width: 0; padding: 12px 14px; border: 0; border-radius: 12px; box-shadow: 0 0 0 1.5px var(--line) inset;
     font: inherit; font-size: 22px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text); }

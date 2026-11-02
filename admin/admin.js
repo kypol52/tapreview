@@ -1152,7 +1152,26 @@ function renderStatsLinks(business, rows) {
       remove.type = "button";
       remove.addEventListener("click", () => onDeleteStatsLink(business, link, remove));
 
-      li.append(row, statsLinkCards(business, link), statsLinkVenues(business, link), meta, remove);
+      // Вкладка «Настройки» на странице статистики: «Сейчас у нас», подарки, ссылки «Ещё у нас»
+      const edit = el("label", "check sl-edit");
+      const box = el("input");
+      box.type = "checkbox";
+      box.checked = Boolean(link.can_edit);
+      box.addEventListener("change", async () => {
+        hideError("sl-error");
+        box.disabled = true;
+        try {
+          await api(`/api/admin/stats-links/${link.token}`, { method: "PATCH", body: { can_edit: box.checked } });
+        } catch (error) {
+          box.checked = !box.checked;
+          showError("sl-error", error.message);
+        } finally {
+          box.disabled = false;
+        }
+      });
+      edit.append(box, " Может менять настройки: «Сейчас у нас», подарки, ссылки «Ещё у нас»");
+
+      li.append(row, edit, statsLinkCards(business, link), statsLinkVenues(business, link), meta, remove);
       return li;
     })
   );

@@ -8,6 +8,7 @@
 //   /tg/webhook          — сообщения Telegram-боту для владельцев (telegram.js)
 //   /s/:token            — статистика для владельца по личной ссылке (stats-page.js)
 //   /s/:token/bonus      — касса владельца: проверить и погасить код подарка + счётчики (stats-page.js)
+//   /s/:token/settings   — «Настройки» владельца: «Сейчас у нас», подарки, ссылки (owner-settings.js)
 //   POST /s/:token/fb    — владелец отмечает сообщение гостя «Разобрано» (stats-page.js)
 //   /k/:token            — касса для персонала: только проверить и погасить код (stats-page.js)
 //   POST /bonus          — выдать гостю код подарка, колесо призов (bonus.js)
@@ -20,6 +21,7 @@ import { handleApi } from "./admin-api.js";
 import { handleTelegramWebhook, handleTelegramRelay, weeklyReports } from "./telegram.js";
 import { handleStatsPage, handleBonusDesk, handleStaffDesk, handleFeedbackResolve } from "./stats-page.js";
 import { handleBonus } from "./bonus.js";
+import { handleOwnerSettings } from "./owner-settings.js";
 import { handleRef } from "./referral.js";
 import { handleOrder, orderReminders } from "./orders.js";
 import { handleFeedback, purgeOldPhones } from "./rating.js";
@@ -77,6 +79,11 @@ export default {
     const deskMatch = url.pathname.match(/^\/s\/([^/]+)\/bonus\/?$/);
     if (deskMatch) {
       return handleBonusDesk(request, env, deskMatch[1]);
+    }
+
+    const settingsMatch = url.pathname.match(/^\/s\/([^/]+)\/settings\/?$/);
+    if (settingsMatch && (isRead || request.method === "POST")) {
+      return handleOwnerSettings(request, env, settingsMatch[1]);
     }
 
     const fbMatch = url.pathname.match(/^\/s\/([^/]+)\/fb\/?$/);
