@@ -56,7 +56,7 @@ const ADMIN_COLUMNS =
   "id,slug,name,tagline,category,address,logo_url,brand_color," +
   "google_url,yandex_url,twogis_url,discount_code,discount_text,is_active," +
   "paid_until,monthly_price,billing_note," +
-  "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions," +
+  "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions,bonus_daily_limit," +
   "referred_by,ref_reward_at,theme,design,extra_links,rating_first," +
   "created_at,updated_at";
 
@@ -671,6 +671,7 @@ function cleanBonus(input) {
     bonus_from_days: int(input.bonus_from_days, 0, 30, "Через сколько дней начинает действовать", 1),
     bonus_valid_days: int(input.bonus_valid_days, 1, 365, "Сколько дней действует", 14),
     bonus_cooldown_days: int(input.bonus_cooldown_days, 1, 365, "Как часто можно получать", 30),
+    bonus_daily_limit: int(input.bonus_daily_limit, 1, 10000, "Не больше подарков в день", 50),
     bonus_conditions: cleanText(input.bonus_conditions, 200, "Условия подарка") || null
   };
 }

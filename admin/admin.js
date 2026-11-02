@@ -1324,6 +1324,7 @@ function readForm() {
     bonus_from_days: $("f-bonus-from").value,
     bonus_valid_days: $("f-bonus-valid").value,
     bonus_cooldown_days: $("f-bonus-cooldown").value,
+    bonus_daily_limit: $("f-bonus-daily").value,
     bonus_conditions: $("f-bonus-conditions").value,
     brand_color: $("f-color-on").checked ? $("f-color").value : null,
     is_active: $("f-active").checked,
@@ -1619,6 +1620,7 @@ function fillBonus(business) {
   $("f-bonus-from").value = business ? business.bonus_from_days ?? 1 : 1;
   $("f-bonus-valid").value = business ? business.bonus_valid_days ?? 14 : 14;
   $("f-bonus-cooldown").value = business ? business.bonus_cooldown_days ?? 30 : 30;
+  $("f-bonus-daily").value = business ? business.bonus_daily_limit ?? 50 : 50;
   $("f-bonus-conditions").value = business ? business.bonus_conditions || "" : "";
   $("f-bonus-stats").textContent = "";
   showBonusMode();

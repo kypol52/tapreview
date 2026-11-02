@@ -15,7 +15,7 @@
 //   POST /bonus                           — выдать код (и показать колесо)
 
 import { db } from "./supabase.js";
-import { isBot } from "./analytics.js";
+import { isBot, visitorHashOf } from "./analytics.js";
 import { renderPage, escapeHtml, GIFT, DEFAULT_ACCENT, BONUS_COLUMNS, customDesign } from "./public-page.js";
 import { isExpired } from "./billing.js";
 
@@ -129,10 +129,39 @@ export async function handleBonus(request, env) {
       return withCookie(resultPage(business, existing[0], { repeat: true, backUrl, wheel }), setCookie);
     }
 
-    const prizes = prizesOf(business);
-    const index = pickWeighted(prizes);
     const now = Date.now();
     const dayStart = Math.floor((now + MSK_OFFSET) / DAY) * DAY - MSK_OFFSET;
+
+    // Защита от накрутки (миграция 023):
+    //  1) один код в день с одного телефона, даже в инкогнито / после очистки cookie —
+    //     по суточному обезличенному отпечатку «сеть + браузер» (IP не хранится);
+    //  2) не больше bonus_daily_limit кодов в день на заведение.
+    const deviceDay = await sha256(`${await visitorHashOf(request, env)}|${business.id}`);
+    const limit = business.bonus_daily_limit || 50;
+    const [sameDevice, today] = await Promise.all([
+      db(env, `bonus_codes?business_id=eq.${business.id}&device_day=eq.${deviceDay}&select=id&limit=1`),
+      db(
+        env,
+        `bonus_codes?business_id=eq.${business.id}&created_at=gte.${encodeURIComponent(new Date(dayStart).toISOString())}` +
+          `&select=id&limit=${limit}`
+      )
+    ]);
+    if (sameDevice.length) {
+      return withCookie(
+        limitPage(business, backUrl, "Подарок с этого телефона сегодня уже получен",
+          "Код был на экране, когда вы получали подарок. Новый подарок можно будет получить в другой день."),
+        setCookie
+      );
+    }
+    if (today.length >= limit) {
+      return withCookie(
+        limitPage(business, backUrl, "Подарки на сегодня закончились", "Приходите завтра — подарки снова будут ждать вас."),
+        setCookie
+      );
+    }
+
+    const prizes = prizesOf(business);
+    const index = pickWeighted(prizes);
     // Дни — по Москве. С задержкой: с начала дня через N дней и ещё bonus_valid_days дней.
     // Без задержки: с этой минуты до конца (bonus_valid_days)-го дня, считая сегодняшний.
     const delayed = business.bonus_from_days > 0;
@@ -157,6 +186,7 @@ export async function handleBonus(request, env) {
             prize: prizes[index].label,
             conditions: business.bonus_conditions || null,
             visitor_key: visitorKey,
+            device_day: deviceDay,
             valid_from: new Date(validFrom).toISOString(),
             valid_until: new Date(validUntil).toISOString()
           },
@@ -300,6 +330,26 @@ function resultPage(business, c, { repeat, backUrl, wheel = null }) {
       ${wheel ? wheelHtml(wheel.prizes, wheel.index, repeat, business.theme) : `<div class="br-gift" aria-hidden="true">${GIFT}</div>`}
       ${result}
       <p class="br-rules">Подарок не зависит от отзыва. Один подарок на устройство за ${business.bonus_cooldown_days} ${plural(business.bonus_cooldown_days, "день", "дня", "дней")}.</p>
+      <a class="br-back" href="${escapeHtml(backUrl)}">← Вернуться к странице заведения</a>`
+  });
+}
+
+// Отказ в оформлении заведения (лимит подарков) — с кнопкой назад к странице заведения
+function limitPage(business, backUrl, heading, text) {
+  return renderPage({
+    status: 200,
+    title: `Подарок — ${business.name}`,
+    accent: null,
+    theme: business.theme,
+    design: customDesign(business),
+    extraCss: BONUS_PAGE_CSS,
+    footer: { href: `/r/${business.slug}?s=card`, text: "Хочу такую карту" },
+    body: `
+      <h1 class="name name-long">${escapeHtml(business.name)}</h1>
+      <div class="divider"></div>
+      <div class="br-gift" aria-hidden="true">${GIFT}</div>
+      <h2 class="thanks">${escapeHtml(heading)}</h2>
+      <p class="lead">${escapeHtml(text)}</p>
       <a class="br-back" href="${escapeHtml(backUrl)}">← Вернуться к странице заведения</a>`
   });
 }

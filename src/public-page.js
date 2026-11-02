@@ -68,9 +68,9 @@ const EXTERNAL = `<svg class="ext" viewBox="0 0 24 24" aria-hidden="true"><path 
 
 export const GIFT = `<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="20" fill="#f0b43c"/><g fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"><rect x="11" y="17" width="18" height="12" rx="1.5"/><path d="M10 13.5h20v3.5H10zM20 13.5V29"/><path d="M20 13.5c-1.5-3.5-6-4-6-1.2 0 1.5 2.5 1.2 6 1.2zM20 13.5c1.5-3.5 6-4 6-1.2 0 1.5-2.5 1.2-6 1.2z" stroke-linecap="round"/></g></svg>`;
 
-// Настройки бонуса для гостей (bonus.js, миграция 015)
+// Настройки бонуса для гостей (bonus.js, миграции 015, 023)
 export const BONUS_COLUMNS =
-  "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions";
+  "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions,bonus_daily_limit";
 
 const BUSINESS_COLUMNS =
   "id,slug,name,tagline,category,logo_url,brand_color,google_url,yandex_url,twogis_url," +

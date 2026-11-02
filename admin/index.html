@@ -496,6 +496,12 @@
             </label>
           </div>
           <label class="field">
+            <span>Не больше подарков в день (на заведение)</span>
+            <input id="f-bonus-daily" type="number" min="1" max="10000" step="1" value="50">
+          </label>
+          <p class="muted field-hint">Защита от накрутки: после лимита гости видят «Подарки на сегодня закончились — приходите завтра».
+            Кроме того, с одного телефона — не больше одного кода в день, даже в режиме инкогнито.</p>
+          <label class="field">
             <span>Условия (видят гость и кассир)</span>
             <input id="f-bonus-conditions" type="text" maxlength="200" placeholder="При заказе от 500 ₽, один код на чек">
           </label>
