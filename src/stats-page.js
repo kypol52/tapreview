@@ -527,6 +527,7 @@ function renderBody(view, daily, page) {
       <p class="range">${p.title} · ${formatDateRange(period, range)}</p>
       <nav class="tabs" aria-label="Период">${tabs}</nav>
       ${page.bonusOn ? `<a class="desk-link" href="/s/${token}/bonus">🎁 Проверить код подарка</a>` : ""}
+      <a class="desk-link" href="/s/${token}/wrapped${view.kind === "all" ? "" : `?b=${view.dailyIds[0]}`}">✨ Итоги месяца</a>
       ${page.canEdit ? `<a class="desk-link" href="/s/${token}/settings${view.kind === "all" ? "" : `?b=${view.dailyIds[0]}`}">⚙ Настройки</a>` : ""}
     </div>
   </header>

@@ -8,6 +8,7 @@
 //   /tg/webhook          — сообщения Telegram-боту для владельцев (telegram.js)
 //   /s/:token            — статистика для владельца по личной ссылке (stats-page.js)
 //   /s/:token/bonus      — касса владельца: проверить и погасить код подарка + счётчики (stats-page.js)
+//   /s/:token/wrapped    — «Итоги месяца» для владельца (wrapped.js)
 //   /s/:token/settings   — «Настройки» владельца: «Сейчас у нас», подарки, ссылки (owner-settings.js)
 //   POST /s/:token/fb    — владелец отмечает сообщение гостя «Разобрано» (stats-page.js)
 //   /k/:token            — касса для персонала: только проверить и погасить код (stats-page.js)
@@ -23,6 +24,7 @@ import { handleStatsPage, handleBonusDesk, handleStaffDesk, handleFeedbackResolv
 import { handleBonus } from "./bonus.js";
 import { handleOwnerSettings } from "./owner-settings.js";
 import { purgeOldVisits } from "./guests.js";
+import { handleWrapped, monthlyWrapped } from "./wrapped.js";
 import { handleRef } from "./referral.js";
 import { handleOrder, orderReminders } from "./orders.js";
 import { handleFeedback, purgeOldPhones } from "./rating.js";
@@ -82,6 +84,11 @@ export default {
       return handleBonusDesk(request, env, deskMatch[1]);
     }
 
+    const wrappedMatch = url.pathname.match(/^\/s\/([^/]+)\/wrapped\/?$/);
+    if (wrappedMatch && isRead) {
+      return handleWrapped(request, env, wrappedMatch[1]);
+    }
+
     const settingsMatch = url.pathname.match(/^\/s\/([^/]+)\/settings\/?$/);
     if (settingsMatch && (isRead || request.method === "POST")) {
       return handleOwnerSettings(request, env, settingsMatch[1]);
@@ -139,6 +146,8 @@ export default {
       );
       ctx.waitUntil(purgeOldPhones(env).catch((error) => console.error(`Phone purge failed: ${error.message}`)));
       ctx.waitUntil(purgeOldVisits(env).catch((error) => console.error(`Visits purge failed: ${error.message}`)));
+      // 1-го числа — «Итоги месяца» владельцам в Telegram (внутри проверка даты)
+      ctx.waitUntil(monthlyWrapped(env).catch((error) => console.error(`Monthly wrapped failed: ${error.message}`)));
       return;
     }
     if (controller.cron === WEEKLY_REPORT_CRON) {
