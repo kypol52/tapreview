@@ -1396,7 +1396,25 @@ async function loadTelegramSubscribers(business) {
       const remove = el("button", "btn btn-danger btn-small", "Отключить");
       remove.type = "button";
       remove.addEventListener("click", () => onTelegramUnsubscribe(business, sub, remove));
-      li.append(name, remove);
+      // Управление из бота (/manage): подарки вкл/выкл, «Сейчас у нас»
+      const manage = el("label", "check tg-manage");
+      const box = el("input");
+      box.type = "checkbox";
+      box.checked = Boolean(sub.can_manage);
+      box.addEventListener("change", async () => {
+        hideError("tg-error");
+        box.disabled = true;
+        try {
+          await api(`/api/admin/telegram/subscribers/${sub.id}`, { method: "PATCH", body: { can_manage: box.checked } });
+        } catch (error) {
+          box.checked = !box.checked;
+          showError("tg-error", error.message);
+        } finally {
+          box.disabled = false;
+        }
+      });
+      manage.append(box, " Может управлять из бота (подарки, «Сейчас у нас»)");
+      li.append(name, manage, remove);
       return li;
     })
   );

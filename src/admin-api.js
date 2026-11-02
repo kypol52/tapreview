@@ -22,6 +22,7 @@
 //   POST   /api/admin/businesses/:id/telegram-invite — одноразовая ссылка для владельца
 //   GET    /api/admin/businesses/:id/telegram        — чаты, подключённые к бизнесу
 //   DELETE /api/admin/telegram/subscribers/:id       — отключить чат
+//   PATCH  /api/admin/telegram/subscribers/:id       — { can_manage }: управление заведением из бота
 //   GET    /api/admin/businesses/:id/referrals       — ссылка-приглашение, переходы за 30 дней, кого привело
 //   POST   /api/admin/businesses/:id/ref-reward      — «месяц бесплатно обоим» за приглашённое заведение :id
 //   GET    /api/admin/businesses/:id/staff-links     — ссылки для персонала (/k/...): только касса подарков
@@ -193,6 +194,9 @@ export async function handleApi(request, env, url) {
       const tgSubMatch = path.match(/^\/api\/admin\/telegram\/subscribers\/(\d{1,18})$/);
       if (tgSubMatch && method === "DELETE") {
         return await deleteTelegramSubscriber(env, tgSubMatch[1]);
+      }
+      if (tgSubMatch && method === "PATCH") {
+        return await updateTelegramSubscriber(request, env, tgSubMatch[1]);
       }
 
       const refMatch = path.match(/^\/api\/admin\/businesses\/(\d{1,18})\/referrals$/);
@@ -952,9 +956,22 @@ async function createTelegramInvite(env, businessId) {
 async function listTelegramSubscribers(env, businessId) {
   const rows = await db(
     env,
-    `tg_subscribers?business_id=eq.${businessId}&select=id,chat_id,chat_title,weekly_report,created_at&order=created_at.asc`
+    `tg_subscribers?business_id=eq.${businessId}&select=id,chat_id,chat_title,weekly_report,can_manage,created_at&order=created_at.asc`
   );
   return json(rows);
+}
+
+// { can_manage } — может ли чат управлять заведением из бота (миграция 031)
+async function updateTelegramSubscriber(request, env, id) {
+  const data = await readJson(request);
+  if (typeof data.can_manage !== "boolean") throw new HttpError(400, "Нужно can_manage: true или false");
+  const rows = await db(env, `tg_subscribers?id=eq.${id}&select=id,can_manage`, {
+    method: "PATCH",
+    body: { can_manage: data.can_manage },
+    prefer: "return=representation"
+  });
+  if (!rows.length) throw new HttpError(404, "Чат не найден");
+  return json(rows[0]);
 }
 
 async function deleteTelegramSubscriber(env, id) {

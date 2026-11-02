@@ -13,6 +13,7 @@ import { ratingStats } from "./rating.js";
 import { db } from "./supabase.js";
 import { PERIODS, PLATFORMS, loadReports, formatDateRange } from "./report.js";
 import { formatDay } from "./billing.js";
+import { isManageCommand, handleManage } from "./bot-manage.js";
 
 const MAX_BUSINESSES_PER_CHAT = 10;
 const INVITE_RE = /^[A-Za-z0-9]{16,32}$/;
@@ -28,6 +29,8 @@ export const BOT_COMMANDS = [
   { command: "week", description: "Статистика за 7 дней" },
   { command: "today", description: "Статистика за сегодня" },
   { command: "month", description: "Статистика за 30 дней" },
+  { command: "manage", description: "Управление: подарки и «Сейчас у нас»" },
+  { command: "news", description: "Опубликовать «Сейчас у нас»" },
   { command: "report_off", description: "Не присылать отчёт по понедельникам" },
   { command: "report_on", description: "Присылать отчёт по понедельникам" },
   { command: "stop", description: "Отключить бота от заведений" },
@@ -133,6 +136,12 @@ async function onMessage(env, message) {
   const isPrivate = chat.type === "private";
   const text = message.text.trim();
 
+  // Управление заведением (bot-manage.js): /manage, /gifts_on, /gifts_off, /news …, /news_off
+  if (isManageCommand(text)) {
+    const reply = await handleManage(env, chat, text);
+    if (reply) return send(env, chat.id, reply, replyKeyboard(chat));
+  }
+
   // Команда: /start КОД, /week, /week@ИмяБота
   const command = text.match(/^\/([a-z_]+)(?:@\w+)?(?:\s+(\S+))?/i);
   if (command) {
@@ -186,6 +195,10 @@ async function help(env, chat) {
       "/month — за 30 дней\n" +
       "/report_off, /report_on — отчёт по понедельникам в 9:00 (МСК)\n" +
       "/stop — отключить бота\n\n" +
+      "<b>Управление</b> (если включено для вашего чата)\n" +
+      "/manage — что сейчас включено\n" +
+      "/gifts_on, /gifts_off — включить или выключить подарки для гостей\n" +
+      "/news Заголовок — опубликовать «Сейчас у нас» (текст — со следующей строки), /news_off — убрать\n\n" +
       "<b>Что значат цифры</b>\n" +
       "👀 <b>Открыли страницу</b> — сколько раз страницу отзывов открыли с карты (NFC или QR) или по ссылке. " +
       "Один и тот же человек считается не чаще раза в 30 минут, роботы не считаются.\n" +
