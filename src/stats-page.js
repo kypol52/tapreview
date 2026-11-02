@@ -336,6 +336,7 @@ function deskResult(kind, row, names, title) {
     </div>`;
 }
 
+// «3 ноября в 00:00 по московскому времени» — кассир и гость могут быть в другом часовом поясе
 function formatDayTime(iso) {
   return new Date(iso).toLocaleString("ru-RU", {
     day: "numeric",
@@ -343,7 +344,7 @@ function formatDayTime(iso) {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "Europe/Moscow"
-  });
+  }) + " по московскому времени";
 }
 
 // ---------- Подписка ----------
@@ -593,7 +594,7 @@ function renderBody(view, daily, page) {
     </section>
   </main>
   <footer class="foot">
-    <p>Обновлено ${esc(updated)} (МСК). Чтобы увидеть свежие цифры, обновите страницу.</p>
+    <p>Обновлено ${esc(updated)} по московскому времени. Чтобы увидеть свежие цифры, обновите страницу.</p>
     <p>Сохраните ссылку в закладки или на главный экран телефона. Не пересылайте её посторонним — по ней видна статистика ${multi ? "ваших заведений" : "вашего заведения"}.</p>
   </footer>`;
 }
@@ -621,7 +622,7 @@ function ratingsSection(r, names, showVenue, token, back) {
         .join("")
     : "";
   const fbItem = (f) => {
-    const when = new Date(f.created_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" });
+    const when = new Date(f.created_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" }) + " МСК";
     const venue = showVenue && names.get(f.business_id) ? ` · ${esc(names.get(f.business_id))}` : "";
     const done = Boolean(f.resolved_at);
     const phone = f.phone && !done

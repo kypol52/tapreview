@@ -209,7 +209,7 @@ function wrappedBody({ token, title, month, prevMonth, data, prev, nav, score, i
       <p class="wr-kicker">Ритм заведения</p>
       <p class="wr-mid">Самый активный день — ${WEEKDAYS[bestWd]}</p>
       <ul class="wr-week">${cols}</ul>
-      ${peak !== null ? `<p class="wr-note">Час пик — <b>${String(peak).padStart(2, "0")}:00–${String((peak + 1) % 24).padStart(2, "0")}:00</b>.</p>` : ""}
+      ${peak !== null ? `<p class="wr-note">Час пик — <b>${String(peak).padStart(2, "0")}:00–${String((peak + 1) % 24).padStart(2, "0")}:00</b> по московскому времени.</p>` : ""}
       ${best && best.day ? `<p class="wr-note">Рекорд месяца — <b>${Number(best.day.slice(8))} ${MONTHS_GEN[Number(best.day.slice(5, 7)) - 1]}</b>: ${num(best.views)} ${plural(Number(best.views), "открытие", "открытия", "открытий")}.</p>` : ""}`));
   }
 

@@ -521,7 +521,7 @@ function renderOrder(order) {
     "span",
     "o-date",
     `${order.source === "manual" ? "вручную" : "с сайта"} · ` +
-      new Date(order.created_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+      new Date(order.created_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" }) + " МСК"
   );
   head.append(title, date);
 
@@ -1851,7 +1851,7 @@ async function loadStaffLinks(business) {
 
 function renderStaffLinks(business, rows) {
   const shortDate = (iso) =>
-    new Date(iso).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+    new Date(iso).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" }) + " МСК";
   $("staff-list").replaceChildren(
     ...rows.map((link) => {
       const li = document.createElement("li");
