@@ -33,6 +33,17 @@ export function stampsOn(business) {
   return Boolean(business.stamps_goal && business.stamps_prize && business.bonus_mode && business.bonus_mode !== "off");
 }
 
+// VIP-уровень (миграция 032): включён, если заданы порог визитов и VIP-подарок (и подарки вообще включены)
+export function vipOn(business) {
+  return Boolean(business.vip_visits && business.vip_gift && business.bonus_mode && business.bonus_mode !== "off");
+}
+
+// Сколько визитов у гостя в заведении (дни с касанием карты)
+export async function visitCount(env, business, key) {
+  const rows = await db(env, `guest_visits?business_id=eq.${business.id}&visitor_key=eq.${key}&select=day&limit=1000`);
+  return rows.length;
+}
+
 // Сколько штампов набрано с последнего приза за штампы (не больше цели)
 export async function stampCount(env, business, key) {
   const rows = await db(

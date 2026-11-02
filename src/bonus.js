@@ -18,7 +18,7 @@ import { db } from "./supabase.js";
 import { isBot, visitorHashOf } from "./analytics.js";
 import { renderPage, escapeHtml, GIFT, DEFAULT_ACCENT, BONUS_COLUMNS, customDesign } from "./public-page.js";
 import { isExpired } from "./billing.js";
-import { deviceFrom, visitorKeyOf, stampsOn, stampCount } from "./guests.js";
+import { deviceFrom, visitorKeyOf, stampsOn, stampCount, vipOn, visitCount } from "./guests.js";
 import { friendOn, inviteFor, inviterRewards, inviteBlock } from "./friends.js";
 
 // Коды подарков — 6 цифр (быстро набрать на кассе). Старые коды с буквами по-прежнему принимаются.
@@ -67,10 +67,11 @@ export function stampsHtml(business, count) {
     </div>`;
 }
 
-export function bonusBlock(business, source, cardCode, stamps = null, rewards = 0) {
+export function bonusBlock(business, source, cardCode, stamps = null, rewards = 0, visits = 0) {
   if (!bonusEnabled(business) || (source !== "nfc" && source !== "qr")) return "";
   const wheel = business.bonus_mode === "wheel";
   const ready = stampsOn(business) && stamps !== null && stamps >= business.stamps_goal;
+  const vip = !ready && vipOn(business) && visits >= business.vip_visits;
   // Обычная ссылка, а не форма: в РФ провайдеры иногда обрывают соединения с Cloudflare,
   // и обычный переход браузер сам повторяет, а отправку формы — нет («соединение прервано» в Safari).
   // Повтор безопасен: тот же телефон получает тот же код.
@@ -80,10 +81,11 @@ export function bonusBlock(business, source, cardCode, stamps = null, rewards = 
     <div class="bonus">
       ${stampsHtml(business, stamps)}
       ${rewards ? `<p class="bonus-friend">🎉 Ваш друг пришёл по приглашению — для вас подарок «${escapeHtml(business.friend_reward || "")}». Нажмите кнопку, код будет сверху.</p>` : ""}
+      ${vip ? `<p class="bonus-vip">⭐ Для VIP-гостей — «${escapeHtml(business.vip_gift)}»</p>` : ""}
       <p class="bonus-note">Подарок на следующий визит</p>
       <a class="button bonus-button" href="/bonus?${escapeHtml(params.toString())}" rel="nofollow">
         <span class="icon bonus-icon">${GIFT}</span>
-        <span class="label">${ready ? "Получить особый подарок" : wheel ? "Крутить колесо подарков" : "Получить подарок"}</span>
+        <span class="label">${ready ? "Получить особый подарок" : vip ? "Получить VIP-подарок" : wheel ? "Крутить колесо подарков" : "Получить подарок"}</span>
       </a>
     </div>`;
 }
@@ -148,7 +150,7 @@ export async function handleBonus(request, env) {
     if (existing.length) {
       // Для колеса показываем его уже остановленным на выпавшем призе — так понятно, что розыгрыш был
       const prizes = prizesOf(business);
-      const index = business.bonus_mode === "wheel" && !existing[0].stamp_reward && !existing[0].reward_kind
+      const index = business.bonus_mode === "wheel" && !existing[0].stamp_reward && !existing[0].reward_kind && !existing[0].vip
         ? prizes.findIndex((p) => p.label === existing[0].prize)
         : -1;
       const wheel = index >= 0 ? { prizes, index } : null;
@@ -162,10 +164,12 @@ export async function handleBonus(request, env) {
     }
 
     const prizes = prizesOf(business);
-    // Все штампы собраны — вместо колеса особый приз владельца, счёт штампов начнётся заново
+    // Все штампы собраны — вместо колеса особый приз владельца, счёт штампов начнётся заново.
+    // VIP-гость (миграция 032) — VIP-подарок вместо колеса (приз за штампы важнее).
     const reward = stamps !== null && stamps >= business.stamps_goal;
-    const index = reward ? -1 : pickWeighted(prizes);
-    const prizeLabel = reward ? String(business.stamps_prize).slice(0, 60) : prizes[index].label;
+    const vip = !reward && vipOn(business) && (await visitCount(env, business, visitorKey)) >= business.vip_visits;
+    const index = reward || vip ? -1 : pickWeighted(prizes);
+    const prizeLabel = reward ? String(business.stamps_prize).slice(0, 60) : vip ? String(business.vip_gift).slice(0, 60) : prizes[index].label;
 
     let cardId = null;
     if (cardCode) {
@@ -178,14 +182,14 @@ export async function handleBonus(request, env) {
       visitorKey,
       deviceDay: guard.deviceDay,
       cardId,
-      extra: reward ? { stamp_reward: true } : {}
+      extra: reward ? { stamp_reward: true } : vip ? { vip: true } : {}
     });
 
     return withCookie(
       resultPage(business, saved, {
         repeat: false,
         backUrl,
-        wheel: business.bonus_mode === "wheel" && !reward ? { prizes, index } : null,
+        wheel: business.bonus_mode === "wheel" && !reward && !vip ? { prizes, index } : null,
         ...extras,
         stamps: reward ? 0 : stamps
       }),
@@ -197,7 +201,7 @@ export async function handleBonus(request, env) {
   }
 }
 
-export const CODE_FIELDS = "code,prize,conditions,valid_from,valid_until,redeemed_at,created_at,stamp_reward,reward_kind";
+export const CODE_FIELDS = "code,prize,conditions,valid_from,valid_until,redeemed_at,created_at,stamp_reward,reward_kind,vip";
 
 // Защита от накрутки (миграция 023):
 //  1) один код в день с одного телефона, даже в инкогнито / после очистки cookie —
@@ -369,7 +373,7 @@ function resultPage(business, c, { repeat, backUrl, wheel = null, stamps = null,
     : "";
   const result = `
     <div class="br ${wheel && !repeat ? "br-after-spin" : "br-fade"}">
-      <p class="br-kicker">${c.stamp_reward ? "Подарок за штампы" : c.reward_kind === "friend" ? "Подарок от друга" : repeat ? "Ваш подарок уже ждёт вас" : wheel ? "Ваш приз" : "Ваш подарок"}</p>
+      <p class="br-kicker">${c.stamp_reward ? "Подарок за штампы" : c.reward_kind === "friend" ? "Подарок от друга" : c.vip ? "⭐ VIP-подарок" : repeat ? "Ваш подарок уже ждёт вас" : wheel ? "Ваш приз" : "Ваш подарок"}</p>
       <p class="br-prize">${escapeHtml(c.prize)}</p>
       <p class="br-code" aria-label="Код ${escapeHtml(c.code.split("").join(" "))}">${escapeHtml(formatCode(c.code))}</p>
       <p class="br-valid">${escapeHtml(validityText(c))}</p>
@@ -566,7 +570,7 @@ export async function findCode(env, code, businessIds) {
   const rows = await db(
     env,
     `bonus_codes?code=eq.${code}&business_id=in.(${businessIds.join(",")})` +
-      `&select=id,code,business_id,prize,conditions,valid_from,valid_until,redeemed_at,created_at,reward_kind,invite_code&limit=1`
+      `&select=id,code,business_id,prize,conditions,valid_from,valid_until,redeemed_at,created_at,reward_kind,invite_code,vip&limit=1`
   );
   if (!rows.length) return null;
   const row = rows[0];

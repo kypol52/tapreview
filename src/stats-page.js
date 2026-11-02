@@ -62,7 +62,7 @@ async function statsPage(request, env, ctx, token) {
   const [reports, extraRows] = await Promise.all([
     loadReports(env, linkIds, period, now),
     // slug — для ссылки-приглашения; bonus_mode — показывать ли кнопку кассы подарков
-    db(env, `businesses?id=in.(${linkIds.join(",")})&select=id,slug,bonus_mode`).catch(() => [])
+    db(env, `businesses?id=in.(${linkIds.join(",")})&select=id,slug,bonus_mode,vip_visits,vip_gift`).catch(() => [])
   ]);
   const bonusRows = extraRows.filter((b) => b.bonus_mode && b.bonus_mode !== "off");
   const slugs = new Map(extraRows.map((b) => [b.id, b.slug]));
@@ -128,6 +128,20 @@ async function statsPage(request, env, ctx, token) {
       })
     : null;
 
+  // Гости по уровням за 90 дней (миграция 032) — на странице одного заведения
+  let levels = null;
+  if (view.kind === "venue") {
+    const row = extraRows.find((b) => b.id === view.dailyIds[0]) || {};
+    const vip = row.vip_visits && row.vip_gift && row.bonus_mode !== "off" ? row.vip_visits : null;
+    const since = new Date(now + 3 * 3600 * 1000 - 90 * 86400000).toISOString().slice(0, 10);
+    levels = await db(env, "rpc/guest_levels", { method: "POST", body: { p_ids: view.dailyIds, p_vip: vip, p_since: since } })
+      .then((r) => (r ? { ...r, vipFrom: vip } : null))
+      .catch((error) => {
+        console.error(`guest_levels: ${error.message}`);
+        return null;
+      });
+  }
+
   // TapReview Score за последние 30 дней (score.js) — на странице одного заведения
   const score = view.kind === "venue"
     ? await recentScore(env, view.dailyIds[0], now).catch((error) => {
@@ -136,7 +150,7 @@ async function statsPage(request, env, ctx, token) {
       })
     : null;
 
-  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn, invite, ratings, names, bonus, score, canEdit: Boolean(link.can_edit) };
+  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn, invite, ratings, names, bonus, score, levels, canEdit: Boolean(link.can_edit) };
   return html(200, `Статистика · ${view.title}`, renderBody(view, daily, page));
 }
 
@@ -315,6 +329,7 @@ function deskResult(kind, row, names, title) {
   const tone = kind === "ok" || kind === "done" ? "desk-ok" : kind === "soon" ? "desk-warn" : "desk-bad";
   return `<div class="desk-res ${tone}">
       <p class="desk-title">${kind === "done" ? "✅ " : ""}${esc(title)}</p>
+      ${row.vip ? `<p class="desk-vip">⭐ VIP-гость</p>` : ""}
       <p class="desk-prize">${esc(row.prize)}</p>
       <p>${esc(validityText(row))}${names.size > 1 ? ` · ${esc(names.get(row.business_id) || "")}` : ""}</p>
       ${row.conditions ? `<p>Условия: ${esc(row.conditions)}</p>` : ""}
@@ -561,6 +576,7 @@ function renderBody(view, daily, page) {
     ${page.score ? scoreHtml(page.score, { note: "За последние 30 дней. Как заведение работает с гостями: отзывы, оценки, жалобы, возвраты." }) : ""}
     ${empty ? "" : funnelSection(cur, page.ratings, page.bonus)}
     ${ratingsSection(page.ratings, page.names, view.kind === "all", token, `p=${period}${view.query}`)}
+    ${levelsSection(page.levels)}
     ${sections}
     ${page.invite || ""}
     <section class="note">
@@ -635,6 +651,22 @@ function ratingsSection(r, names, showVenue, token, back) {
       <p class="hint">Из ${num(r.liked)} ${plural(r.liked, "довольного гостя", "довольных гостей", "довольных гостей")} (4–5 ★), которые отметили, что понравилось. Можно выбрать несколько пунктов.</p>` : ""}
     ${messages}
     <p class="hint">Гости с оценкой 1–3 пишут вам напрямую — сообщение сразу приходит в Telegram-бот. Если гость просит перезвонить, его номер виден только здесь и удаляется через ${PHONE_KEEP_DAYS} дней. Кнопки Яндекса и 2ГИС доступны всем гостям.</p>
+  </section>`;
+}
+
+// Гости по уровням: Новые (1–2 визита) / Постоянные (3+) / VIP (с vipFrom визитов, если включено)
+function levelsSection(l) {
+  if (!l) return "";
+  const total = Number(l.new) + Number(l.regular) + Number(l.vip);
+  if (!total) return "";
+  return `<section class="panel">
+    <h2>Гости по уровням</h2>
+    <div class="levels" style="grid-template-columns: repeat(${l.vipFrom ? 3 : 2}, 1fr)">
+      <div class="level"><b>${num(l.new)}</b><span>новые<br>1–2 визита</span></div>
+      <div class="level"><b>${num(l.regular)}</b><span>постоянные<br>${!l.vipFrom ? "3 визита и больше" : l.vipFrom === 4 ? "3 визита" : `3–${l.vipFrom - 1} ${plural(l.vipFrom - 1, "визит", "визита", "визитов")}`}</span></div>
+      ${l.vipFrom ? `<div class="level level-vip"><b>${num(l.vip)}</b><span>⭐ VIP<br>${l.vipFrom}+ визитов</span></div>` : ""}
+    </div>
+    <p class="hint">Гости, которые прикладывали телефон к карте за последние 90 дней. Визит — не чаще раза в день; узнаём по обезличенной метке телефона, без имён и номеров.${l.vipFrom ? "" : " VIP-уровень можно включить во вкладке «Настройки»."}</p>
   </section>`;
 }
 
@@ -1025,6 +1057,12 @@ const CSS = `
     color: #fff; font-size: 14px; font-weight: 600; text-decoration: none; }
   .desk-link:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
   .desk-link + .desk-link { margin-left: 6px; }
+  .desk-vip { display: inline-block; margin: 2px 0 4px; padding: 3px 10px; border-radius: 99px; background: linear-gradient(135deg, #f6d77a, #e5aa0c); color: #3b2a00; font-size: 13px; font-weight: 800; }
+  .levels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .level { padding: 12px 10px; border-radius: 14px; background: var(--bg); text-align: center; }
+  .level b { display: block; font-size: 26px; font-weight: 800; color: var(--navy); line-height: 1.1; }
+  .level span { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+  .level-vip { background: linear-gradient(160deg, #fff6d8, #fff); box-shadow: 0 0 0 1px #f3dfa9 inset; }
   /* Настройки владельца (owner-settings.js) */
   .set-preview { color: var(--gold-soft); font-size: 13.5px; text-underline-offset: 3px; }
   .set-hint { margin: -4px 0 12px; font-size: 13px; line-height: 1.5; color: var(--muted); }

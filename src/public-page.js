@@ -7,7 +7,7 @@
 
 import { db } from "./supabase.js";
 import { logEvent, sourceFrom, isBot } from "./analytics.js";
-import { guestOf } from "./guests.js";
+import { guestOf, vipOn } from "./guests.js";
 import { isExpired } from "./billing.js";
 import { bonusBlock } from "./bonus.js";
 import { flowFrom, logRating, LIKES, PHONE_KEEP_DAYS } from "./rating.js";
@@ -72,7 +72,7 @@ export const GIFT = `<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20"
 // Настройки бонуса для гостей (bonus.js, миграции 015, 023)
 export const BONUS_COLUMNS =
   "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions,bonus_daily_limit," +
-  "stamps_goal,stamps_prize,friend_gift,friend_reward";
+  "stamps_goal,stamps_prize,friend_gift,friend_reward,vip_visits,vip_gift";
 
 const BUSINESS_COLUMNS =
   "id,slug,name,tagline,category,logo_url,brand_color,google_url,yandex_url,twogis_url," +
@@ -490,9 +490,18 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
 
   const taglineText = business.tagline || CATEGORY_TAGLINES[business.category] || "";
   // «С возвращением!» — со второго дня визитов (guests.js); визиты считаются только при касании карты или QR
-  const welcome = guest && guest.visits >= 2
-    ? `<p class="welcome">С возвращением! Вы у нас ${guest.visits}-й раз 👋</p>`
-    : "";
+  // VIP-уровни (миграция 032): VIP — свой значок, остальным — сколько визитов до VIP
+  let welcome = "";
+  if (guest && guest.visits >= 2) {
+    const vip = vipOn(business) ? business.vip_visits : null;
+    if (vip && guest.visits >= vip) {
+      welcome = `<p class="welcome welcome-vip">⭐ VIP-гость · вы у нас ${guest.visits}-й раз</p>`;
+    } else {
+      const left = vip ? vip - guest.visits : 0;
+      welcome = `<p class="welcome">С возвращением! Вы у нас ${guest.visits}-й раз 👋</p>` +
+        (left ? `<p class="welcome-next">Ещё ${left} ${plural(left, "визит", "визита", "визитов")} — и вы VIP-гость</p>` : "");
+    }
+  }
   const tagline = (taglineText ? `<p class="tagline">${escapeHtml(taglineText)}</p>` : "") + welcome;
 
   // Длинные названия делаем мельче, чтобы помещались на экран телефона.
@@ -503,7 +512,7 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
 
   // Подарок для гостей (bonus.js): только при скане карты, появляется через несколько секунд,
   // не зависит от отзыва. Без JavaScript — обычная форма.
-  const discount = bonusBlock(business, source, cardCode, guest ? guest.stamps : null, guest ? guest.rewards : 0);
+  const discount = bonusBlock(business, source, cardCode, guest ? guest.stamps : null, guest ? guest.rewards : 0, guest ? guest.visits : 0);
 
   if (business.rating_first) {
     return ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, discount, design });
@@ -956,6 +965,9 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
     .stamp-gift svg { display: block; width: 100%; height: 100%; }
     .stamp-ready { opacity: 1; animation: stamp-pulse 1.6s ease-in-out infinite; }
     @keyframes stamp-pulse { 50% { transform: scale(1.12); } }
+    .welcome-vip { background: linear-gradient(135deg, #f6d77a, #e5aa0c); color: #3b2a00; box-shadow: 0 4px 14px rgba(229, 170, 12, 0.35); }
+    .welcome-next { margin: 5px 0 0; font-size: 12.5px; color: var(--muted); }
+    .bonus-vip { margin: 0 0 8px; font-size: 13.5px; font-weight: 700; color: var(--text); }
     .bonus-friend { margin: 0 0 10px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 14%, transparent);
       font-size: 13.5px; font-weight: 650; line-height: 1.4; color: var(--text); }
     .stamps-text { margin: 6px 0 0; font-size: 13px; font-weight: 600; color: var(--text); }
@@ -1186,6 +1198,14 @@ ${extraCss}
         "default-src 'none'; img-src 'self' https:; font-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
     }
   });
+}
+
+function plural(n, one, few, many) {
+  const n10 = n % 10;
+  const n100 = n % 100;
+  if (n10 === 1 && n100 !== 11) return one;
+  if (n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14)) return few;
+  return many;
 }
 
 export function isHttpsUrl(value) {

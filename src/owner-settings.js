@@ -120,6 +120,8 @@ function bonusFields(form) {
     bonus_daily_limit: String(form.get("daily_limit") || ""),
     stamps_goal: String(form.get("stamps_goal") || ""),
     stamps_prize: String(form.get("stamps_prize") || ""),
+    vip_visits: String(form.get("vip_visits") || ""),
+    vip_gift: String(form.get("vip_gift") || ""),
     friend_gift: String(form.get("friend_gift") || ""),
     friend_reward: String(form.get("friend_reward") || "")
   };
@@ -272,6 +274,13 @@ function bonusSection(b, hidden, msg) {
             <label>Особый приз<input name="stamps_prize" maxlength="60" value="${esc(b.stamps_prize || "")}" placeholder="Пицца в подарок"></label>
           </div>
           <p class="set-hint">Чтобы штампы копились быстрее, поставьте «Один подарок на телефон раз в» 7 дней.</p>
+        </fieldset>
+        <fieldset class="set-prizes"><legend>VIP-гости (необязательно)</legend>
+          <p class="set-hint">Новый → постоянный (3+ визита) → VIP. Визит — день, когда гость приложил телефон к карте. VIP видит значок, получает VIP-подарок вместо колеса, кассир видит «⭐ VIP-гость». Пусто — выключено.</p>
+          <div class="set-two">
+            <label>VIP с какого визита (4–100)<input name="vip_visits" type="number" min="4" max="100" inputmode="numeric" value="${esc(String(b.vip_visits ?? ""))}" placeholder="выключено"></label>
+            <label>VIP-подарок<input name="vip_gift" maxlength="60" value="${esc(b.vip_gift || "")}" placeholder="Коктейль от шефа"></label>
+          </div>
         </fieldset>
         <fieldset class="set-prizes"><legend>Подарите другу (необязательно)</legend>
           <p class="set-hint">Гость делится ссылкой со своего экрана подарка. Новый гость получает подарок на первый визит, а пригласивший — свой, когда друг придёт и кассир погасит его код. До 3 друзей в месяц по одной ссылке. Пусто — выключено.</p>

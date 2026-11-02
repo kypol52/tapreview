@@ -1464,6 +1464,8 @@ function readForm() {
     bonus_daily_limit: $("f-bonus-daily").value,
     stamps_goal: $("f-stamps-goal").value,
     stamps_prize: $("f-stamps-prize").value,
+    vip_visits: $("f-vip-visits").value,
+    vip_gift: $("f-vip-gift").value,
     friend_gift: $("f-friend-gift").value,
     friend_reward: $("f-friend-reward").value,
     bonus_conditions: $("f-bonus-conditions").value,
@@ -1820,6 +1822,8 @@ function fillBonus(business) {
   $("f-bonus-daily").value = business ? business.bonus_daily_limit ?? 50 : 50;
   $("f-stamps-goal").value = business && business.stamps_goal ? String(business.stamps_goal) : "";
   $("f-stamps-prize").value = business ? business.stamps_prize || "" : "";
+  $("f-vip-visits").value = business && business.vip_visits ? String(business.vip_visits) : "";
+  $("f-vip-gift").value = business ? business.vip_gift || "" : "";
   $("f-friend-gift").value = business ? business.friend_gift || "" : "";
   $("f-friend-reward").value = business ? business.friend_reward || "" : "";
   $("f-bonus-conditions").value = business ? business.bonus_conditions || "" : "";

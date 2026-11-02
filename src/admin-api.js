@@ -60,7 +60,7 @@ const ADMIN_COLUMNS =
   "google_url,yandex_url,twogis_url,discount_code,discount_text,is_active," +
   "paid_until,monthly_price,billing_note," +
   "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions,bonus_daily_limit," +
-  "stamps_goal,stamps_prize,friend_gift,friend_reward," +
+  "stamps_goal,stamps_prize,friend_gift,friend_reward,vip_visits,vip_gift," +
   "referred_by,ref_reward_at,theme,design,extra_links,rating_first,moment," +
   "created_at,updated_at";
 
@@ -718,7 +718,15 @@ function cleanBonus(input) {
   if (Boolean(friendGift) !== Boolean(friendReward)) {
     throw new HttpError(400, "«Подарите другу»: заполните оба подарка — для друга и для пригласившего (или оставьте оба пустыми)");
   }
+  // VIP-уровень (миграция 032): оба поля или ни одного
+  const vipVisits = int(input.vip_visits, 4, 100, "VIP с какого визита", null);
+  const vipGift = cleanText(input.vip_gift, 60, "VIP-подарок") || null;
+  if (Boolean(vipVisits) !== Boolean(vipGift)) {
+    throw new HttpError(400, "VIP-гости: укажите и с какого визита (от 4), и VIP-подарок — или оставьте оба пустыми");
+  }
   return {
+    vip_visits: vipVisits,
+    vip_gift: vipGift,
     friend_gift: friendGift,
     friend_reward: friendReward,
     stamps_goal: stampsGoal,
