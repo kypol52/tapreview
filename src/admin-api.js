@@ -67,7 +67,7 @@ const ADMIN_COLUMNS =
   "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions,bonus_daily_limit," +
   "stamps_goal,stamps_prize,friend_gift,friend_reward,vip_visits,vip_gift," +
   "referred_by,ref_reward_at,theme,design,extra_links,rating_first,moment,tariff," +
-  "catalog_visible,catalog_since,description,city,photos,app_button," +
+  "catalog_visible,catalog_since,description,city,photos,app_button,lat,lon," +
   "created_at,updated_at";
 
 const EXTRA_LINK_TYPES = ["menu", "catalog", "services", "booking", "delivery", "site", "tips", "pay", "custom"];
@@ -649,8 +649,23 @@ function validateBusiness(input) {
     description: cleanText(input.description, 1000, "Описание для каталога") || null,
     city: cleanText(input.city, 60, "Город") || null,
     photos: cleanPhotos(input.photos),
+    ...cleanCoords(input.lat, input.lon),
     ...cleanBonus(input)
   };
+}
+
+// Координаты для «Рядом со мной» (миграция 039): обе пустые или обе числа в допустимых пределах
+function cleanCoords(lat, lon) {
+  const empty = (v) => v === undefined || v === null || v === "";
+  if (empty(lat) && empty(lon)) return { lat: null, lon: null };
+  // Number(null) = 0 — без этой проверки «только широта» сохранилась бы с долготой 0
+  if (empty(lat) || empty(lon)) throw new HttpError(400, "Координаты: нужны и широта, и долгота");
+  const a = Number(lat);
+  const b = Number(lon);
+  if (!Number.isFinite(a) || !Number.isFinite(b) || Math.abs(a) > 90 || Math.abs(b) > 180) {
+    throw new HttpError(400, "Координаты: широта от −90 до 90 и долгота от −180 до 180");
+  }
+  return { lat: Math.round(a * 1e6) / 1e6, lon: Math.round(b * 1e6) / 1e6 };
 }
 
 function cleanPhotos(value) {

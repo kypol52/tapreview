@@ -7,6 +7,8 @@
 //   GET    /api/app/config                     — имя бота и приложения (для ссылок t.me/…)
 //   GET    /api/app/home?city=                 — города, категории, лучшие, популярные, новые (в выбранном городе)
 //   GET    /api/app/places?q=&cat=&min=&sort=&city=&offset= — каталог (только заведения с catalog_visible)
+//   GET    /api/app/nearby                     — заведения каталога с координатами (расстояние считает телефон:
+//                                                 геопозиция гостя на сервер не передаётся)
 //   GET    /api/app/places/:slug               — заведение, рейтинг, первые отзывы, мой отзыв, избранное
 //   GET    /api/app/places/:slug/reviews?offset= — ещё отзывы
 //   POST   /api/app/reviews                    — оставить или изменить свой отзыв → на проверку
@@ -55,7 +57,7 @@ const REPORTS_TO_RECHECK = 3; // столько жалоб — опублико�
 
 const PLACE_COLUMNS =
   "id,slug,name,tagline,category,city,address,description,logo_url,design,photos,extra_links," +
-  "google_url,yandex_url,twogis_url,catalog_visible";
+  "google_url,yandex_url,twogis_url,catalog_visible,lat,lon";
 
 export class AppError extends Error {
   constructor(status, message) {
@@ -165,6 +167,7 @@ export async function handleAppApi(request, env, url) {
     }
     if (path === "/api/app/home" && method === "GET") return await home(env, url);
     if (path === "/api/app/places" && method === "GET") return await places(env, url);
+    if (path === "/api/app/nearby" && method === "GET") return await nearby(env);
 
     let m = path.match(/^\/api\/app\/places\/([^/]+)$/);
     if (m && method === "GET") return await place(request, env, m[1], url);
@@ -300,6 +303,32 @@ async function places(env, url) {
   return json({ items: rows.slice(0, PAGE).map(card), more: rows.length > PAGE, cities });
 }
 
+// «Рядом со мной»: все заведения каталога с координатами + рейтинг. Сортирует по расстоянию само приложение.
+async function nearby(env) {
+  const rows = await db(env, "businesses?is_active=is.true&catalog_visible=is.true&lat=not.is.null&select=id,slug,name,category,city,address,tagline,logo_url,design,photos,lat,lon&limit=3000");
+  const ids = rows.map((b) => b.id);
+  const scores = ids.length
+    ? await db(env, `reviews?business_id=in.(${ids.join(",")})&status=eq.published&select=business_id,score&limit=200000`)
+    : [];
+  const agg = new Map();
+  for (const s of scores) {
+    const a = agg.get(s.business_id) || { n: 0, sum: 0 };
+    a.n++;
+    a.sum += s.score;
+    agg.set(s.business_id, a);
+  }
+  return json({
+    items: rows.map((b) => {
+      const a = agg.get(b.id);
+      return {
+        ...card({ ...b, cover: (b.photos || [])[0], reviews: a ? a.n : 0, avg_score: a ? Math.round((a.sum / a.n) * 10) / 10 : null }),
+        lat: b.lat,
+        lon: b.lon
+      };
+    })
+  });
+}
+
 // ---------- Заведение ----------
 
 async function findPlace(env, slug) {
@@ -390,7 +419,8 @@ async function place(request, env, slug, url) {
       logo: logoOf(b),
       photos: (b.photos || []).map(mediaUrl).filter(Boolean),
       links,
-      maps: { yandex: b.yandex_url || null, google: b.google_url || null, twogis: b.twogis_url || null }
+      maps: { yandex: b.yandex_url || null, google: b.google_url || null, twogis: b.twogis_url || null },
+      coords: b.lat != null && b.lon != null ? { lat: b.lat, lon: b.lon } : null
     },
     rating: { avg: total ? Math.round((sum / total) * 10) / 10 : null, count: total, dist: counts },
     reviews: page.rows.map((r) => publicReview(r, user && user.id, { voted: voted.has(r.id) })),

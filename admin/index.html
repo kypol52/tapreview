@@ -523,6 +523,15 @@
           <span>Город</span>
           <input id="f-city" type="text" maxlength="60" placeholder="Ижевск">
         </label>
+        <div class="field">
+          <span>Координаты — для «Рядом со мной»</span>
+          <input id="f-coords" type="text" maxlength="600" placeholder="56.845264, 53.213727 или ссылка на точку в Яндекс Картах / 2ГИС">
+          <div class="design-actions">
+            <button id="f-coords-find" class="btn btn-ghost btn-small" type="button">Найти в ссылках заведения</button>
+            <a id="f-coords-check" class="btn btn-ghost btn-small" target="_blank" rel="noopener" hidden>Проверить на карте ↗</a>
+          </div>
+          <p id="f-coords-status" class="muted field-hint">В Яндекс Картах: нажмите на здание → «Поделиться» → скопируйте ссылку или координаты.</p>
+        </div>
         <label class="field">
           <span>Описание для каталога</span>
           <textarea id="f-description" rows="3" maxlength="1000" placeholder="Пара предложений: что за место, чем известно"></textarea>

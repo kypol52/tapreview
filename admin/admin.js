@@ -113,6 +113,8 @@ function bindEvents() {
   $("d-dim").addEventListener("input", () => { $("d-dim-val").textContent = $("d-dim").value; });
   $("m-photo-file").addEventListener("change", onMomentPhoto);
   $("f-photo-file").addEventListener("change", onCatalogPhoto);
+  $("f-coords").addEventListener("input", showCoordsStatus);
+  $("f-coords-find").addEventListener("click", findCoordsInLinks);
   $("m-photo-clear").addEventListener("click", () => { momentState.photo = null; showMomentPhoto(); });
   $("f-color-on").addEventListener("change", () => {
     $("f-color").disabled = !$("f-color-on").checked;
@@ -988,6 +990,7 @@ function catalogGaps(b) {
   if (!b.address) gaps.push("адрес");
   if (!b.description) gaps.push("описание");
   if (!(b.photos && b.photos.length)) gaps.push("фото");
+  if (b.lat == null) gaps.push("координаты");
   return gaps;
 }
 
@@ -1543,8 +1546,66 @@ function readForm() {
     app_button: $("f-app-button").checked,
     city: $("f-city").value,
     description: $("f-description").value,
-    photos: catalogPhotos.slice()
+    photos: catalogPhotos.slice(),
+    ...readCoords()
   };
+}
+
+// ---- Координаты: «56.84, 53.21» или ссылка Яндекс Карт (ll= / pt= — сначала долгота!) или 2ГИС (m= / /geo/ — тоже долгота первой)
+function parseCoords(text) {
+  let s = String(text || "").trim();
+  if (!s) return null;
+  try {
+    s = decodeURIComponent(s);
+  } catch {
+    // оставляем как есть
+  }
+  const pair = (a, b) => [Number(a), Number(b)];
+  let m = /[?&](?:ll|pt|whatshere\[point\])=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/.exec(s);
+  if (m) return check(...pair(m[2], m[1]));
+  m = /[?&]m=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/.exec(s) || /\/geo\/(?:\d+\/)?(-?\d+\.\d+),(-?\d+\.\d+)/.exec(s);
+  if (m) return check(...pair(m[2], m[1]));
+  m = /^(-?\d{1,2}(?:\.\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:\.\d+)?)$/.exec(s);
+  if (m) return check(...pair(m[1], m[2]));
+  return { error: "Не понял координаты. Вставьте «56.845264, 53.213727» или ссылку на точку." };
+
+  function check(lat, lon) {
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return { error: "Координаты вне допустимых пределов" };
+    return { lat: Math.round(lat * 1e6) / 1e6, lon: Math.round(lon * 1e6) / 1e6 };
+  }
+}
+
+function readCoords() {
+  const c = parseCoords($("f-coords").value);
+  if (!c) return { lat: null, lon: null };
+  if (c.error) throw new Error(`Координаты: ${c.error}`);
+  return { lat: c.lat, lon: c.lon };
+}
+
+function showCoordsStatus() {
+  const c = parseCoords($("f-coords").value);
+  const link = $("f-coords-check");
+  if (c && !c.error) {
+    $("f-coords-status").textContent = `Широта ${c.lat}, долгота ${c.lon}.`;
+    link.href = `https://yandex.ru/maps/?pt=${c.lon},${c.lat}&z=17&l=map`;
+    link.hidden = false;
+  } else {
+    $("f-coords-status").textContent = c && c.error ? c.error : "В Яндекс Картах: нажмите на здание → «Поделиться» → скопируйте ссылку или координаты.";
+    link.hidden = true;
+  }
+}
+
+function findCoordsInLinks() {
+  const urls = [$("f-yandex").value, $("f-twogis").value, $("f-google").value, ...readXlinks().map((l) => l.url)];
+  for (const u of urls) {
+    const c = parseCoords(u);
+    if (c && !c.error) {
+      $("f-coords").value = `${c.lat}, ${c.lon}`;
+      showCoordsStatus();
+      return;
+    }
+  }
+  $("f-coords-status").textContent = "В ссылках заведения координат нет. Скопируйте их из Яндекс Карт («Поделиться»).";
 }
 
 // ================= Каталог Mini App: город, описание, фото (миграция 034) =================
@@ -1557,6 +1618,8 @@ function fillCatalog(business) {
   $("f-city").value = business ? business.city || "" : "";
   $("f-description").value = business ? business.description || "" : "";
   catalogPhotos = business && Array.isArray(business.photos) ? business.photos.slice() : [];
+  $("f-coords").value = business && business.lat != null ? `${business.lat}, ${business.lon}` : "";
+  showCoordsStatus();
   $("f-photo-status").textContent = "";
   showCatalogPhotos();
 }

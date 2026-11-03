@@ -173,6 +173,7 @@ const I = {
   trash: ["M5 7h14", "M9.5 7V4.5h5V7", "M7 7l.8 12.5h8.4L17 7"],
   photo: ["M4 6.5h16v12H4z", "m4 15.5 4.5-4.5 4 4 2.5-2.5 5 5", "M15.5 10a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4z"],
   go: "m10 6 6 6-6 6",
+  route: ["M6 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z", "M18 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4z", "M8 17h7.5a3 3 0 0 0 0-6h-7a3 3 0 0 1 0-6H16"],
   cats: {
     restaurant: ["M7 3v8", "M5 3v5a2 2 0 0 0 4 0V3", "M7 11v10", "M17 21V3c-2.2 1.2-3.5 3.6-3.5 6.5V13H17"],
     beauty: ["M7.5 21v-8.5", "M5.5 12.5h4l-.5-5.5h-3z", "M7.5 7V3.5", "M16.5 21V9", "M14 9h5V5.5a2.5 2.5 0 0 0-5 0z"],
@@ -308,7 +309,7 @@ function tile(p) {
   );
 }
 
-function row(p) {
+function row(p, distance) {
   return h("a", { class: "row", href: `#/place/${encodeURIComponent(p.slug)}`, onclick: haptic.tap },
     h("div", { class: "row-thumb" }, coverOf(p)),
     h("div", { class: "row-main" },
@@ -317,6 +318,110 @@ function row(p) {
       p.reviews
         ? h("div", { class: "row-rating" }, icon(I.star), fmtRating(p.rating), h("span", null, `· ${reviewsWord(p.reviews)}`))
         : h("div", { class: "row-new" }, "Пока без отзывов — будьте первым")
+    ),
+    distance !== undefined ? h("div", { class: "row-dist" }, fmtDistance(distance), distance < 2500 ? h("small", null, walkTime(distance)) : null) : null
+  );
+}
+
+// ================= Геопозиция («Рядом со мной») =================
+// Координаты гостя остаются на телефоне: сервер отдаёт заведения, расстояние считаем здесь.
+
+function distanceM(a, b) {
+  const R = 6371000;
+  const rad = (x) => (x * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat);
+  const dLon = rad(b.lon - a.lon);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+function fmtDistance(m) {
+  if (m < 1000) return `${Math.max(10, Math.round(m / 10) * 10)} м`;
+  return `${(m / 1000).toFixed(m < 10000 ? 1 : 0).replace(".", ",")} км`;
+}
+const walkTime = (m) => `${Math.max(1, Math.round(m / 80))} мин пешком`;
+
+// → { lat, lon } или { error: "denied" | "unavailable" }
+function getLocation() {
+  if (state.location) return Promise.resolve(state.location);
+  const remember = (pos) => (state.location = pos);
+  const browser = () =>
+    new Promise((resolve) => {
+      if (!navigator.geolocation) return resolve({ error: "unavailable" });
+      navigator.geolocation.getCurrentPosition(
+        (p) => resolve(remember({ lat: p.coords.latitude, lon: p.coords.longitude })),
+        (e) => resolve({ error: e && e.code === 1 ? "denied" : "unavailable" }),
+        { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 }
+      );
+    });
+  const lm = tg && tg.LocationManager;
+  if (!lm || !(tg.isVersionAtLeast && tg.isVersionAtLeast("8.0"))) return browser();
+  return new Promise((resolve) => {
+    const ask = () => {
+      if (!lm.isLocationAvailable) return browser().then(resolve);
+      lm.getLocation((data) => {
+        if (data) resolve(remember({ lat: data.latitude, lon: data.longitude }));
+        else resolve({ error: lm.isAccessRequested && !lm.isAccessGranted ? "denied" : "unavailable" });
+      });
+    };
+    try {
+      if (lm.isInited) ask();
+      else lm.init(ask);
+    } catch {
+      browser().then(resolve);
+    }
+  });
+}
+
+async function nearbyView() {
+  const head = h("header", { class: "head" },
+    h("h1", { class: "title" }, "Рядом со мной"),
+    h("p", { class: "lead" }, "Ближайшие заведения из каталога TapReview"));
+  const box = h("div", { class: "stack" });
+  render(head, box);
+
+  const showList = async (loc) => {
+    box.replaceChildren(...skeletonList(3).children);
+    let data;
+    try {
+      data = await api("/api/app/nearby");
+    } catch (error) {
+      return box.replaceChildren(errorView(error, () => showList(loc)));
+    }
+    const items = data.items.map((p) => ({ p, d: distanceM(loc, p) })).sort((a, b) => a.d - b.d).slice(0, 40);
+    if (!items.length) {
+      return box.replaceChildren(emptyView(I.pin, "Пока никого на карте", "У заведений каталога ещё не отмечено место на карте. Загляните позже или откройте каталог.", h("a", { class: "btn btn-soft", href: "#/catalog" }, "Открыть каталог")));
+    }
+    box.replaceChildren(
+      h("div", { class: "list", style: "padding:0" }, items.map(({ p, d }) => row(p, d))),
+      h("p", { class: "fine", style: "margin:4px 2px 0" }, "Расстояние по прямой. Ваша геопозиция не покидает телефон — мы её не получаем и не храним.")
+    );
+  };
+
+  const ask = async () => {
+    haptic.tap();
+    box.replaceChildren(h("div", { class: "card fine" }, "Определяем, где вы…"));
+    const loc = await getLocation();
+    if (loc.error) {
+      const lm = tg && tg.LocationManager;
+      return box.replaceChildren(
+        emptyView(I.pin, loc.error === "denied" ? "Нет доступа к геопозиции" : "Не удалось определить место",
+          loc.error === "denied" ? "Разрешите Telegram доступ к геопозиции для TapReview — и попробуйте ещё раз." : "Проверьте, включена ли геолокация на телефоне.",
+          h("div", { class: "sheet-actions", style: "max-width:280px;margin:0 auto" },
+            h("button", { class: "btn btn-primary btn-block", onclick: ask }, "Попробовать ещё раз"),
+            loc.error === "denied" && lm && lm.openSettings ? h("button", { class: "btn btn-soft btn-block", onclick: () => lm.openSettings() }, "Открыть настройки") : null
+          ))
+      );
+    }
+    showList(loc);
+  };
+
+  if (state.location) return showList(state.location);
+  box.replaceChildren(
+    h("div", { class: "card nearby-intro" },
+      h("div", { class: "empty-icon", style: "margin:0 auto 12px" }, icon(I.pin)),
+      h("p", { style: "margin:0 0 14px;text-align:center" }, "Покажем заведения рядом с вами и сколько до них идти."),
+      h("button", { class: "btn btn-primary btn-block", onclick: ask }, icon(I.pin), "Показать, что рядом"),
+      h("p", { class: "fine", style: "margin:12px 0 0;text-align:center" }, "Геопозиция остаётся на вашем телефоне — мы её не получаем и не храним.")
     )
   );
 }
@@ -367,7 +472,8 @@ async function homeView() {
       h("div", { class: "row-between" }, brand(), cityButton(homeView)),
       h("h1", { class: "title" }, "Где хорошо?"),
       h("p", { class: "lead", style: "margin-bottom:14px" }, data.city ? `Честные оценки гостей заведений · ${data.city}` : "Честные оценки гостей заведений вашего города"),
-      searchBox("", null, (q) => go(`#/catalog?q=${encodeURIComponent(q)}`))
+      searchBox("", null, (q) => go(`#/catalog?q=${encodeURIComponent(q)}`)),
+      h("a", { class: "near-btn", href: "#/nearby", onclick: haptic.tap }, icon(I.pin), "Рядом со мной", h("span", { class: "info-go" }, "›"))
     ),
     h("section", { class: "section" },
       h("div", { class: "section-head" }, h("h2", { class: "section-title" }, "Категории")),
@@ -549,15 +655,29 @@ async function placeView(slug) {
   );
 
   // Адрес и ссылки
+  const c = p.coords;
   const mapUrl = p.maps.yandex || p.maps.twogis || p.maps.google ||
+    (c ? `https://yandex.ru/maps/?pt=${c.lon},${c.lat}&z=17&l=map` : null) ||
     (p.address ? `https://yandex.ru/maps/?text=${encodeURIComponent([p.city, p.address].filter(Boolean).join(", "))}` : null);
-  const infoCard = p.address || p.links.length
+  // Маршрут пешком в Яндекс Картах — откуда, Карты определят сами (наш сервер геопозицию не получает)
+  const routeUrl = c ? `https://yandex.ru/maps/?rtext=~${c.lat},${c.lon}&rtt=pd` : null;
+  const away = c && state.location ? distanceM(state.location, c) : null;
+  const rowStyle = "width:100%;border-left:0;border-right:0;border-bottom:0;background:none;text-align:left";
+  const infoCard = p.address || p.links.length || c
     ? h("div", { class: "card" },
-        p.address
-          ? h("button", { class: "info-row", style: "width:100%;border-left:0;border-right:0;border-bottom:0;background:none;text-align:left", onclick: () => mapUrl && openLink(mapUrl) },
+        p.address || c
+          ? h("button", { class: "info-row", style: rowStyle, onclick: () => mapUrl && openLink(mapUrl) },
               icon(I.pin),
-              h("div", { class: "info-main" }, [p.city, p.address].filter(Boolean).join(", "), mapUrl ? h("div", { class: "info-sub" }, "Открыть на карте") : null),
+              h("div", { class: "info-main" }, [p.city, p.address].filter(Boolean).join(", ") || "Место на карте",
+                mapUrl ? h("div", { class: "info-sub" }, away !== null ? `Открыть на карте · ${fmtDistance(away)} от вас` : "Открыть на карте") : null),
               mapUrl ? h("span", { class: "info-go" }, "›") : null
+            )
+          : null,
+        routeUrl
+          ? h("button", { class: "info-row", style: rowStyle, onclick: () => openLink(routeUrl) },
+              icon(I.route),
+              h("div", { class: "info-main" }, "Маршрут", h("div", { class: "info-sub" }, away !== null && away < 2500 ? walkTime(away) : "Пешком в Яндекс Картах")),
+              h("span", { class: "info-go" }, "›")
             )
           : null,
         p.links.length
@@ -1422,6 +1542,7 @@ function route() {
 
   if (parts[0] === "place" && parts[1]) return placeView(parts[1]);
   if (parts[0] === "biz" && parts[1]) return bizView(parts[1]);
+  if (parts[0] === "nearby") return nearbyView();
   if (parts[0] === "catalog") return catalogView(params);
   if (parts[0] === "favorites") return favoritesView();
   if (parts[0] === "me") return meView();
@@ -1432,7 +1553,7 @@ window.addEventListener("hashchange", (e) => {
   const from = new URL(e.oldURL).hash;
   const to = location.hash;
   // глубина для «Назад»: заведение и кабинет — на шаг глубже вкладок
-  const deep = (hash) => /^#\/(place|biz)\//.test(hash);
+  const deep = (hash) => /^#\/(place\/|biz\/|nearby)/.test(hash);
   if (deep(to) && !deep(from)) depth++;
   else if (deep(from) && !deep(to)) depth = Math.max(0, depth - 1);
   route();
