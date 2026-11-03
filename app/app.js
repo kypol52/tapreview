@@ -594,10 +594,16 @@ async function placeView(slug) {
   const reviewsBox = h("div", { class: "reviews" }, data.reviews.map((rv) => reviewItem(rv, data)));
   const moreBtn = h("button", { class: "btn btn-soft btn-block", hidden: !data.more }, "Показать ещё отзывы");
   let offset = data.reviews.length;
-  moreBtn.addEventListener("click", async () => {
+  let sort = data.sort || "new";
+  const loadReviews = async (reset) => {
     moreBtn.disabled = true;
     try {
-      const page = await api(`/api/app/places/${encodeURIComponent(p.slug)}/reviews?offset=${offset}`);
+      const page = await api(`/api/app/places/${encodeURIComponent(p.slug)}/reviews?sort=${sort}&offset=${reset ? 0 : offset}`);
+      if (reset) {
+        offset = 0;
+        reviewsBox.replaceChildren();
+        if (!page.reviews.length) reviewsBox.append(h("div", { class: "card fine" }, "Таких отзывов пока нет."));
+      }
       reviewsBox.append(...page.reviews.map((rv) => reviewItem(rv, data)));
       offset += page.reviews.length;
       moreBtn.hidden = !page.more;
@@ -606,7 +612,26 @@ async function placeView(slug) {
     } finally {
       moreBtn.disabled = false;
     }
-  });
+  };
+  moreBtn.addEventListener("click", () => loadReviews(false));
+
+  // Порядок отзывов — только когда их есть из чего выбирать
+  const SORTS = [["new", "Новые"], ["helpful", "Полезные"], ["photo", "С фото"], ["low", "Сначала критичные"], ["high", "Сначала лучшие"]];
+  const sortChips = data.rating.count > 1
+    ? h("div", { class: "chips chips-flush", role: "group", "aria-label": "Порядок отзывов" },
+        SORTS.map(([key, label]) => {
+          const chip = h("button", { class: `chip${key === sort ? " on" : ""}`, type: "button" }, label);
+          chip.addEventListener("click", () => {
+            if (key === sort) return;
+            haptic.tap();
+            sort = key;
+            for (const c of chip.parentNode.children) c.classList.toggle("on", c === chip);
+            loadReviews(true);
+          });
+          return chip;
+        })
+      )
+    : null;
 
   render(
     gallery,
@@ -624,6 +649,7 @@ async function placeView(slug) {
       ratingCard,
       infoCard,
       h("div", { class: "section-head", style: "padding:10px 0 0" }, h("h2", { class: "section-title" }, "Отзывы гостей")),
+      sortChips,
       data.reviews.length ? reviewsBox : emptyView(I.chat, "Отзывов пока нет", "Станьте первым — это займёт минуту."),
       moreBtn,
       h("p", { class: "fine", style: "margin:6px 2px 0" },
@@ -656,7 +682,8 @@ function reviewItem(rv, data) {
     ),
     rv.text ? h("p", { class: "review-text" }, rv.text) : null,
     rv.photo ? h("button", { class: "review-photo", onclick: () => lightbox(rv.photo), "aria-label": "Фото к отзыву" }, h("img", { src: rv.photo, alt: "", loading: "lazy" })) : null,
-    rv.reply ? h("div", { class: "reply" }, h("div", { class: "reply-who" }, "Ответ заведения"), h("div", { class: "reply-text" }, rv.reply.text)) : null
+    rv.reply ? h("div", { class: "reply" }, h("div", { class: "reply-who" }, "Ответ заведения"), h("div", { class: "reply-text" }, rv.reply.text)) : null,
+    helpfulButton(rv)
   ].filter(Boolean));
   if (data.isOwner) {
     node.append(
@@ -667,6 +694,42 @@ function reviewItem(rv, data) {
     );
   }
   return node;
+}
+
+// «Полезно»: свой отзыв — только счётчик; чужой — кнопка-переключатель
+function helpfulButton(rv) {
+  if (typeof rv.helpful !== "number") return null;
+  const label = (n) => (n ? `Полезно · ${n}` : "Полезно");
+  if (rv.mine) {
+    return rv.helpful ? h("div", { class: "helpful helpful-static" }, "👍 ", `${rv.helpful} ${plural(rv.helpful, "человек считает", "человека считают", "человек считают")} полезным`) : null;
+  }
+  let voted = Boolean(rv.voted);
+  let count = rv.helpful;
+  const text = h("span", null, label(count));
+  const btn = h("button", { class: `helpful${voted ? " on" : ""}`, type: "button", "aria-pressed": String(voted) }, "👍 ", text);
+  btn.addEventListener("click", async () => {
+    if (!requireTelegram()) return;
+    const on = !voted;
+    voted = on;
+    count = Math.max(0, count + (on ? 1 : -1));
+    btn.classList.toggle("on", on);
+    btn.setAttribute("aria-pressed", String(on));
+    text.textContent = label(count);
+    haptic.tap();
+    try {
+      const res = await api(`/api/app/reviews/${rv.id}/helpful`, { method: on ? "PUT" : "DELETE" });
+      count = res.helpful;
+      text.textContent = label(count);
+    } catch (error) {
+      voted = !on;
+      count = Math.max(0, count + (on ? -1 : 1));
+      btn.classList.toggle("on", voted);
+      btn.setAttribute("aria-pressed", String(voted));
+      text.textContent = label(count);
+      toast(error.message);
+    }
+  });
+  return btn;
 }
 
 function reviewMenu(rv) {

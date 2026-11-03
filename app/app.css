@@ -386,3 +386,9 @@ a.notice { color: var(--navy); }
 .switch-input:checked + .switch::after { transform: translateX(20px); }
 .switch-input:focus-visible + .switch { outline: 2px solid var(--navy-2); outline-offset: 2px; }
 .switch-input:disabled + .switch { opacity: .6; }
+
+/* ---------- «Полезно» и порядок отзывов ---------- */
+.helpful { display: inline-flex; align-items: center; gap: 2px; margin-top: 10px; height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 99px; background: var(--card); font-size: 13px; font-weight: 600; color: var(--muted); transition: background .15s, color .15s, border-color .15s; }
+.helpful.on { background: #eaf0fb; border-color: #c9d6ee; color: var(--navy); }
+.helpful-static { border: 0; padding: 0; height: auto; background: none; font-weight: 500; }
+.chips-flush { padding-left: 0; padding-right: 0; margin-bottom: 2px; }

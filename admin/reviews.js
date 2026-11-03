@@ -83,6 +83,13 @@ function reviewCard(r) {
     a.style.backgroundImage = `url(${r.photo})`;
     box.append(a);
   }
+  if (r.flags && r.flags.length) {
+    // Подсказки (src/app-api.js → suspicionFlags): не решение, а повод присмотреться
+    const list = el("ul", "rv-flags");
+    for (const f of r.flags) list.append(el("li", "", `⚠ ${f}`));
+    box.append(list);
+  }
+  if (typeof r.helpful === "number" && r.helpful) box.append(el("p", "muted rv-meta", `👍 Полезно: ${r.helpful}`));
   if (r.rejectReason) box.append(el("p", "muted", `Причина отказа: ${r.rejectReason}`));
   if (r.reply) box.append(el("p", "rv-reply", `Ответ заведения: ${r.reply.text}`));
   if (r.reports.length) {

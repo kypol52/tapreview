@@ -12,6 +12,8 @@
 //   POST   /api/app/reviews                    — оставить или изменить свой отзыв → на проверку
 //   DELETE /api/app/reviews/:id                — удалить свой отзыв
 //   POST   /api/app/reviews/:id/report         — жалоба { reason, comment }
+//   PUT    /api/app/reviews/:id/helpful, DELETE — «Полезно» (один голос, не за свой отзыв)
+//   GET    /api/app/places/:slug[/reviews]?sort=new|helpful|photo|low|high — порядок отзывов
 //   POST   /api/app/reviews/:id/reply          — ответ заведения { text } (владелец с правом управления)
 //   DELETE /api/app/reviews/:id/reply          — удалить ответ заведения
 //   PUT    /api/app/favorites/:slug, DELETE    — избранное
@@ -165,7 +167,7 @@ export async function handleAppApi(request, env, url) {
     if (path === "/api/app/places" && method === "GET") return await places(env, url);
 
     let m = path.match(/^\/api\/app\/places\/([^/]+)$/);
-    if (m && method === "GET") return await place(request, env, m[1]);
+    if (m && method === "GET") return await place(request, env, m[1], url);
     m = path.match(/^\/api\/app\/places\/([^/]+)\/reviews$/);
     if (m && method === "GET") return await moreReviews(request, env, m[1], url);
 
@@ -174,6 +176,8 @@ export async function handleAppApi(request, env, url) {
     if (m && method === "DELETE") return await deleteReview(request, env, m[1]);
     m = path.match(/^\/api\/app\/reviews\/(\d{1,18})\/report$/);
     if (m && method === "POST") return await report(request, env, m[1]);
+    m = path.match(/^\/api\/app\/reviews\/(\d{1,18})\/helpful$/);
+    if (m && (method === "PUT" || method === "DELETE")) return await helpful(request, env, m[1], method === "PUT");
     m = path.match(/^\/api\/app\/reviews\/(\d{1,18})\/reply$/);
     if (m && (method === "POST" || method === "DELETE")) return await reply(request, env, m[1], method === "DELETE");
 
@@ -316,29 +320,48 @@ function publicReview(r, userId, extra = {}) {
     viaCard: Boolean(r.card_id),
     reply: r.reply_text ? { text: r.reply_text, date: r.reply_at } : null,
     mine: Boolean(userId && r.user_id === userId),
+    helpful: Number(r.helpful || 0),
     ...extra
   };
 }
 
-const REVIEW_COLUMNS = "id,user_id,score,text,photo_id,status,reject_reason,card_id,reply_text,reply_at,edited_at,created_at,updated_at";
+const REVIEW_COLUMNS = "id,user_id,score,text,photo_id,status,reject_reason,card_id,reply_text,reply_at,edited_at,created_at,updated_at,helpful";
 
-async function reviewPage(env, businessId, offset) {
+// Сортировка отзывов на странице заведения (миграция 038 — счётчик «Полезно»)
+const REVIEW_SORTS = {
+  new: "order=created_at.desc,id.desc",
+  helpful: "order=helpful.desc,created_at.desc,id.desc",
+  photo: "photo_id=not.is.null&order=created_at.desc,id.desc",
+  low: "order=score.asc,created_at.desc,id.desc",
+  high: "order=score.desc,created_at.desc,id.desc"
+};
+const reviewSortOf = (url) => (REVIEW_SORTS[url.searchParams.get("sort")] ? url.searchParams.get("sort") : "new");
+
+async function reviewPage(env, businessId, offset, sort = "new") {
   const rows = await db(
     env,
-    `reviews?business_id=eq.${businessId}&status=eq.published&select=${REVIEW_COLUMNS}&order=created_at.desc&limit=${PAGE + 1}&offset=${offset}`
+    `reviews?business_id=eq.${businessId}&status=eq.published&select=${REVIEW_COLUMNS}&${REVIEW_SORTS[sort]}&limit=${PAGE + 1}&offset=${offset}`
   );
   return { rows: rows.slice(0, PAGE), more: rows.length > PAGE };
 }
 
-async function place(request, env, slug) {
+// За какие из этих отзывов пользователь уже голосовал «Полезно»
+async function votedSet(env, user, rows) {
+  if (!user || !rows.length) return new Set();
+  const votes = await db(env, `review_votes?user_id=eq.${user.id}&review_id=in.(${rows.map((r) => r.id).join(",")})&select=review_id`);
+  return new Set(votes.map((v) => v.review_id));
+}
+
+async function place(request, env, slug, url) {
   const user = await appUser(request, env).catch((e) => {
     if (e instanceof AppError && e.status === 401) return null; // читать можно и без входа
     throw e;
   });
   const b = await findPlace(env, slug);
+  const sort = reviewSortOf(url);
   const [dist, page, mine, fav, owned] = await Promise.all([
     db(env, "rpc/app_place_rating", { method: "POST", body: { p_business_id: b.id } }),
-    reviewPage(env, b.id, 0),
+    reviewPage(env, b.id, 0, sort),
     user ? db(env, `reviews?business_id=eq.${b.id}&user_id=eq.${user.id}&select=${REVIEW_COLUMNS}`) : [],
     user ? db(env, `favorites?business_id=eq.${b.id}&user_id=eq.${user.id}&select=business_id`) : [],
     ownedIds(env, user)
@@ -352,7 +375,8 @@ async function place(request, env, slug) {
     total += Number(d.cnt);
   }
   const isOwner = owned.includes(b.id);
-  const links = (Array.isArray(b.extra_links) ? b.extra_links : []).map((l) => ({ type: l.type, url: l.url, label: l.label || null }));
+  const voted = await votedSet(env, user, page.rows);
+  const links =(Array.isArray(b.extra_links) ? b.extra_links : []).map((l) => ({ type: l.type, url: l.url, label: l.label || null }));
   return json({
     place: {
       slug: b.slug,
@@ -369,7 +393,8 @@ async function place(request, env, slug) {
       maps: { yandex: b.yandex_url || null, google: b.google_url || null, twogis: b.twogis_url || null }
     },
     rating: { avg: total ? Math.round((sum / total) * 10) / 10 : null, count: total, dist: counts },
-    reviews: page.rows.map((r) => publicReview(r, user && user.id)),
+    reviews: page.rows.map((r) => publicReview(r, user && user.id, { voted: voted.has(r.id) })),
+    sort,
     more: page.more,
     myReview: mine.length ? myReview(mine[0]) : null,
     favorite: fav.length > 0,
@@ -398,8 +423,9 @@ async function moreReviews(request, env, slug, url) {
   const user = await appUser(request, env).catch(() => null);
   const b = await findPlace(env, slug);
   const offset = Math.max(0, Math.min(100000, Math.floor(Number(url.searchParams.get("offset")) || 0)));
-  const page = await reviewPage(env, b.id, offset);
-  return json({ reviews: page.rows.map((r) => publicReview(r, user && user.id)), more: page.more });
+  const page = await reviewPage(env, b.id, offset, reviewSortOf(url));
+  const voted = await votedSet(env, user, page.rows);
+  return json({ reviews: page.rows.map((r) => publicReview(r, user && user.id, { voted: voted.has(r.id) })), more: page.more });
 }
 
 // ---------- Отзывы ----------
@@ -511,6 +537,25 @@ async function report(request, env, id) {
     if (moved.length) notifyModerators(env, "Отзыв снят с публикации после жалоб", { force: true });
   }
   return json({ ok: true });
+}
+
+async function helpful(request, env, id, on) {
+  const user = await requireUser(request, env, { write: true });
+  rateLimit(`h:${user.id}`, 60, 10 * 60e3);
+  const rows = await db(env, `reviews?id=eq.${id}&status=eq.published&select=id,user_id`);
+  if (!rows.length) throw new AppError(404, "Отзыв не найден");
+  if (rows[0].user_id === user.id) throw new AppError(400, "За свой отзыв голосовать нельзя");
+  if (on) {
+    await db(env, "review_votes?on_conflict=review_id,user_id", {
+      method: "POST",
+      body: { review_id: Number(id), user_id: user.id },
+      prefer: "resolution=ignore-duplicates,return=minimal"
+    });
+  } else {
+    await db(env, `review_votes?review_id=eq.${id}&user_id=eq.${user.id}`, { method: "DELETE", prefer: "return=minimal" });
+  }
+  const after = await db(env, `reviews?id=eq.${id}&select=helpful`);
+  return json({ voted: on, helpful: after.length ? after[0].helpful : 0 });
 }
 
 async function reply(request, env, id, remove) {
@@ -675,7 +720,7 @@ async function notifyOwnersPublished(env, reviewId) {
 async function notifyAuthor(env, reviewId, kind) {
   try {
     if (!env.APP_BOT_TOKEN) return;
-    const rows = await db(env, `reviews?id=eq.${reviewId}&select=reject_reason,reply_text,app_users(id,tg_id,notify),businesses(slug,name)`);
+    const rows = await db(env, `reviews?id=eq.${reviewId}&select=reject_reason,reply_text,app_users:app_users!reviews_user_id_fkey(id,tg_id,notify),businesses(slug,name)`);
     const r = rows[0];
     if (!r || !r.app_users || !r.app_users.notify || !r.businesses) return;
     // «Кофейня «Зерно»» — некрасиво: если в названии уже есть кавычки, не оборачиваем
@@ -900,7 +945,7 @@ async function adminSummary(env) {
 async function adminReviews(env, url) {
   const status = url.searchParams.get("status") || "pending";
   const offset = Math.max(0, Math.floor(Number(url.searchParams.get("offset")) || 0));
-  const cols = `${REVIEW_COLUMNS},moderated_at,businesses(slug,name),cards(code),app_users(id,banned_at),review_reports(id,reason,comment,created_at,resolved_at)`;
+  const cols = `${REVIEW_COLUMNS},business_id,moderated_at,businesses(slug,name),cards(code),app_users:app_users!reviews_user_id_fkey(id,banned_at),review_reports(id,reason,comment,created_at,resolved_at)`;
   let rows;
   if (status === "reported") {
     const open = await db(env, "review_reports?resolved_at=is.null&select=review_id&limit=1000");
@@ -912,9 +957,11 @@ async function adminReviews(env, url) {
     rows = await db(env, `reviews?status=eq.${status}&select=${cols}&order=${order}&limit=51&offset=${offset}`);
   }
   const more = status !== "reported" && rows.length > 50;
+  const flags = status === "published" || status === "rejected" ? new Map() : await suspicionFlags(env, rows.slice(0, 50));
   return json({
     more,
     reviews: rows.slice(0, 50).map((r) => ({
+      flags: flags.get(r.id) || [],
       id: r.id,
       place: r.businesses,
       score: r.score,
@@ -926,11 +973,59 @@ async function adminReviews(env, url) {
       reply: r.reply_text ? { text: r.reply_text, date: r.reply_at } : null,
       user: r.app_users ? { id: r.app_users.id, banned: Boolean(r.app_users.banned_at) } : null,
       reports: (r.review_reports || []).filter((x) => !x.resolved_at),
+      helpful: Number(r.helpful || 0),
       created: r.created_at,
       updated: r.updated_at,
       moderated: r.moderated_at
     }))
   });
+}
+
+// Подсказки модератору — НЕ решение и не блокировка, только «посмотрите внимательнее»:
+//   новый аккаунт · 3+ отзыва автора за сутки · всплеск отзывов у заведения · такой же текст у другого автора ·
+//   у автора уже отклоняли отзывы
+const DAY_MS = 24 * 3600e3;
+const normText = (s) => String(s || "").toLowerCase().replace(/ё/g, "е").replace(/[^a-zа-я0-9]+/g, " ").trim();
+
+async function suspicionFlags(env, rows) {
+  const out = new Map();
+  if (!rows.length) return out;
+  const userIds = [...new Set(rows.map((r) => r.user_id))];
+  const placeIds = [...new Set(rows.map((r) => r.business_id))];
+  const dayAgo = encodeURIComponent(new Date(Date.now() - DAY_MS).toISOString());
+  const since90 = encodeURIComponent(new Date(Date.now() - 90 * DAY_MS).toISOString());
+  const [users, userDay, rejected, placeDay, recentTexts] = await Promise.all([
+    db(env, `app_users?id=in.(${userIds.join(",")})&select=id,created_at`),
+    db(env, `reviews?user_id=in.(${userIds.join(",")})&created_at=gte.${dayAgo}&select=user_id&limit=10000`),
+    db(env, `reviews?user_id=in.(${userIds.join(",")})&status=eq.rejected&select=id,user_id&limit=10000`),
+    db(env, `reviews?business_id=in.(${placeIds.join(",")})&created_at=gte.${dayAgo}&select=business_id&limit=10000`),
+    db(env, `reviews?created_at=gte.${since90}&text=neq.&select=id,user_id,text&limit=5000`)
+  ]);
+  const created = new Map(users.map((u) => [u.id, Date.parse(u.created_at)]));
+  const count = (list, key) => list.reduce((m, x) => m.set(x[key], (m.get(x[key]) || 0) + 1), new Map());
+  const perUserDay = count(userDay, "user_id");
+  const perPlaceDay = count(placeDay, "business_id");
+  const textAuthors = new Map();
+  for (const t of recentTexts) {
+    const n = normText(t.text);
+    if (n.length < 20) continue;
+    if (!textAuthors.has(n)) textAuthors.set(n, new Set());
+    textAuthors.get(n).add(t.user_id);
+  }
+
+  for (const r of rows) {
+    const f = [];
+    const age = Date.parse(r.created_at) - (created.get(r.user_id) || 0);
+    if (created.has(r.user_id) && age < 3600e3) f.push("Новый аккаунт: отзыв в первый час");
+    if ((perUserDay.get(r.user_id) || 0) >= 3) f.push(`Автор оставил ${perUserDay.get(r.user_id)} отзыва за сутки`);
+    if ((perPlaceDay.get(r.business_id) || 0) >= 5) f.push(`Всплеск: ${perPlaceDay.get(r.business_id)} отзывов о заведении за сутки`);
+    const n = normText(r.text);
+    if (n.length >= 20 && [...(textAuthors.get(n) || [])].some((u) => u !== r.user_id)) f.push("Такой же текст у другого автора");
+    const rej = rejected.filter((x) => x.user_id === r.user_id && x.id !== r.id).length;
+    if (rej) f.push(`У автора уже отклоняли отзывы: ${rej}`);
+    out.set(r.id, f);
+  }
+  return out;
 }
 
 async function adminModerate(request, env, id) {
