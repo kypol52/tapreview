@@ -788,7 +788,7 @@ function reviewSheet(p, mine) {
     submit.disabled = true;
     submit.textContent = "Отправляю…";
     try {
-      await api("/api/app/reviews", {
+      const res = await api("/api/app/reviews", {
         method: "POST",
         body: {
           slug: p.slug,
@@ -803,6 +803,7 @@ function reviewSheet(p, mine) {
       sheet.close();
       toast("Спасибо! Отзыв отправлен на проверку");
       placeView(p.slug);
+      if (!res.notify) setTimeout(offerNotify, 700);
     } catch (error) {
       haptic.err();
       toast(error.message);
@@ -1220,6 +1221,8 @@ async function meView() {
       h("div", { class: "section-head", style: "padding:6px 0 0" }, h("h2", { class: "section-title" }, "Мои отзывы"), h("span", { class: "fine" }, data.reviews.length ? String(data.reviews.length) : "")),
       reviews,
       ...business,
+      h("div", { class: "section-head", style: "padding:18px 0 0" }, h("h2", { class: "section-title" }, "Уведомления")),
+      notifyToggle(data.notify),
       h("div", { class: "section-head", style: "padding:18px 0 0" }, h("h2", { class: "section-title" }, "Данные и приватность")),
       h("div", { class: "card fine" },
         "Мы храним только ваш Telegram ID — чтобы один человек оставлял один отзыв о заведении и для защиты от накрутки. ",
@@ -1229,6 +1232,75 @@ async function meView() {
       h("button", { class: "btn btn-soft btn-block danger", onclick: deleteMe }, icon(I.trash), "Удалить мои данные")
     )
   );
+}
+
+// ================= Сообщения о моих отзывах (бот гостей пишет в Telegram) =================
+// Telegram сам спрашивает «Разрешить боту писать вам?» (requestWriteAccess). Только после «да» включаем на сервере.
+
+function askWriteAccess() {
+  return new Promise((resolve) => {
+    if (!tg || !tg.requestWriteAccess || !(tg.isVersionAtLeast && tg.isVersionAtLeast("6.9"))) return resolve(false);
+    try {
+      tg.requestWriteAccess((granted) => resolve(Boolean(granted)));
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
+async function setNotify(on) {
+  if (on && !(await askWriteAccess())) {
+    toast("Без разрешения бот не сможет написать вам");
+    return false;
+  }
+  try {
+    await api("/api/app/me", { method: "PATCH", body: { notify: on } });
+    haptic.ok();
+    toast(on ? "Напишем, когда отзыв опубликуют или заведение ответит" : "Сообщения выключены");
+    return true;
+  } catch (error) {
+    toast(error.message);
+    return false;
+  }
+}
+
+function notifyToggle(on) {
+  const input = h("input", { type: "checkbox", class: "switch-input", "aria-label": "Сообщать о моих отзывах" });
+  input.checked = Boolean(on);
+  input.addEventListener("change", async () => {
+    const want = input.checked;
+    input.disabled = true;
+    if (!(await setNotify(want))) input.checked = !want;
+    input.disabled = false;
+  });
+  return h("label", { class: "card switch-row" },
+    h("div", { class: "grow" },
+      h("div", { style: "font-weight:700;color:var(--ink)" }, "Сообщать о моих отзывах"),
+      h("div", { class: "fine" }, "Бот TapReview напишет, когда отзыв опубликуют, отклонят или заведение ответит. Ничего другого не присылаем.")),
+    input, h("span", { class: "switch", "aria-hidden": "true" })
+  );
+}
+
+// Один раз после первого отзыва (на этом телефоне) — предложить сообщения
+function offerNotify() {
+  try {
+    if (localStorage.getItem("tr_notify_asked")) return;
+    localStorage.setItem("tr_notify_asked", "1");
+  } catch {
+    return;
+  }
+  if (!inTelegram) return;
+  const yes = h("button", { class: "btn btn-primary btn-block" }, "Да, сообщить");
+  const sheet = openSheet(
+    h("h2", null, "Сообщить о проверке?"),
+    h("p", { class: "lead" }, "Бот TapReview напишет вам, когда отзыв опубликуют или заведение ответит. Ничего другого не присылаем — выключить можно в профиле."),
+    h("div", { class: "sheet-actions" }, yes, h("button", { class: "btn btn-soft btn-block", onclick: () => sheet.close() }, "Не сейчас"))
+  );
+  yes.addEventListener("click", async () => {
+    yes.disabled = true;
+    await setNotify(true);
+    sheet.close();
+  });
 }
 
 async function deleteMe() {

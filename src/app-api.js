@@ -16,6 +16,7 @@
 //   DELETE /api/app/reviews/:id/reply          — удалить ответ заведения
 //   PUT    /api/app/favorites/:slug, DELETE    — избранное
 //   GET    /api/app/me                         — мои отзывы, избранное, мои заведения
+//   PATCH  /api/app/me                         — { notify }: сообщения о моих отзывах от бота (согласие гостя)
 //   DELETE /api/app/me                         — удалить мои данные (отзывы, жалобы, избранное)
 //   GET    /api/app/ticket?t=                  — проверить билет карты (для метки в форме)
 //   GET    /api/app/biz/:slug?period=week|month — кабинет заведения (только владелец): рейтинг, динамика,
@@ -29,7 +30,7 @@ import { db } from "./supabase.js";
 import { verifyInitData, readCardTicket } from "./app-auth.js";
 import { saveMedia, MEDIA_ID_RE } from "./media.js";
 import { loadReports, loadDaily } from "./report.js";
-import { tg } from "./telegram.js";
+import { tg, tgAs } from "./telegram.js";
 import { escapeHtml } from "./public-page.js";
 
 export const APP_CATEGORIES = [
@@ -188,6 +189,7 @@ export async function handleAppApi(request, env, url) {
     if (m && method === "DELETE") return await bizPhotoDelete(request, env, m[1], m[2]);
 
     if (path === "/api/app/me" && method === "GET") return await me(request, env);
+    if (path === "/api/app/me" && method === "PATCH") return await meSettings(request, env);
     if (path === "/api/app/me" && method === "DELETE") return await deleteMe(request, env);
     if (path === "/api/app/ticket" && method === "GET") return await ticketInfo(env, url);
 
@@ -464,7 +466,9 @@ async function saveReview(request, env) {
   }
   // Не ждём: сообщение модератору уходит в фоне (сервер работает постоянно)
   notifyModerators(env, existing ? "Отзыв изменён — снова на проверке" : "Новый отзыв на проверке");
-  return json({ review: myReview(row) }, existing ? 200 : 201);
+  // notify — включены ли сообщения о отзывах: если нет, приложение один раз предложит их включить
+  const settings = await db(env, `app_users?id=eq.${user.id}&select=notify`);
+  return json({ review: myReview(row), notify: Boolean(settings[0] && settings[0].notify) }, existing ? 200 : 201);
 }
 
 async function dropMedia(env, id) {
@@ -523,6 +527,8 @@ async function reply(request, env, id, remove) {
   }
   // Ответ меняет только эти два поля — статус отзыва и updated_at автора не трогаем
   await db(env, `reviews?id=eq.${id}`, { method: "PATCH", body, prefer: "return=minimal" });
+  // Автору — только про ответ на опубликованный отзыв (на проверке его ещё никто не видит)
+  if (!remove && rows[0].status === "published") notifyAuthor(env, id, "reply");
   return json({ reply: body.reply_text ? { text: body.reply_text, date: body.reply_at } : null });
 }
 
@@ -546,10 +552,11 @@ async function favorite(request, env, slug, on) {
 
 async function me(request, env) {
   const user = await requireUser(request, env);
-  const [reviews, favs, owned] = await Promise.all([
+  const [reviews, favs, owned, settings] = await Promise.all([
     db(env, `reviews?user_id=eq.${user.id}&select=${REVIEW_COLUMNS},businesses(slug,name,catalog_visible)&order=updated_at.desc&limit=200`),
     db(env, `favorites?user_id=eq.${user.id}&select=created_at,businesses(id,slug,name,category,city,address,logo_url,design,photos,is_active,catalog_visible)&order=created_at.desc&limit=200`),
-    ownedIds(env, user)
+    ownedIds(env, user),
+    db(env, `app_users?id=eq.${user.id}&select=notify`)
   ]);
   const own = owned.length
     ? await db(env, `businesses?id=in.(${owned.join(",")})&select=id,slug,name,catalog_visible`)
@@ -568,6 +575,7 @@ async function me(request, env) {
   }
   return json({
     banned: user.banned,
+    notify: Boolean(settings[0] && settings[0].notify),
     reviews: reviews.map((r) => ({ ...myReview(r), place: r.businesses ? { slug: r.businesses.slug, name: r.businesses.name, visible: r.businesses.catalog_visible } : null })),
     favorites: visibleFavs.map((f) => {
       const a = agg[f.businesses.id];
@@ -580,6 +588,18 @@ async function me(request, env) {
     }),
     businesses: own.map((b) => ({ slug: b.slug, name: b.name, inCatalog: b.catalog_visible }))
   });
+}
+
+async function meSettings(request, env) {
+  const user = await requireUser(request, env);
+  const input = await readJson(request);
+  if (typeof input.notify !== "boolean") throw new AppError(400, "Нечего менять");
+  await db(env, `app_users?id=eq.${user.id}`, {
+    method: "PATCH",
+    body: { notify: input.notify, notify_at: input.notify ? new Date().toISOString() : null },
+    prefer: "return=minimal"
+  });
+  return json({ notify: input.notify });
 }
 
 async function deleteMe(request, env) {
@@ -647,6 +667,54 @@ async function notifyOwnersPublished(env, reviewId) {
     }
   } catch (error) {
     console.error(`Уведомление владельцу: ${error.message}`);
+  }
+}
+
+// Автору отзыва — от бота гостей (APP_BOT_TOKEN), только если он сам включил «Сообщать о моих отзывах».
+// kind: published | rejected | reply. Если гость заблокировал бота (403) — выключаем ему сообщения.
+async function notifyAuthor(env, reviewId, kind) {
+  try {
+    if (!env.APP_BOT_TOKEN) return;
+    const rows = await db(env, `reviews?id=eq.${reviewId}&select=reject_reason,reply_text,app_users(id,tg_id,notify),businesses(slug,name)`);
+    const r = rows[0];
+    if (!r || !r.app_users || !r.app_users.notify || !r.businesses) return;
+    // «Кофейня «Зерно»» — некрасиво: если в названии уже есть кавычки, не оборачиваем
+    const raw = r.businesses.name;
+    const name = escapeHtml(/[«»"]/.test(raw) ? raw : `«${raw}»`);
+    const short = (s, n) => escapeHtml(s.length > n ? `${s.slice(0, n)}…` : s);
+    let text;
+    let button;
+    if (kind === "published") {
+      text = `✅ Ваш отзыв о ${name} опубликован. Спасибо — он поможет другим гостям!`;
+      button = "Открыть отзыв";
+    } else if (kind === "rejected") {
+      text = `Отзыв о ${name} не прошёл проверку.` + (r.reject_reason ? `\nПричина: ${short(r.reject_reason, 200)}` : "") +
+        "\n\nЕго можно исправить и отправить снова.";
+      button = "Исправить отзыв";
+    } else if (kind === "reply" && r.reply_text) {
+      text = `💬 ${name} ответило на ваш отзыв:\n\n«${short(r.reply_text, 600)}»`;
+      button = "Посмотреть";
+    } else {
+      return;
+    }
+    const link = appDeepLink(env, `p_${r.businesses.slug}`);
+    try {
+      await tgAs(env, env.APP_BOT_TOKEN, "sendMessage", {
+        chat_id: r.app_users.tg_id,
+        text,
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+        ...(link ? { reply_markup: { inline_keyboard: [[{ text: button, url: link }]] } } : {})
+      });
+    } catch (error) {
+      if (error.tgCode === 403) {
+        await db(env, `app_users?id=eq.${r.app_users.id}`, { method: "PATCH", body: { notify: false }, prefer: "return=minimal" });
+      } else {
+        throw error;
+      }
+    }
+  } catch (error) {
+    console.error(`Сообщение автору отзыва ${reviewId}: ${error.message}`);
   }
 }
 
@@ -881,7 +949,11 @@ async function adminModerate(request, env, id) {
   const rows = await db(env, `reviews?id=eq.${id}&select=id,status`, { method: "PATCH", body, prefer: "return=representation" });
   if (!rows.length) throw new AppError(404, "Отзыв не найден");
   // Отзыв впервые (или после правки автора) стал виден всем — сообщаем заведению
-  if (body.status === "published" && before.status === "pending") notifyOwnersPublished(env, id);
+  if (body.status === "published" && before.status === "pending") {
+    notifyOwnersPublished(env, id);
+    notifyAuthor(env, id, "published");
+  }
+  if (body.status === "rejected" && before.status !== "rejected") notifyAuthor(env, id, "rejected");
   // Решение по отзыву закрывает и жалобы на него
   if (body.status) {
     await db(env, `review_reports?review_id=eq.${id}&resolved_at=is.null`, { method: "PATCH", body: { resolved_at: new Date().toISOString() }, prefer: "return=minimal" });

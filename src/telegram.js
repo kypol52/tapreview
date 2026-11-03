@@ -77,12 +77,17 @@ export async function tg(env, method, body = {}) {
   if (!env.TG_BOT_TOKEN) {
     throw new Error("Не задан TG_BOT_TOKEN (на сервере — /etc/tapreview.env)");
   }
+  return tgAs(env, env.TG_BOT_TOKEN, method, body);
+}
+
+// Любой наш бот: бот владельцев (TG_BOT_TOKEN) или бот гостей Mini App (APP_BOT_TOKEN, app-api.js)
+export async function tgAs(env, token, method, body = {}) {
   // На сервере в РФ Telegram закрыт на уровне дата-центра — запросы идут через посредника
   // (наш Cloudflare Worker, см. handleTelegramRelay): TG_API_BASE + ключ TG_RELAY_KEY.
   const base = String(env.TG_API_BASE || "https://api.telegram.org").replace(/\/+$/, "");
   const headers = { "Content-Type": "application/json" };
   if (env.TG_RELAY_KEY) headers["X-Relay-Key"] = env.TG_RELAY_KEY;
-  const response = await fetch(`${base}/bot${env.TG_BOT_TOKEN}/${method}`, {
+  const response = await fetch(`${base}/bot${token}/${method}`, {
     method: "POST",
     headers,
     body: JSON.stringify(body)
