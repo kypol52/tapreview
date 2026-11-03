@@ -1252,8 +1252,9 @@ async function start() {
 
   // Открыли по ссылке: p_<slug> — заведение, v_… — билет с карты TapReview
   const startParam = (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) || new URLSearchParams(location.search).get("tgWebAppStartParam") || "";
-  if (/^p_[A-Za-z0-9_-]{3,64}$/.test(startParam) && !location.hash) {
-    history.replaceState(null, "", `#/place/${encodeURIComponent(startParam.slice(2))}`);
+  if (/^[pb]_[A-Za-z0-9_-]{3,64}$/.test(startParam) && !location.hash) {
+    // p_ — страница заведения, b_ — кабинет заведения (кнопка «Ответить» из уведомления владельцу)
+    history.replaceState(null, "", `#/${startParam[0] === "b" ? "biz" : "place"}/${encodeURIComponent(startParam.slice(2))}`);
     depth = 1;
   } else if (/^v_/.test(startParam)) {
     try {

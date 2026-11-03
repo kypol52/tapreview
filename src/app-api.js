@@ -29,6 +29,8 @@ import { db } from "./supabase.js";
 import { verifyInitData, readCardTicket } from "./app-auth.js";
 import { saveMedia, MEDIA_ID_RE } from "./media.js";
 import { loadReports, loadDaily } from "./report.js";
+import { tg } from "./telegram.js";
+import { escapeHtml } from "./public-page.js";
 
 export const APP_CATEGORIES = [
   { key: "restaurant", label: "Кафе и рестораны" },
@@ -425,6 +427,8 @@ async function saveReview(request, env) {
       prefer: "return=representation"
     }))[0];
   }
+  // Не ждём: сообщение модератору уходит в фоне (сервер работает постоянно)
+  notifyModerators(env, existing ? "Отзыв изменён — снова на проверке" : "Новый отзыв на проверке");
   return json({ review: myReview(row) }, existing ? 200 : 201);
 }
 
@@ -464,7 +468,8 @@ async function report(request, env, id) {
   });
   const open = await db(env, `review_reports?review_id=eq.${id}&resolved_at=is.null&select=id`);
   if (open.length >= REPORTS_TO_RECHECK) {
-    await db(env, `reviews?id=eq.${id}&status=eq.published`, { method: "PATCH", body: { status: "pending" }, prefer: "return=minimal" });
+    const moved = await db(env, `reviews?id=eq.${id}&status=eq.published&select=id`, { method: "PATCH", body: { status: "pending" }, prefer: "return=representation" });
+    if (moved.length) notifyModerators(env, "Отзыв снят с публикации после жалоб", { force: true });
   }
   return json({ ok: true });
 }
@@ -549,6 +554,65 @@ async function deleteMe(request, env) {
   for (const p of photos) await dropMedia(env, p.photo_id);
   userCache.delete(user.tgId);
   return json({ deleted: true });
+}
+
+// ================= Уведомления в Telegram (бот владельцев, telegram.js) =================
+// Модератору (чаты «Получать заявки» из админки) — без текста отзыва и без данных автора, не чаще раза в 10 минут.
+// Владельцу (чаты заведения в боте) — когда отзыв опубликован: текст уже публичный, кнопка ведёт в кабинет.
+
+const MOD_ALERT_MS = 10 * 60e3;
+let lastModAlert = 0;
+
+function appDeepLink(env, param) {
+  if (!env.APP_BOT_USERNAME || !env.APP_SHORT_NAME) return null;
+  return `https://t.me/${env.APP_BOT_USERNAME}/${env.APP_SHORT_NAME}?startapp=${param}`;
+}
+
+async function notifyModerators(env, reason, { force = false } = {}) {
+  try {
+    if (!env.TG_BOT_TOKEN) return;
+    if (!force && Date.now() - lastModAlert < MOD_ALERT_MS) return;
+    lastModAlert = Date.now();
+    const [chats, pending] = await Promise.all([
+      db(env, "order_recipients?select=chat_id"),
+      db(env, "reviews?status=eq.pending&select=id&limit=1000")
+    ]);
+    if (!chats.length) return;
+    const base = String(env.PUBLIC_BASE_URL || "https://tapreview.ru").replace(/\/+$/, "");
+    const text = `🛡 <b>${escapeHtml(reason)}</b>\nНа проверке отзывов: ${pending.length}\n\nАдминка → вкладка «Отзывы»: ${base}/admin/`;
+    for (const { chat_id } of chats) {
+      await tg(env, "sendMessage", { chat_id, text, parse_mode: "HTML", disable_web_page_preview: true }).catch((e) =>
+        console.error(`Модерация → ${chat_id}: ${e.message}`)
+      );
+    }
+  } catch (error) {
+    console.error(`Уведомление модератору: ${error.message}`);
+  }
+}
+
+async function notifyOwnersPublished(env, reviewId) {
+  try {
+    if (!env.TG_BOT_TOKEN) return;
+    const rows = await db(env, `reviews?id=eq.${reviewId}&select=score,text,card_id,businesses(id,slug,name)`);
+    const r = rows[0];
+    if (!r || !r.businesses) return;
+    const chats = await db(env, `tg_subscribers?business_id=eq.${r.businesses.id}&select=chat_id`);
+    if (!chats.length) return;
+    const text =
+      `${"⭐".repeat(r.score)} <b>Новый отзыв в каталоге TapReview</b>\n${escapeHtml(r.businesses.name)}` +
+      (r.card_id ? " · по карте" : "") +
+      (r.text ? `\n\n«${escapeHtml(r.text.length > 600 ? `${r.text.slice(0, 600)}…` : r.text)}»` : "") +
+      `\n\nОтвет заведения увидят все гости — это повышает доверие.`;
+    const link = appDeepLink(env, `b_${r.businesses.slug}`);
+    const extra = link ? { reply_markup: { inline_keyboard: [[{ text: "Ответить в кабинете", url: link }]] } } : {};
+    for (const { chat_id } of chats) {
+      await tg(env, "sendMessage", { chat_id, text, parse_mode: "HTML", disable_web_page_preview: true, ...extra }).catch((e) =>
+        console.error(`Отзыв ${reviewId} → ${chat_id}: ${e.message}`)
+      );
+    }
+  } catch (error) {
+    console.error(`Уведомление владельцу: ${error.message}`);
+  }
 }
 
 // ================= Кабинет заведения (владелец) =================
@@ -777,8 +841,12 @@ async function adminModerate(request, env, id) {
     if (input.status === "rejected" && !reason) throw new AppError(400, "Напишите причину — её увидит автор");
     body = { status: input.status, reject_reason: input.status === "rejected" ? reason : null, moderated_at: new Date().toISOString() };
   }
+  const before = (await db(env, `reviews?id=eq.${id}&select=status`))[0];
+  if (!before) throw new AppError(404, "Отзыв не найден");
   const rows = await db(env, `reviews?id=eq.${id}&select=id,status`, { method: "PATCH", body, prefer: "return=representation" });
   if (!rows.length) throw new AppError(404, "Отзыв не найден");
+  // Отзыв впервые (или после правки автора) стал виден всем — сообщаем заведению
+  if (body.status === "published" && before.status === "pending") notifyOwnersPublished(env, id);
   // Решение по отзыву закрывает и жалобы на него
   if (body.status) {
     await db(env, `review_reports?review_id=eq.${id}&resolved_at=is.null`, { method: "PATCH", body: { resolved_at: new Date().toISOString() }, prefer: "return=minimal" });
