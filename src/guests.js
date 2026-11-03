@@ -80,7 +80,8 @@ export async function guestOf(request, env, business, source) {
       ? inviterRewards(env, business, key).then((rows) => rows.length).catch(() => 0)
       : 0
   ]);
-  return { visits: Number(visits) || null, stamps, rewards, setCookie };
+  // walletLink — кнопка «Мои штампы и подарки — в Telegram» (guest-wallet.js), если бот Mini App настроен
+  return { visits: Number(visits) || null, stamps, rewards, setCookie, walletLink: Boolean(env.APP_BOT_USERNAME && env.APP_SHORT_NAME) };
 }
 
 // Раз в день: визиты старше VISITS_KEEP_DAYS удаляем

@@ -532,7 +532,11 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
         (left ? `<p class="welcome-next">Ещё ${left} ${plural(left, "визит", "визита", "визитов")} — и вы VIP-гость</p>` : "");
     }
   }
-  const tagline = (taglineText ? `<p class="tagline">${escapeHtml(taglineText)}</p>` : "") + welcome;
+  // «Мои штампы и подарки — в Telegram»: связать этот телефон с Telegram гостя (guest-wallet.js, /me-link)
+  const wallet = guest && guest.walletLink
+    ? `<a class="wallet-link" href="/me-link" rel="nofollow">🎁 Мои штампы и подарки — в Telegram</a>`
+    : "";
+  const tagline = (taglineText ? `<p class="tagline">${escapeHtml(taglineText)}</p>` : "") + welcome + wallet;
 
   // Длинные названия делаем мельче, чтобы помещались на экран телефона.
   // Логотип «Своего дизайна» заменяет название — тогда название остаётся только для экранного диктора.
@@ -961,6 +965,12 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
     .rate-star:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
     .rate-scale { display: flex; justify-content: space-between; max-width: 290px; margin: 0 auto; color: var(--muted); font-size: 12px; }
     .rate-public { display: inline-block; margin-top: 18px; color: var(--muted); font-size: 14px; text-underline-offset: 3px; }
+    .wallet-link {
+      display: inline-block; margin: 10px 0 2px; padding: 6px 14px; border-radius: 99px;
+      border: 1px solid var(--btn-border); background: var(--btn-bg); color: var(--btn-text);
+      font-size: 13px; font-weight: 600; text-decoration: none;
+    }
+    .wallet-link:hover, .wallet-link:focus-visible { border-color: var(--accent); }
     .app-btn {
       display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 18px; padding: 12px 16px;
       border: 1px solid var(--btn-border); border-radius: 16px; background: var(--btn-bg);

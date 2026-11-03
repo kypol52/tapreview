@@ -21,7 +21,9 @@
 //   PUT    /api/app/favorites/:slug, DELETE    — избранное
 //   GET    /api/app/me                         — мои отзывы, избранное, мои заведения
 //   PATCH  /api/app/me                         — { notify }: сообщения о моих отзывах от бота (согласие гостя)
-//   DELETE /api/app/me                         — удалить мои данные (отзывы, жалобы, избранное)
+//   DELETE /api/app/me                         — удалить мои данные (отзывы, жалобы, избранное, привязанные телефоны)
+//   GET    /api/app/wallet                     — «Мои заведения и подарки»: визиты, штампы, уровень, коды (guest-wallet.js)
+//   POST   /api/app/devices/link {token}       — связать телефон (ссылка со страницы карты), DELETE /api/app/devices — отвязать
 //   GET    /api/app/ticket?t=                  — проверить билет карты (для метки в форме)
 //   GET    /api/app/biz/:slug?period=week|month — кабинет заведения (только владелец): рейтинг, динамика,
 //                                                 отзывы без ответа, переходы с карт (report.js — те же цифры, что в боте)
@@ -37,6 +39,7 @@ import { saveMedia, MEDIA_ID_RE } from "./media.js";
 import { loadReports, loadDaily } from "./report.js";
 import { tg, tgAs } from "./telegram.js";
 import { escapeHtml } from "./public-page.js";
+import { walletSummary, linkDevice, unlinkDevices } from "./guest-wallet.js";
 
 export const APP_CATEGORIES = [
   { key: "restaurant", label: "Кафе и рестораны" },
@@ -198,6 +201,21 @@ export async function handleAppApi(request, env, url) {
     if (m && method === "POST") return await bizPhotoAdd(request, env, m[1]);
     m = path.match(/^\/api\/app\/biz\/([^/]+)\/photos\/([0-9a-f-]{36})$/);
     if (m && method === "DELETE") return await bizPhotoDelete(request, env, m[1], m[2]);
+
+    // «Мои заведения и подарки» (guest-wallet.js, миграция 041)
+    if (path === "/api/app/wallet" && method === "GET") return json(await walletSummary(env, await requireUser(request, env)));
+    if (path === "/api/app/devices/link" && method === "POST") {
+      const user = await requireUser(request, env);
+      rateLimit(`d:${user.id}`, 10, 3600e3);
+      const input = await readJson(request);
+      try {
+        return json(await linkDevice(env, user, input.token));
+      } catch (error) {
+        if (error.status) throw new AppError(error.status, error.message);
+        throw error;
+      }
+    }
+    if (path === "/api/app/devices" && method === "DELETE") return json(await unlinkDevices(env, await requireUser(request, env)));
 
     if (path === "/api/app/me" && method === "GET") return await me(request, env);
     if (path === "/api/app/me" && method === "PATCH") return await meSettings(request, env);

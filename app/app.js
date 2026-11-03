@@ -1520,6 +1520,142 @@ async function bizView(slug, period = "month") {
   );
 }
 
+// ================= Мои заведения и подарки (src/guest-wallet.js) =================
+// Визиты, штампы, уровень и коды подарков — по телефону, которым гость касается карт. Связь «телефон ↔ Telegram»
+// гость включает сам: кнопка на странице карты → ссылка g_<токен> → здесь подтверждение «Связать».
+
+const LEVELS = { vip: ["⭐ VIP-гость", "pill-vip"], regular: ["Постоянный гость", "pill-published"], new: ["Новый гость", "pill-new"] };
+const CODE_KIND = { stamps: "Подарок за штампы", vip: "VIP-подарок", friend: "Подарок от друга", inviter: "Подарок за друга", gift: "Подарок" };
+const prettyCode = (c) => (c.length === 6 ? `${c.slice(0, 3)}-${c.slice(3)}` : c);
+
+async function walletView() {
+  const head = h("header", { class: "head" },
+    h("h1", { class: "title" }, "Мои заведения"),
+    h("p", { class: "lead" }, "Визиты, штампы и подарки в заведениях с картами TapReview"));
+  if (!inTelegram) return render(head, emptyView(I.card, "Только в Telegram", "Штампы и подарки привязываются к вашему Telegram.", openInTelegramButton()));
+
+  // Пришли по ссылке со страницы карты — сначала спрашиваем согласие
+  if (state.linkToken) {
+    const token = state.linkToken;
+    const yes = h("button", { class: "btn btn-primary btn-block" }, "Связать");
+    const no = h("button", { class: "btn btn-soft btn-block" }, "Не сейчас");
+    render(head, h("div", { class: "stack" },
+      h("div", { class: "card link-card" },
+        h("div", { class: "empty-icon", style: "margin:0 auto 12px" }, icon(I.card)),
+        h("h2", { class: "section-title", style: "text-align:center;margin-bottom:8px" }, "Связать телефон с Telegram?"),
+        h("ul", { class: "consent-list" },
+          h("li", null, "Здесь появятся ваши визиты, штампы и коды подарков во всех заведениях, где вы касались карт TapReview с этого телефона."),
+          h("li", null, "Заведения не узнают ваш Telegram — для них вы остаётесь анонимным гостем."),
+          h("li", null, "Отвязать можно в любой момент — здесь же, внизу.")
+        ),
+        h("div", { class: "sheet-actions" }, yes, no),
+        h("p", { class: "fine", style: "margin:10px 0 0;text-align:center" },
+          h("a", { href: "/privacy/#app-visits", style: "color:var(--navy-2);font-weight:600", onclick: (e) => { e.preventDefault(); openLink(`${location.origin}/privacy/#app-visits`); } }, "Как мы храним данные"))
+      )
+    ));
+    no.addEventListener("click", () => {
+      state.linkToken = null;
+      walletView();
+    });
+    yes.addEventListener("click", async () => {
+      yes.disabled = true;
+      try {
+        await api("/api/app/devices/link", { method: "POST", body: { token } });
+        state.linkToken = null;
+        haptic.ok();
+        toast("Телефон связан");
+        walletView();
+      } catch (error) {
+        haptic.err();
+        state.linkToken = null;
+        toast(error.message);
+        walletView();
+      }
+    });
+    return;
+  }
+
+  render(head, skeletonList(2));
+  let data;
+  try {
+    data = await api("/api/app/wallet");
+  } catch (error) {
+    return render(head, errorView(error, walletView));
+  }
+
+  if (!data.devices) {
+    return render(head, h("div", { class: "stack" },
+      h("div", { class: "card" },
+        h("h2", { class: "section-title", style: "margin-bottom:10px" }, "Как добавить свои заведения"),
+        h("ol", { class: "how-list" },
+          h("li", null, "Коснитесь карты TapReview телефоном в заведении (или отсканируйте QR)."),
+          h("li", null, "На открывшейся странице нажмите «🎁 Мои штампы и подарки — в Telegram»."),
+          h("li", null, "Подтвердите «Связать» — и здесь появятся визиты, штампы и подарки во всех заведениях.")
+        )
+      )
+    ));
+  }
+
+  const placeCard = (p) => {
+    const [levelText, levelClass] = LEVELS[p.level];
+    const last = p.lastVisit ? fmtDate(`${p.lastVisit}T12:00:00Z`) : null;
+    const parts = [
+      h("div", { class: "w-head" },
+        h("div", { class: "w-logo" }, p.logo ? h("img", { class: "logo-fit", src: p.logo, alt: "" }) : initials(p.name)),
+        h("div", { style: "min-width:0;flex:1" },
+          h("div", { class: "row-name" }, p.name),
+          h("div", { class: "row-meta" }, `${p.visits} ${plural(p.visits, "визит", "визита", "визитов")}${last ? ` · последний ${last}` : ""}`)),
+        h("span", { class: `pill ${levelClass}` }, levelText))
+    ];
+    if (p.stamps) {
+      const done = p.stamps.have >= p.stamps.goal;
+      parts.push(h("div", { class: "w-block" },
+        h("div", { class: "stamps", "aria-label": `Штампов ${p.stamps.have} из ${p.stamps.goal}` },
+          Array.from({ length: p.stamps.goal }, (_, i) => h("span", { class: `stamp${i < p.stamps.have ? " on" : ""}` }, i < p.stamps.have ? "★" : ""))),
+        h("div", { class: "fine" }, done
+          ? `Все штампы собраны! Следующий подарок — «${p.stamps.prize}»`
+          : `${p.stamps.have} из ${p.stamps.goal} — до подарка «${p.stamps.prize}». Штамп — за каждый погашенный код подарка.`)));
+    }
+    if (p.vip) {
+      parts.push(h("div", { class: "w-block fine" }, p.level === "vip"
+        ? `⭐ Вы VIP-гость: «${p.vip.gift}»`
+        : `Ещё ${p.vip.from - p.visits} ${plural(p.vip.from - p.visits, "визит", "визита", "визитов")} — и вы VIP-гость: «${p.vip.gift}»`));
+    }
+    for (const c of p.codes) {
+      const from = Date.parse(c.validFrom);
+      const until = fmtDate(new Date(Date.parse(c.validUntil) - 1).toISOString());
+      parts.push(h("div", { class: "w-code" },
+        h("div", { class: "w-code-kind" }, CODE_KIND[c.kind] || "Подарок"),
+        h("div", { class: "w-code-prize" }, c.prize),
+        h("div", { class: "w-code-value" }, prettyCode(c.code)),
+        h("div", { class: "fine" }, from > Date.now() ? `Действует с ${fmtDate(c.validFrom)} по ${until} · покажите код на кассе` : `Действует по ${until} · покажите код на кассе`)));
+    }
+    if (p.inCatalog) parts.push(h("a", { class: "btn btn-ghost", style: "padding:0;margin-top:6px", href: `#/place/${encodeURIComponent(p.slug)}` }, "Страница заведения →"));
+    return h("article", { class: "card wallet-card" }, parts);
+  };
+
+  const codesCount = data.places.reduce((a, p) => a + p.codes.length, 0);
+  render(
+    head,
+    h("div", { class: "stack" },
+      codesCount ? h("div", { class: "notice notice-info" }, icon(I.card), h("div", null, h("b", null, `${codesCount} ${plural(codesCount, "подарок ждёт", "подарка ждут", "подарков ждут")} вас`), "Покажите код на кассе заведения.")) : null,
+      data.places.length ? data.places.map(placeCard) : emptyView(I.card, "Пока нет визитов", "Коснитесь карты TapReview в заведении — визиты и подарки появятся здесь."),
+      h("p", { class: "fine", style: "margin:6px 2px 0" },
+        `Связано телефонов: ${data.devices}. Визиты считаются при касании карты или сканировании QR — не чаще раза в день. Заведения не видят ваш Telegram.`),
+      h("button", { class: "btn btn-ghost", style: "color:var(--bad);padding:0;justify-self:start", onclick: async () => {
+        if (!(await confirmBox("Отвязать телефоны от Telegram? Визиты и подарки останутся на телефоне, но пропадут отсюда."))) return;
+        try {
+          await api("/api/app/devices", { method: "DELETE" });
+          toast("Телефоны отвязаны");
+          walletView();
+        } catch (error) {
+          toast(error.message);
+        }
+      } }, "Отвязать телефоны")
+    )
+  );
+}
+
 // ================= Избранное и профиль =================
 
 async function favoritesView() {
@@ -1595,6 +1731,10 @@ async function meView() {
       h("div", { class: "section-head", style: "padding:6px 0 0" }, h("h2", { class: "section-title" }, "Мои отзывы"), h("span", { class: "fine" }, data.reviews.length ? String(data.reviews.length) : "")),
       reviews,
       ...business,
+      h("a", { class: "card invite-card", href: "#/wallet", onclick: haptic.tap },
+        h("div", { class: "invite-icon", style: "background:#eaf0fb" }, icon(I.card)),
+        h("div", { class: "grow" }, h("div", { style: "font-weight:700;color:var(--ink)" }, "Мои заведения и подарки"), h("div", { class: "fine" }, "Визиты, штампы и коды подарков")),
+        h("span", { class: "info-go" }, "›")),
       h("button", { class: "card invite-card", type: "button", onclick: inviteFriends },
         h("div", { class: "invite-icon" }, icon(I.share)),
         h("div", { class: "grow" }, h("div", { style: "font-weight:700;color:var(--ink)" }, "Позвать друзей"), h("div", { class: "fine" }, "Чем больше честных отзывов, тем проще найти хорошее место")),
@@ -1730,7 +1870,7 @@ function syncBackButton(sheetOpen) {
 function route() {
   const { parts, params } = parseHash();
   if (state.sheet && state.sheet.isOpen()) state.sheet.close();
-  const tab = parts[0] === "place" ? null : parts[0] === "biz" ? "me" : TAB_OF[parts[0] || ""];
+  const tab = parts[0] === "place" ? null : parts[0] === "biz" || parts[0] === "wallet" ? "me" : TAB_OF[parts[0] || ""];
   for (const t of document.querySelectorAll(".tabbar .tab")) t.classList.toggle("on", t.dataset.tab === tab);
   syncBackButton();
   window.scrollTo(0, 0);
@@ -1738,6 +1878,7 @@ function route() {
   if (parts[0] === "place" && parts[1]) return placeView(parts[1]);
   if (parts[0] === "biz" && parts[1]) return bizView(parts[1]);
   if (parts[0] === "nearby") return nearbyView();
+  if (parts[0] === "wallet") return walletView();
   if (parts[0] === "catalog") return catalogView(params);
   if (parts[0] === "favorites") return favoritesView();
   if (parts[0] === "me") return meView();
@@ -1748,7 +1889,7 @@ window.addEventListener("hashchange", (e) => {
   const from = new URL(e.oldURL).hash;
   const to = location.hash;
   // глубина для «Назад»: заведение и кабинет — на шаг глубже вкладок
-  const deep = (hash) => /^#\/(place\/|biz\/|nearby)/.test(hash);
+  const deep = (hash) => /^#\/(place\/|biz\/|nearby|wallet)/.test(hash);
   if (deep(to) && !deep(from)) depth++;
   else if (deep(from) && !deep(to)) depth = Math.max(0, depth - 1);
   route();
@@ -1765,6 +1906,11 @@ async function start() {
   if (/^[pb]_[A-Za-z0-9_-]{3,64}$/.test(startParam) && !location.hash) {
     // p_ — страница заведения, b_ — кабинет заведения (кнопка «Ответить» из уведомления владельцу)
     history.replaceState(null, "", `#/${startParam[0] === "b" ? "biz" : "place"}/${encodeURIComponent(startParam.slice(2))}`);
+    depth = 1;
+  } else if (/^g_[A-Za-z0-9]{24}$/.test(startParam)) {
+    // «Мои штампы и подарки» со страницы карты: подтверждение привязки телефона (walletView)
+    state.linkToken = startParam.slice(2);
+    history.replaceState(null, "", "#/wallet");
     depth = 1;
   } else if (/^v_/.test(startParam)) {
     try {

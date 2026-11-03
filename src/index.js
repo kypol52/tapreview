@@ -36,6 +36,7 @@ import { handleMedia } from "./media.js";
 import { uptimeCheck, UPTIME_CRON } from "./uptime.js";
 import { handleAppApi } from "./app-api.js";
 import { handleSharePage, handleShareProxy } from "./share-page.js";
+import { handleMeLink } from "./guest-wallet.js";
 import { db } from "./supabase.js";
 
 // Должно совпадать с расписанием в server/server.mjs
@@ -61,6 +62,11 @@ export default {
     const cardMatch = url.pathname.match(/^\/c\/([^/]+)\/?$/);
     if (cardMatch && isRead) {
       return handleCardPage(request, env, ctx, cardMatch[1]);
+    }
+
+    // «Мои штампы и подарки — в Telegram» со страницы карты: одноразовая ссылка в Mini App (guest-wallet.js)
+    if (url.pathname === "/me-link" && isRead) {
+      return handleMeLink(request, env);
     }
 
     const shareMatch = url.pathname.match(/^\/p\/([^/]+)\/?$/);
