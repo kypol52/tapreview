@@ -66,7 +66,7 @@ const ADMIN_COLUMNS =
   "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions,bonus_daily_limit," +
   "stamps_goal,stamps_prize,friend_gift,friend_reward,vip_visits,vip_gift," +
   "referred_by,ref_reward_at,theme,design,extra_links,rating_first,moment,tariff," +
-  "catalog_visible,catalog_since,description,city,photos," +
+  "catalog_visible,catalog_since,description,city,photos,app_button," +
   "created_at,updated_at";
 
 const EXTRA_LINK_TYPES = ["menu", "catalog", "services", "booking", "delivery", "site", "tips", "pay", "custom"];
@@ -627,6 +627,7 @@ function validateBusiness(input) {
     moment: cleanMoment(input.moment),
     // Каталог Mini App (миграция 034): показывать только с согласия заведения
     catalog_visible: input.catalog_visible === true,
+    app_button: input.app_button === true,
     description: cleanText(input.description, 1000, "Описание для каталога") || null,
     city: cleanText(input.city, 60, "Город") || null,
     photos: cleanPhotos(input.photos),

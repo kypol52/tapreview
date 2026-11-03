@@ -12,6 +12,7 @@ import { has } from "./tariffs.js";
 import { isExpired } from "./billing.js";
 import { bonusBlock } from "./bonus.js";
 import { flowFrom, logRating, LIKES, PHONE_KEEP_DAYS } from "./rating.js";
+import { makeCardTicket } from "./app-auth.js";
 
 const SLUG_RE = /^[A-Za-z0-9_-]{3,64}$/;
 const COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
@@ -78,7 +79,8 @@ export const BONUS_COLUMNS =
 
 const BUSINESS_COLUMNS =
   "id,slug,name,tagline,category,logo_url,brand_color,google_url,yandex_url,twogis_url," +
-  "discount_code,discount_text,paid_until,theme,design,extra_links,rating_first,moment," + BONUS_COLUMNS;
+  "discount_code,discount_text,paid_until,theme,design,extra_links,rating_first,moment," +
+  "catalog_visible,app_button," + BONUS_COLUMNS;
 
 // Ссылки заведения под кнопками отзывов (миграция 020): меню, каталог, услуги…
 // Значки — тонкие линии в цвете текста темы, чтобы не спорить с логотипами площадок
@@ -308,7 +310,31 @@ export async function handleCardPage(request, env, ctx, rawCode) {
 
   if (isExpired(business.paid_until)) return pausedResponse(business);
   const guest = isBot(request) ? null : await guestOf(request, env, business, source);
-  return withGuestCookie(businessPage(business, source, card.code, flow, guest), guest);
+  const appLink = await appLinkFor(env, business, card.code);
+  return withGuestCookie(businessPage(business, source, card.code, flow, guest, appLink), guest);
+}
+
+// Кнопка «Отзыв в Telegram» (миграция 035): галочка в админке + заведение в каталоге + бот настроен.
+// Ссылка несёт подписанный билет карты — отзыв в Mini App получит метку «по карте TapReview».
+async function appLinkFor(env, business, cardCode) {
+  if (!business.app_button || !business.catalog_visible || !env.APP_BOT_USERNAME || !env.APP_SHORT_NAME) return null;
+  try {
+    const ticket = await makeCardTicket(env, cardCode);
+    return `https://t.me/${env.APP_BOT_USERNAME}/${env.APP_SHORT_NAME}?startapp=${ticket}`;
+  } catch (error) {
+    console.error(`Билет карты: ${error.message}`);
+    return null;
+  }
+}
+
+// Одинаково при любой оценке и на любом шаге — чтобы рейтинг в каталоге оставался честным
+function appBlock(appLink) {
+  if (!appLink) return "";
+  return `
+      <a class="app-btn" href="${escapeHtml(appLink)}" rel="nofollow">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 4.5 2.9 11.4c-1 .4-1 1.7 0 2l4.5 1.5 1.7 5.3c.2.7 1.1.9 1.6.3l2.5-2.6 4.6 3.4c.6.4 1.4.1 1.6-.6L22.4 5.9c.2-.9-.6-1.7-1.4-1.4zM9.6 14.4l8.3-6.6-6.6 7.7-.3 3.2z" fill="currentColor"/></svg>
+        <span class="app-btn-copy"><span class="app-btn-big">Отзыв в Telegram</span><span class="app-btn-small">Его увидят другие гости в каталоге TapReview</span></span>
+      </a>`;
 }
 
 // Код карты: только латинские буквы и цифры, регистр и дефисы не важны (K7P-3QX = k7p3qx)
@@ -461,7 +487,7 @@ function redirect(location) {
   });
 }
 
-function businessPage(business, source, cardCode = null, flow = { score: null, all: false, sent: false }, guest = null) {
+function businessPage(business, source, cardCode = null, flow = { score: null, all: false, sent: false }, guest = null, appLink = null) {
   // Свой фирменный цвет заведения, иначе — цвет черты выбранной темы
   const accent = COLOR_RE.test(business.brand_color || "") ? business.brand_color : null;
 
@@ -520,7 +546,7 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
   const discount = !has(business, "gifts") ? "" : bonusBlock(business, source, cardCode, guest ? guest.stamps : null, guest ? guest.rewards : 0, guest ? guest.visits : 0);
 
   if (business.rating_first && has(business, "rating")) {
-    return ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, discount, design });
+    return ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, discount, design, appLink });
   }
 
   const actions = buttons
@@ -544,6 +570,7 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
       <div class="divider"></div>
       <h2 class="thanks">Спасибо за ваш визит!</h2>
       ${actions}
+      ${appBlock(appLink)}
       ${momentBlock(business)}
       ${extraLinksBlock(business)}
       ${discount}`
@@ -552,7 +579,7 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
 
 // Сначала оценка (rating.js): карточка заведения → «Как вам у нас?» → площадки (4–5) или сообщение владельцу (1–3).
 // Площадки доступны при любой оценке, подарок — после любой оценки.
-function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, discount, design }) {
+function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, discount, design, appLink }) {
   const base = new URLSearchParams();
   if (source !== "direct") base.set("s", source);
   const link = (extra) => {
@@ -652,6 +679,7 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
       ${tagline}
       <div class="divider"></div>
       ${step}
+      ${appBlock(appLink)}
       ${all || sent || score >= 4 ? momentBlock(business) : ""}
       ${extraLinksBlock(business)}
       ${score || all ? discount : ""}`
@@ -928,6 +956,16 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
     .rate-star:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
     .rate-scale { display: flex; justify-content: space-between; max-width: 290px; margin: 0 auto; color: var(--muted); font-size: 12px; }
     .rate-public { display: inline-block; margin-top: 18px; color: var(--muted); font-size: 14px; text-underline-offset: 3px; }
+    .app-btn {
+      display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 18px; padding: 12px 16px;
+      border: 1px solid var(--btn-border); border-radius: 16px; background: var(--btn-bg);
+      color: var(--btn-text); text-decoration: none; text-align: left;
+    }
+    .app-btn svg { flex: none; width: 24px; height: 24px; color: #2aabee; }
+    .app-btn-copy { display: flex; flex-direction: column; line-height: 1.25; }
+    .app-btn-big { font-size: 15px; font-weight: 700; }
+    .app-btn-small { font-size: 12px; color: var(--muted); }
+    .app-btn:hover, .app-btn:focus-visible { border-color: var(--accent); }
     .stars-chosen { margin: 6px 0 14px; }
     .stars-chosen svg { width: 24px; height: 24px; }
     .stars-off svg { fill: var(--btn-border); }

@@ -1492,6 +1492,7 @@ function readForm() {
     tariff: $("f-tariff").value,
     moment: readMoment(),
     catalog_visible: $("f-catalog").checked,
+    app_button: $("f-app-button").checked,
     city: $("f-city").value,
     description: $("f-description").value,
     photos: catalogPhotos.slice()
@@ -1504,6 +1505,7 @@ let catalogPhotos = [];
 
 function fillCatalog(business) {
   $("f-catalog").checked = Boolean(business && business.catalog_visible);
+  $("f-app-button").checked = Boolean(business && business.app_button);
   $("f-city").value = business ? business.city || "" : "";
   $("f-description").value = business ? business.description || "" : "";
   catalogPhotos = business && Array.isArray(business.photos) ? business.photos.slice() : [];

@@ -711,7 +711,8 @@ function reviewSheet(p, mine) {
     photoBox,
     viaCard ? h("div", { class: "notice notice-info", style: "margin-top:14px" }, icon(I.card), h("div", null, h("b", null, "Отзыв по карте TapReview"), "Вы открыли приложение с карты в заведении.")) : null,
     h("p", { class: "fine", style: "margin:14px 0 0" },
-      "Публично вы будете «Гость». Отзыв появится после проверки модератором. Без оскорблений, рекламы и личных данных (телефонов, фамилий сотрудников)."),
+      "Публично вы будете «Гость». Отзыв появится после проверки модератором. Без оскорблений, рекламы и личных данных (телефонов, фамилий сотрудников). ",
+      h("a", { href: "/privacy/#app", style: "color:var(--navy-2);font-weight:600", onclick: (e) => { e.preventDefault(); openLink(`${location.origin}/privacy/#app`); } }, "Как мы храним данные")),
     h("div", { class: "sheet-actions" }, submit,
       mine ? h("button", { class: "btn btn-ghost", style: "color:var(--bad)", onclick: () => removeReview(mine, sheet, p) }, "Удалить мой отзыв") : null
     )
@@ -957,7 +958,7 @@ async function meView() {
       h("div", { class: "card fine" },
         "Мы храним только ваш Telegram ID — чтобы один человек оставлял один отзыв о заведении и для защиты от накрутки. ",
         "Имя, фото и username не сохраняем. В отзывах вы — «Гость». Данные хранятся на сервере в России. ",
-        h("a", { href: "/privacy/", onclick: (e) => { e.preventDefault(); openLink(`${location.origin}/privacy/`); }, style: "color:var(--navy-2);font-weight:600" }, "Политика конфиденциальности")
+        h("a", { href: "/privacy/#app", onclick: (e) => { e.preventDefault(); openLink(`${location.origin}/privacy/#app`); }, style: "color:var(--navy-2);font-weight:600" }, "Политика конфиденциальности")
       ),
       h("button", { class: "btn btn-soft btn-block danger", onclick: deleteMe }, icon(I.trash), "Удалить мои данные")
     )
