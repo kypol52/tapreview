@@ -683,3 +683,9 @@ input[type="number"] {
 .rv-reply { margin: 6px 0; padding: 8px 10px; border-left: 3px solid #e5aa0c; background: var(--bg); white-space: pre-wrap; }
 .rv-reports { margin: 6px 0; padding-left: 18px; color: var(--danger); font-size: 14px; }
 .rv-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+/* ===== Каталог Mini App в списке заведений ===== */
+.cell-catalog { margin-top: 6px; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.badge-catalog { background: #e0e7ff; color: #0a2a5c; }
+.cell-gaps { font-size: 12px; color: #92400e; max-width: 220px; }
+.cell-gaps-muted { color: var(--muted); }

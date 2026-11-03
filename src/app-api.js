@@ -5,8 +5,8 @@
 // В ответы никогда не попадает Telegram ID — автор отзыва публично «Гость».
 //
 //   GET    /api/app/config                     — имя бота и приложения (для ссылок t.me/…)
-//   GET    /api/app/home                       — категории, лучшие, популярные, новые
-//   GET    /api/app/places?q=&cat=&min=&sort=&offset= — каталог (только заведения с catalog_visible)
+//   GET    /api/app/home?city=                 — города, категории, лучшие, популярные, новые (в выбранном городе)
+//   GET    /api/app/places?q=&cat=&min=&sort=&city=&offset= — каталог (только заведения с catalog_visible)
 //   GET    /api/app/places/:slug               — заведение, рейтинг, первые отзывы, мой отзыв, избранное
 //   GET    /api/app/places/:slug/reviews?offset= — ещё отзывы
 //   POST   /api/app/reviews                    — оставить или изменить свой отзыв → на проверку
@@ -160,7 +160,7 @@ export async function handleAppApi(request, env, url) {
     if (path === "/api/app/config" && method === "GET") {
       return json({ bot: env.APP_BOT_USERNAME || null, app: env.APP_SHORT_NAME || null });
     }
-    if (path === "/api/app/home" && method === "GET") return await home(env);
+    if (path === "/api/app/home" && method === "GET") return await home(env, url);
     if (path === "/api/app/places" && method === "GET") return await places(env, url);
 
     let m = path.match(/^\/api\/app\/places\/([^/]+)$/);
@@ -221,21 +221,40 @@ async function catalog(env, args) {
   return db(env, "rpc/app_catalog", { method: "POST", body: args });
 }
 
-async function home(env) {
-  const [top, popular, recent, all] = await Promise.all([
-    catalog(env, { p_sort: "top", p_min_reviews: 1, p_limit: 10 }),
-    catalog(env, { p_sort: "popular", p_limit: 10 }),
-    catalog(env, { p_sort: "new", p_limit: 10 }),
-    db(env, "businesses?is_active=is.true&catalog_visible=is.true&select=category&limit=5000")
+// Город из запроса: как его ввели в админке, сравнение без учёта регистра (в базе — app_catalog p_city)
+const cityKey = (s) => String(s || "").trim().toLowerCase();
+
+async function home(env, url) {
+  const all = await db(env, "businesses?is_active=is.true&catalog_visible=is.true&select=category,city&limit=5000");
+  // Города каталога: от большего к меньшему
+  const cityMap = new Map();
+  for (const b of all) {
+    const key = cityKey(b.city);
+    if (!key) continue;
+    const c = cityMap.get(key) || { name: String(b.city).trim(), count: 0 };
+    c.count++;
+    cityMap.set(key, c);
+  }
+  const cities = [...cityMap.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "ru"));
+  const wanted = cityMap.get(cityKey(url.searchParams.get("city")));
+  const city = wanted ? wanted.name : null;
+  const inCity = city ? all.filter((b) => cityKey(b.city) === cityKey(city)) : all;
+
+  const [top, popular, recent] = await Promise.all([
+    catalog(env, { p_sort: "top", p_min_reviews: 1, p_limit: 10, p_city: city }),
+    catalog(env, { p_sort: "popular", p_limit: 10, p_city: city }),
+    catalog(env, { p_sort: "new", p_limit: 10, p_city: city })
   ]);
   const counts = {};
-  for (const b of all) {
+  for (const b of inCity) {
     const key = MAIN_CATS.has(b.category) ? b.category : "other";
     counts[key] = (counts[key] || 0) + 1;
   }
   return json({
+    cities,
+    city,
     categories: APP_CATEGORIES.map((c) => ({ ...c, count: counts[c.key] || 0 })),
-    total: all.length,
+    total: inCity.length,
     top: top.map(card),
     popular: popular.filter((r) => Number(r.views_30d) > 0).map(card),
     recent: recent.map(card)
@@ -248,7 +267,9 @@ async function places(env, url) {
   const min = Number(url.searchParams.get("min"));
   const sort = SORTS.includes(url.searchParams.get("sort")) ? url.searchParams.get("sort") : "top";
   const offset = Math.max(0, Math.min(5000, Math.floor(Number(url.searchParams.get("offset")) || 0)));
+  const city = cleanUserText(url.searchParams.get("city"), 60, "Город");
   const rows = await catalog(env, {
+    p_city: city || null,
     p_q: q || null,
     p_category: APP_CATEGORIES.some((c) => c.key === cat) ? cat : null,
     p_min_score: [3, 4, 4.5].includes(min) ? min : null,
@@ -256,7 +277,21 @@ async function places(env, url) {
     p_limit: PAGE + 1,
     p_offset: offset
   });
-  return json({ items: rows.slice(0, PAGE).map(card), more: rows.length > PAGE });
+  // Первая страница несёт и список городов — для кнопки «город», если каталог открыли не с главной
+  let cities;
+  if (!offset) {
+    const all = await db(env, "businesses?is_active=is.true&catalog_visible=is.true&city=not.is.null&select=city&limit=5000");
+    const map = new Map();
+    for (const b of all) {
+      const key = cityKey(b.city);
+      if (!key) continue;
+      const c = map.get(key) || { name: String(b.city).trim(), count: 0 };
+      c.count++;
+      map.set(key, c);
+    }
+    cities = [...map.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "ru"));
+  }
+  return json({ items: rows.slice(0, PAGE).map(card), more: rows.length > PAGE, cities });
 }
 
 // ---------- Заведение ----------

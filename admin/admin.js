@@ -904,7 +904,8 @@ function renderList() {
       (!query ||
         b.name.toLowerCase().includes(query) ||
         b.slug.toLowerCase().includes(query)) &&
-      (state.billingFilter === "all" || billingGroup(b) === state.billingFilter)
+      (state.billingFilter === "all" ||
+        (state.billingFilter === "catalog" ? b.catalog_visible : billingGroup(b) === state.billingFilter))
   );
 
   const total = state.businesses.length;
@@ -943,6 +944,7 @@ function renderRow(business) {
   if (billing.state !== "none") {
     statusCell.append(el("div", `cell-billing ${billing.tone}`, billing.short));
   }
+  statusCell.append(catalogControl(business));
 
   // Статистика за 30 дней
   const stats = state.summary[business.id];
@@ -974,6 +976,50 @@ function renderRow(business) {
 
   tr.append(nameCell, categoryCell, statusCell, statsCell, linkCell, actionsCell);
   return tr;
+}
+
+// Каталог Mini App прямо в списке: метка, чего не хватает для хорошей страницы, кнопка включить/выключить
+function catalogGaps(b) {
+  const gaps = [];
+  if (!b.category) gaps.push("категория");
+  if (!b.city) gaps.push("город");
+  if (!b.address) gaps.push("адрес");
+  if (!b.description) gaps.push("описание");
+  if (!(b.photos && b.photos.length)) gaps.push("фото");
+  return gaps;
+}
+
+function catalogControl(business) {
+  const box = el("div", "cell-catalog");
+  const gaps = catalogGaps(business);
+  if (business.catalog_visible) {
+    box.append(el("span", "badge badge-catalog", "В каталоге"));
+    if (gaps.length) box.append(el("div", "cell-gaps", `Не хватает: ${gaps.join(", ")}`));
+  } else if (business.is_active) {
+    box.append(el("div", "cell-gaps cell-gaps-muted", gaps.length ? `Для каталога не хватает: ${gaps.join(", ")}` : "Готово к каталогу"));
+  }
+  const button = el("button", "btn btn-ghost btn-small", business.catalog_visible ? "Убрать из каталога" : "В каталог");
+  button.type = "button";
+  button.addEventListener("click", async () => {
+    const on = !business.catalog_visible;
+    if (on) {
+      const ask = "Заведение согласилось, что в каталоге будут его рейтинг и публичные отзывы гостей?" +
+        (gaps.length ? `\n\nСтраница будет неполной — не хватает: ${gaps.join(", ")}.` : "");
+      if (!confirm(ask)) return;
+    }
+    button.disabled = true;
+    try {
+      const updated = await api(`/api/admin/businesses/${business.id}/catalog`, { method: "PATCH", body: { catalog_visible: on } });
+      const i = state.businesses.findIndex((b) => b.id === business.id);
+      if (i >= 0) state.businesses[i] = updated;
+      renderList();
+    } catch (error) {
+      alert(error.message);
+      button.disabled = false;
+    }
+  });
+  box.append(button);
+  return box;
 }
 
 // ================= Форма =================

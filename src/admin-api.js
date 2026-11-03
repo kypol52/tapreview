@@ -4,6 +4,7 @@
 //   POST   /api/admin/businesses         — создать бизнес (slug генерируется здесь)
 //   PATCH  /api/admin/businesses/:id     — изменить бизнес
 //   DELETE /api/admin/businesses/:id     — удалить бизнес
+//   PATCH  /api/admin/businesses/:id/catalog — быстро включить/выключить каталог Mini App { catalog_visible, app_button }
 //   GET    /api/admin/businesses/:id/stats?days=30&tz=Europe/Moscow — статистика по дням
 //   GET    /api/admin/stats-summary?days=30 — итоги по всем бизнесам (для списка)
 //   GET    /api/admin/health             — «Здоровье»: что не так с каждым активным заведением (миграция 026)
@@ -132,6 +133,23 @@ export async function handleApi(request, env, url) {
       if (idMatch) {
         if (method === "PATCH") return await updateBusiness(request, env, idMatch[1]);
         if (method === "DELETE") return await deleteBusiness(env, idMatch[1]);
+      }
+
+      // Каталог Mini App из списка заведений, без открытия карточки: { catalog_visible?, app_button? }
+      const catalogMatch = path.match(/^\/api\/admin\/businesses\/(\d{1,18})\/catalog$/);
+      if (catalogMatch && method === "PATCH") {
+        const input = await readJson(request);
+        const body = {};
+        if (typeof input.catalog_visible === "boolean") body.catalog_visible = input.catalog_visible;
+        if (typeof input.app_button === "boolean") body.app_button = input.app_button;
+        if (!Object.keys(body).length) throw new HttpError(400, "Нечего менять");
+        const rows = await db(env, `businesses?id=eq.${catalogMatch[1]}&select=${ADMIN_COLUMNS}`, {
+          method: "PATCH",
+          body,
+          prefer: "return=representation"
+        });
+        if (!rows.length) throw new HttpError(404, "Бизнес не найден");
+        return json(rows[0]);
       }
 
       const statsMatch = path.match(/^\/api\/admin\/businesses\/(\d{1,18})\/stats$/);

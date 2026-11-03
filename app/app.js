@@ -6,7 +6,53 @@
 
 const tg = window.Telegram && window.Telegram.WebApp;
 const inTelegram = Boolean(tg && tg.initData);
-const state = { config: null, ticket: null, ticketSlug: null, lastPlace: null };
+const state = { config: null, ticket: null, ticketSlug: null, lastPlace: null, city: loadCity(), cities: [] };
+
+// Выбранный город — только удобство на этом телефоне (без него всё работает: показываются все города)
+function loadCity() {
+  try {
+    return localStorage.getItem("tr_city") || "";
+  } catch {
+    return "";
+  }
+}
+function saveCity(city) {
+  state.city = city || "";
+  try {
+    if (city) localStorage.setItem("tr_city", city);
+    else localStorage.removeItem("tr_city");
+  } catch {
+    // приватный режим — выбор просто не запомнится
+  }
+}
+
+function cityButton(onChange) {
+  if (state.cities.length < 2) return null;
+  return h("button", { class: "city-btn", type: "button", onclick: () => citySheet(onChange) },
+    icon(I.pin), h("span", null, state.city || "Все города"), h("span", { class: "city-caret", "aria-hidden": "true" }, "▾"));
+}
+
+function citySheet(onChange) {
+  const pick = (city) => {
+    haptic.tap();
+    saveCity(city);
+    sheet.close();
+    onChange();
+  };
+  const option = (value, label, count) =>
+    h("button", { class: `city-opt${value === state.city ? " on" : ""}`, type: "button", onclick: () => pick(value) },
+      h("span", null, label), count !== null ? h("span", { class: "fine" }, String(count)) : null);
+  const sheet = openSheet(
+    h("h2", null, "Ваш город"),
+    h("p", { class: "lead" }, "Покажем заведения только этого города"),
+    h("div", { class: "city-list" },
+      option("", "Все города", state.cities.reduce((a, c) => a + c.count, 0)),
+      state.cities.map((c) => option(c.name, c.name, c.count))
+    )
+  );
+}
+
+const cityQuery = () => (state.city ? `city=${encodeURIComponent(state.city)}` : "");
 const view = document.getElementById("view");
 
 // ================= Telegram =================
@@ -300,10 +346,13 @@ async function homeView() {
   );
   let data;
   try {
-    data = await api("/api/app/home");
+    data = await api(`/api/app/home${state.city ? `?${cityQuery()}` : ""}`);
   } catch (error) {
     return render(errorView(error, homeView));
   }
+  state.cities = data.cities || [];
+  // Сохранённого города больше нет в каталоге — показываем все
+  if (state.city && !data.city) saveCity("");
 
   const rail = (title, items, link) =>
     items.length
@@ -315,9 +364,9 @@ async function homeView() {
 
   render(
     h("header", { class: "head" },
-      brand(),
+      h("div", { class: "row-between" }, brand(), cityButton(homeView)),
       h("h1", { class: "title" }, "Где хорошо?"),
-      h("p", { class: "lead", style: "margin-bottom:14px" }, "Честные оценки гостей заведений вашего города"),
+      h("p", { class: "lead", style: "margin-bottom:14px" }, data.city ? `Честные оценки гостей заведений · ${data.city}` : "Честные оценки гостей заведений вашего города"),
       searchBox("", null, (q) => go(`#/catalog?q=${encodeURIComponent(q)}`))
     ),
     h("section", { class: "section" },
@@ -337,7 +386,7 @@ async function homeView() {
       : null,
     rail("Лучшие по оценкам", data.top, "#/catalog?sort=top"),
     rail("Популярные", data.popular, "#/catalog?sort=popular"),
-    rail("Недавно добавлены", data.recent, "#/catalog?sort=new")
+    rail(data.city ? "Новые в городе" : "Недавно добавлены", data.recent, "#/catalog?sort=new")
   );
 }
 
@@ -366,10 +415,11 @@ async function catalogView(params) {
   const cats = [["", "Все"], ["restaurant", "Кафе и рестораны"], ["beauty", "Салоны красоты"], ["barber", "Барбершопы"], ["shop", "Магазины"], ["other", "Другое"]];
   const list = h("div", { class: "list" });
   const more = h("button", { class: "btn btn-soft btn-block", hidden: true }, "Показать ещё");
+  const citySlot = h("div", null, cityButton(() => catalogView(params)));
 
   render(
     h("header", { class: "head" },
-      h("h1", { class: "title", style: "margin-bottom:12px" }, "Каталог"),
+      h("div", { class: "row-between", style: "margin-bottom:12px" }, h("h1", { class: "title", style: "margin:0" }, "Каталог"), citySlot),
       searchBox(q, (v) => setParam("q", v), (v) => setParam("q", v))
     ),
     h("div", { class: "chips", style: "margin-top:4px" },
@@ -400,9 +450,18 @@ async function catalogView(params) {
     more.disabled = true;
     if (!offset) list.replaceChildren(...skeletonList(4).children);
     try {
-      const qs = new URLSearchParams({ q, cat, min, sort, offset: String(offset) });
+      const qs = new URLSearchParams({ q, cat, min, sort, city: state.city, offset: String(offset) });
       const data = await api(`/api/app/places?${qs}`);
       if (!offset) list.replaceChildren();
+      if (data.cities) {
+        state.cities = data.cities;
+        // Сохранённого города больше нет в каталоге — показываем все города
+        if (state.city && !data.cities.some((c) => c.name.toLowerCase() === state.city.toLowerCase())) {
+          saveCity("");
+          return catalogView(params);
+        }
+        citySlot.replaceChildren(...[cityButton(() => catalogView(params))].filter(Boolean));
+      }
       list.append(...data.items.map(row));
       offset += data.items.length;
       more.hidden = !data.more;
