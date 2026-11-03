@@ -25,7 +25,8 @@
 //   GET    /api/app/ticket?t=                  — проверить билет карты (для метки в форме)
 //   GET    /api/app/biz/:slug?period=week|month — кабинет заведения (только владелец): рейтинг, динамика,
 //                                                 отзывы без ответа, переходы с карт (report.js — те же цифры, что в боте)
-//   PATCH  /api/app/biz/:slug                  — { description, city }
+//   PATCH  /api/app/biz/:slug                  — { description, city, address, coords }
+//   POST   /api/app/biz/:slug/catalog          — { on, consent } показ в каталоге (согласие владельца), { appButton }
 //   POST   /api/app/biz/:slug/photos           — { photo: dataURL } (до 8), DELETE …/photos/:id
 //
 // Модерация (админ-панель, /api/admin/app/*) — handleAppAdmin внизу файла.
@@ -191,6 +192,8 @@ export async function handleAppApi(request, env, url) {
     m = path.match(/^\/api\/app\/biz\/([^/]+)$/);
     if (m && method === "GET") return await bizCabinet(request, env, m[1], url);
     if (m && method === "PATCH") return await bizUpdate(request, env, m[1]);
+    m = path.match(/^\/api\/app\/biz\/([^/]+)\/catalog$/);
+    if (m && method === "POST") return await bizCatalog(request, env, m[1]);
     m = path.match(/^\/api\/app\/biz\/([^/]+)\/photos$/);
     if (m && method === "POST") return await bizPhotoAdd(request, env, m[1]);
     m = path.match(/^\/api\/app\/biz\/([^/]+)\/photos\/([0-9a-f-]{36})$/);
@@ -824,7 +827,7 @@ const MAX_PLACE_PHOTOS = 8;
 async function ownedPlace(request, env, slug, { write = false } = {}) {
   const user = await requireUser(request, env, { write });
   if (!SLUG_RE.test(slug)) throw new AppError(404, "Заведение не найдено");
-  const rows = await db(env, `businesses?slug=eq.${encodeURIComponent(slug)}&select=id,slug,name,city,description,photos,catalog_visible,app_button,is_active&limit=1`);
+  const rows = await db(env, `businesses?slug=eq.${encodeURIComponent(slug)}&select=id,slug,name,category,address,city,description,photos,catalog_visible,catalog_consent_at,app_button,is_active,lat,lon&limit=1`);
   if (!rows.length || !(await ownedIds(env, user)).includes(rows[0].id)) {
     throw new AppError(403, "Кабинет доступен только представителю заведения");
   }
@@ -883,7 +886,12 @@ async function bizCabinet(request, env, slug, url) {
       description: b.description || "",
       photos: (b.photos || []).map((id) => ({ id, url: mediaUrl(id) })),
       inCatalog: Boolean(b.catalog_visible && b.is_active),
-      appButton: Boolean(b.app_button)
+      active: Boolean(b.is_active),
+      appButton: Boolean(b.app_button),
+      consentAt: b.catalog_consent_at || null,
+      address: b.address || "",
+      coords: b.lat != null ? `${b.lat}, ${b.lon}` : "",
+      gaps: catalogGaps(b)
     },
     rating: {
       avg: published.length ? Math.round((sum / published.length) * 10) / 10 : null,
@@ -907,6 +915,42 @@ async function bizCabinet(request, env, slug, url) {
   });
 }
 
+// Чего не хватает, чтобы страница в каталоге выглядела хорошо (то же, что подсказывает админка)
+function catalogGaps(b) {
+  const gaps = [];
+  if (!b.city) gaps.push("город");
+  if (!b.address) gaps.push("адрес");
+  if (!b.description) gaps.push("описание");
+  if (!(b.photos && b.photos.length)) gaps.push("фото");
+  if (b.lat == null) gaps.push("место на карте");
+  return gaps;
+}
+
+// «56.84, 53.21» или ссылка Яндекс Карт (ll= / pt= / whatshere — долгота первой) или 2ГИС (m= / /geo/ — тоже долгота первой).
+// Та же логика, что parseCoords в admin/admin.js. → { lat, lon } | null (пусто) | бросает AppError
+export function parseCoordsText(text) {
+  let s = String(text || "").trim();
+  if (!s) return null;
+  try {
+    s = decodeURIComponent(s);
+  } catch {
+    // как есть
+  }
+  const check = (lat, lon) => {
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+      throw new AppError(400, "Координаты вне допустимых пределов");
+    }
+    return { lat: Math.round(lat * 1e6) / 1e6, lon: Math.round(lon * 1e6) / 1e6 };
+  };
+  let m = /[?&](?:ll|pt|whatshere\[point\])=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/.exec(s);
+  if (m) return check(Number(m[2]), Number(m[1]));
+  m = /[?&]m=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/.exec(s) || /\/geo\/(?:\d+\/)?(-?\d+\.\d+),(-?\d+\.\d+)/.exec(s);
+  if (m) return check(Number(m[2]), Number(m[1]));
+  m = /^(-?\d{1,2}(?:\.\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:\.\d+)?)$/.exec(s);
+  if (m) return check(Number(m[1]), Number(m[2]));
+  throw new AppError(400, "Место на карте: вставьте ссылку из Яндекс Карт («Поделиться») или «56.845264, 53.213727»");
+}
+
 async function bizUpdate(request, env, slug) {
   const { user, b } = await ownedPlace(request, env, slug, { write: true });
   rateLimit(`b:${user.id}`, 30, 3600e3);
@@ -915,8 +959,42 @@ async function bizUpdate(request, env, slug) {
     description: cleanUserText(input.description, 1000, "Описание") || null,
     city: cleanUserText(input.city, 60, "Город").replace(/\s+/g, " ") || null
   };
+  if ("address" in input) body.address = cleanUserText(input.address, 300, "Адрес").replace(/\s+/g, " ") || null;
+  if ("coords" in input) {
+    const c = parseCoordsText(cleanUserText(input.coords, 600, "Место на карте"));
+    body.lat = c ? c.lat : null;
+    body.lon = c ? c.lon : null;
+  }
   await db(env, `businesses?id=eq.${b.id}`, { method: "PATCH", body, prefer: "return=minimal" });
-  return json({ ok: true, ...body });
+  return json({ ok: true, ...body, coords: body.lat != null ? `${body.lat}, ${body.lon}` : body.lat === null ? "" : undefined, gaps: catalogGaps({ ...b, ...body }) });
+}
+
+// Владелец сам включает/выключает показ в каталоге (с согласием) и кнопку «Отзыв в Telegram» на картах
+async function bizCatalog(request, env, slug) {
+  const { user, b } = await ownedPlace(request, env, slug, { write: true });
+  rateLimit(`c:${user.id}`, 20, 3600e3);
+  const input = await readJson(request);
+  const body = {};
+  if (typeof input.on === "boolean") {
+    if (!b.is_active) throw new AppError(400, "Заведение выключено — напишите TapReview");
+    if (input.on && input.consent !== true) throw new AppError(400, "Подтвердите согласие на публичные рейтинг и отзывы");
+    body.catalog_visible = input.on;
+    if (input.on) {
+      body.catalog_consent_at = new Date().toISOString();
+      body.catalog_consent_by = user.id;
+    }
+  }
+  if (typeof input.appButton === "boolean") body.app_button = input.appButton;
+  if (!Object.keys(body).length) throw new AppError(400, "Нечего менять");
+  await db(env, `businesses?id=eq.${b.id}`, { method: "PATCH", body, prefer: "return=minimal" });
+  if (typeof input.on === "boolean" && input.on !== Boolean(b.catalog_visible)) {
+    notifyModerators(env, `«${b.name}» ${input.on ? "само включило показ в каталоге" : "убрало себя из каталога"}`, { force: true });
+  }
+  return json({
+    inCatalog: "catalog_visible" in body ? body.catalog_visible : Boolean(b.catalog_visible),
+    appButton: "app_button" in body ? body.app_button : Boolean(b.app_button),
+    consentAt: body.catalog_consent_at || b.catalog_consent_at || null
+  });
 }
 
 async function bizPhotoAdd(request, env, slug) {

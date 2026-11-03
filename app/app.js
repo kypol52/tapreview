@@ -372,6 +372,67 @@ function getLocation() {
   });
 }
 
+// ---- Карта (Leaflet + OpenStreetMap, без ключей). Библиотека лежит у нас (app/vendor/leaflet), грузится только здесь ----
+let leafletReady = null;
+function loadLeaflet() {
+  if (window.L) return Promise.resolve(window.L);
+  if (leafletReady) return leafletReady;
+  leafletReady = new Promise((resolve, reject) => {
+    const css = document.createElement("link");
+    css.rel = "stylesheet";
+    css.href = "/app/vendor/leaflet/leaflet.css";
+    document.head.append(css);
+    const js = document.createElement("script");
+    js.src = "/app/vendor/leaflet/leaflet.js";
+    js.onload = () => resolve(window.L);
+    js.onerror = () => {
+      leafletReady = null;
+      reject(new Error("Карта не загрузилась"));
+    };
+    document.head.append(js);
+  });
+  return leafletReady;
+}
+
+async function nearbyMap(box, loc, items) {
+  let L;
+  try {
+    L = await loadLeaflet();
+  } catch {
+    box.remove();
+    return;
+  }
+  const map = L.map(box, { zoomControl: false, attributionControl: true, tap: true });
+  map.attributionControl.setPrefix(false);
+  // OpenStreetMap просит указывать источник и передавать адрес сайта (Referer) — страница приложения его скрывает, поэтому
+  // для плиток карты разрешаем отправить только домен
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "© OpenStreetMap",
+    referrerPolicy: "strict-origin-when-cross-origin"
+  }).addTo(map);
+  L.circleMarker([loc.lat, loc.lon], { radius: 8, color: "#ffffff", weight: 3, fillColor: "#2a7be4", fillOpacity: 1 }).addTo(map);
+  const points = [[loc.lat, loc.lon]];
+  for (const { p } of items) {
+    const label = p.rating !== null ? fmtRating(p.rating) : "•";
+    const marker = L.marker([p.lat, p.lon], {
+      icon: L.divIcon({ className: "map-pin", html: `<span><b>${label}</b></span>`, iconSize: [40, 40], iconAnchor: [20, 40] }),
+      keyboard: true,
+      title: p.name
+    }).addTo(map);
+    // Название — элементом, а не строкой HTML: текст из админки не должен разбираться как разметка
+    const tip = document.createElement("span");
+    tip.textContent = p.name;
+    marker.bindTooltip(tip, { direction: "top", offset: [0, -38] });
+    marker.on("click", () => {
+      haptic.tap();
+      go(`#/place/${encodeURIComponent(p.slug)}`);
+    });
+    if (points.length < 11) points.push([p.lat, p.lon]);
+  }
+  map.fitBounds(points, { padding: [36, 36], maxZoom: 16 });
+}
+
 async function nearbyView() {
   const head = h("header", { class: "head" },
     h("h1", { class: "title" }, "Рядом со мной"),
@@ -391,10 +452,13 @@ async function nearbyView() {
     if (!items.length) {
       return box.replaceChildren(emptyView(I.pin, "Пока никого на карте", "У заведений каталога ещё не отмечено место на карте. Загляните позже или откройте каталог.", h("a", { class: "btn btn-soft", href: "#/catalog" }, "Открыть каталог")));
     }
+    const mapBox = h("div", { class: "map-box", role: "region", "aria-label": "Карта заведений рядом" });
     box.replaceChildren(
+      mapBox,
       h("div", { class: "list", style: "padding:0" }, items.map(({ p, d }) => row(p, d))),
       h("p", { class: "fine", style: "margin:4px 2px 0" }, "Расстояние по прямой. Ваша геопозиция не покидает телефон — мы её не получаем и не храним.")
     );
+    nearbyMap(mapBox, loc, items);
   };
 
   const ask = async () => {
@@ -1245,13 +1309,21 @@ async function bizView(slug, period = "month") {
 
   // Профиль заведения
   const city = h("input", { class: "input", maxlength: "60", value: p.city, placeholder: "Город" });
+  const address = h("input", { class: "input", maxlength: "300", value: p.address || "", placeholder: "ул. Пушкинская, 154" });
+  const coords = h("input", { class: "input", maxlength: "600", value: p.coords || "", placeholder: "Ссылка из Яндекс Карт или 56.845264, 53.213727" });
   const desc = h("textarea", { class: "textarea", maxlength: "1000", placeholder: "Пара предложений: что за место, чем известно" });
   desc.value = p.description;
   const save = h("button", { class: "btn btn-primary btn-block" }, "Сохранить");
   save.addEventListener("click", async () => {
     save.disabled = true;
     try {
-      await api(`/api/app/biz/${encodeURIComponent(slug)}`, { method: "PATCH", body: { city: city.value, description: desc.value } });
+      const res = await api(`/api/app/biz/${encodeURIComponent(slug)}`, {
+        method: "PATCH",
+        body: { city: city.value, address: address.value, coords: coords.value, description: desc.value }
+      });
+      if (res.coords !== undefined) coords.value = res.coords;
+      p.gaps = res.gaps || p.gaps;
+      showCatalog();
       haptic.ok();
       toast("Сохранено");
     } catch (error) {
@@ -1300,6 +1372,107 @@ async function bizView(slug, period = "month") {
   });
   showPhotos(p.photos);
 
+  // ---- Каталог TapReview: владелец сам включает показ (с согласием) и кнопку на картах ----
+  const catalogBox = h("div", { class: "card catalog-card" });
+  const setCatalog = async (body) => {
+    const res = await api(`/api/app/biz/${encodeURIComponent(slug)}/catalog`, { method: "POST", body });
+    p.inCatalog = res.inCatalog;
+    p.appButton = res.appButton;
+    p.consentAt = res.consentAt;
+    showCatalog();
+    statusPill.className = `pill ${p.inCatalog ? "pill-published" : "pill-pending"}`;
+    statusPill.textContent = p.inCatalog ? "В каталоге" : "Не в каталоге";
+  };
+  const consentSheet = () => {
+    const box = h("input", { type: "checkbox", class: "consent-box" });
+    const go = h("button", { class: "btn btn-primary btn-block", disabled: true }, "Показать в каталоге");
+    box.addEventListener("change", () => (go.disabled = !box.checked));
+    const sheet = openSheet(
+      h("h2", null, "Показать в каталоге"),
+      h("p", { class: "lead" }, `Гости TapReview увидят «${p.name}», рейтинг и отзывы. Отзывы публикуются после проверки TapReview — оскорбления, реклама и личные данные не проходят.`),
+      h("ul", { class: "consent-list" },
+        h("li", null, "Удалить честный плохой отзыв нельзя — но можно публично ответить, это видят все."),
+        h("li", null, "Новые отзывы будут приходить вам в Telegram, ответить можно здесь, в кабинете."),
+        h("li", null, "Убрать заведение из каталога можно в любой момент — этой же кнопкой.")
+      ),
+      h("label", { class: "consent-row" }, box,
+        h("span", null, "Я представляю это заведение и согласен(на), что его рейтинг и отзывы гостей будут публично видны в каталоге TapReview")),
+      h("div", { class: "sheet-actions" }, go, h("button", { class: "btn btn-soft btn-block", onclick: () => sheet.close() }, "Не сейчас"))
+    );
+    go.addEventListener("click", async () => {
+      go.disabled = true;
+      try {
+        await setCatalog({ on: true, consent: true });
+        haptic.ok();
+        sheet.close();
+        toast("Заведение в каталоге");
+      } catch (error) {
+        haptic.err();
+        toast(error.message);
+        go.disabled = false;
+      }
+    });
+  };
+  function showCatalog() {
+    const gaps = p.gaps || [];
+    const ready = h("ul", { class: "ready-list" },
+      ["город", "адрес", "описание", "фото", "место на карте"].map((g) =>
+        h("li", { class: gaps.includes(g) ? "todo" : "done" }, gaps.includes(g) ? "○ " : "✓ ", g[0].toUpperCase() + g.slice(1))
+      )
+    );
+    if (p.inCatalog) {
+      const btnSwitch = h("input", { type: "checkbox", class: "switch-input", "aria-label": "Кнопка «Отзыв в Telegram» на картах" });
+      btnSwitch.checked = Boolean(p.appButton);
+      btnSwitch.addEventListener("change", async () => {
+        btnSwitch.disabled = true;
+        try {
+          await setCatalog({ appButton: btnSwitch.checked });
+          toast(btnSwitch.checked ? "Кнопка появится на странице ваших карт" : "Кнопка убрана");
+        } catch (error) {
+          btnSwitch.checked = !btnSwitch.checked;
+          toast(error.message);
+        } finally {
+          btnSwitch.disabled = false;
+        }
+      });
+      catalogBox.replaceChildren(
+        h("div", { class: "catalog-on" }, icon(I.shield), h("div", null, h("b", null, "Заведение в каталоге"),
+          p.consentAt ? h("div", { class: "fine" }, `Согласие дано ${new Date(p.consentAt).toLocaleDateString("ru-RU")}`) : null)),
+        gaps.length ? h("p", { class: "fine", style: "margin:10px 0 4px" }, "Чтобы страница выглядела лучше, заполните:") : null,
+        gaps.length ? ready : null,
+        h("label", { class: "switch-row", style: "margin-top:14px" },
+          h("div", { class: "grow" }, h("div", { style: "font-weight:700;color:var(--ink)" }, "Кнопка «Отзыв в Telegram» на картах"),
+            h("div", { class: "fine" }, "Гость, коснувшийся карты, сможет оставить отзыв в каталоге с меткой «по карте»")),
+          btnSwitch, h("span", { class: "switch", "aria-hidden": "true" })),
+        h("button", { class: "btn btn-ghost", style: "color:var(--bad);margin-top:8px;padding:0", onclick: async () => {
+          if (!(await confirmBox("Убрать заведение из каталога? Рейтинг и отзывы перестанут быть видны гостям."))) return;
+          try {
+            await setCatalog({ on: false });
+            toast("Заведение убрано из каталога");
+          } catch (error) {
+            toast(error.message);
+          }
+        } }, "Убрать из каталога")
+      );
+    } else {
+      catalogBox.replaceChildren(
+        h("h3", { class: "catalog-title" }, "Покажите заведение в каталоге TapReview"),
+        h("ul", { class: "benefit-list" },
+          h("li", null, "Гости города находят вас по рейтингу и в «Рядом со мной»"),
+          h("li", null, "Отзывы с меткой «по карте» — от тех, кто был у вас"),
+          h("li", null, "Отвечайте на отзывы — это видят все и повышает доверие")
+        ),
+        h("p", { class: "fine", style: "margin:12px 0 4px" }, gaps.length ? "Перед включением лучше заполнить профиль ниже:" : "Профиль заполнен — можно включать:"),
+        ready,
+        p.active
+          ? h("button", { class: "btn btn-primary btn-block", style: "margin-top:14px", onclick: consentSheet }, "Показать в каталоге")
+          : h("p", { class: "fine" }, "Заведение сейчас выключено — напишите TapReview.")
+      );
+    }
+  }
+  const statusPill = h("span", { class: `pill ${p.inCatalog ? "pill-published" : "pill-pending"}` }, p.inCatalog ? "В каталоге" : "Не в каталоге");
+  showCatalog();
+
   const sectionHead = (title, extra) => h("div", { class: "section-head", style: "padding:14px 0 0" }, h("h2", { class: "section-title" }, title), extra || null);
 
   render(
@@ -1307,11 +1480,13 @@ async function bizView(slug, period = "month") {
       h("p", { class: "eyebrow" }, "Кабинет заведения"),
       h("h1", { class: "title" }, p.name),
       h("div", { class: "biz-status" },
-        h("span", { class: `pill ${p.inCatalog ? "pill-published" : "pill-pending"}` }, p.inCatalog ? "В каталоге" : "Не в каталоге"),
+        statusPill,
         p.inCatalog ? h("a", { class: "section-link", href: `#/place/${encodeURIComponent(p.slug)}` }, "Открыть страницу →") : null
       )
     ),
     h("div", { class: "stack" },
+      // Не в каталоге — предложение сверху; в каталоге — управление внизу, у профиля
+      p.inCatalog ? null : catalogBox,
       h("div", { class: "row-between" }, h("span", { class: "fine" }, "Период"), seg),
       kpis,
       sectionHead("Отзывы по месяцам"),
@@ -1329,13 +1504,17 @@ async function bizView(slug, period = "month") {
       t && t.cards.length ? h("div", { class: "card" }, pairs(t.cards.map((c) => [c.name, `${c.views} откр. · ${c.clicks} перех.`]))) : null,
       sectionHead("Ждут ответа", d.unanswered.length ? h("span", { class: "fine" }, String(d.unanswered.length)) : null),
       unanswered,
+      p.inCatalog ? sectionHead("Каталог TapReview") : null,
+      p.inCatalog ? catalogBox : null,
       sectionHead("Профиль в каталоге"),
       h("div", { class: "card" },
         h("label", { class: "field", style: "margin-top:0" }, h("span", { class: "field-label" }, "Город"), city),
+        h("label", { class: "field" }, h("span", { class: "field-label" }, "Адрес"), address),
+        h("label", { class: "field" }, h("span", { class: "field-label" }, "Место на карте — для «Рядом со мной»"), coords,
+          h("span", { class: "fine", style: "display:block;margin-top:4px" }, "В Яндекс Картах нажмите на ваше здание → «Поделиться» → скопируйте ссылку сюда")),
         h("label", { class: "field" }, h("span", { class: "field-label" }, "Описание"), desc),
         h("div", { class: "field" }, h("span", { class: "field-label" }, "Фото (до 8, первое — обложка)"), photoGrid),
-        h("div", { class: "sheet-actions" }, save),
-        h("p", { class: "fine", style: "margin:10px 0 0" }, "Показ в каталоге и кнопку «Отзыв в Telegram» на картах включает TapReview — напишите нам.")
+        h("div", { class: "sheet-actions" }, save)
       )
     )
   );

@@ -999,6 +999,9 @@ function catalogControl(business) {
   const gaps = catalogGaps(business);
   if (business.catalog_visible) {
     box.append(el("span", "badge badge-catalog", "В каталоге"));
+    if (business.catalog_consent_at) {
+      box.append(el("div", "cell-sub", `Владелец включил сам ${new Date(business.catalog_consent_at).toLocaleDateString("ru-RU")}`));
+    }
     if (gaps.length) box.append(el("div", "cell-gaps", `Не хватает: ${gaps.join(", ")}`));
   } else if (business.is_active) {
     box.append(el("div", "cell-gaps cell-gaps-muted", gaps.length ? `Для каталога не хватает: ${gaps.join(", ")}` : "Готово к каталогу"));

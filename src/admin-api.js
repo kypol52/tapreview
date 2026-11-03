@@ -67,7 +67,7 @@ const ADMIN_COLUMNS =
   "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions,bonus_daily_limit," +
   "stamps_goal,stamps_prize,friend_gift,friend_reward,vip_visits,vip_gift," +
   "referred_by,ref_reward_at,theme,design,extra_links,rating_first,moment,tariff," +
-  "catalog_visible,catalog_since,description,city,photos,app_button,lat,lon," +
+  "catalog_visible,catalog_since,catalog_consent_at,description,city,photos,app_button,lat,lon," +
   "created_at,updated_at";
 
 const EXTRA_LINK_TYPES = ["menu", "catalog", "services", "booking", "delivery", "site", "tips", "pay", "custom"];
