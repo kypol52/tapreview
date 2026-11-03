@@ -690,3 +690,18 @@ input[type="number"] {
 .cell-gaps { font-size: 12px; color: #92400e; max-width: 220px; }
 .cell-gaps-muted { color: var(--muted); }
 .rv-flags { margin: 6px 0; padding: 8px 10px 8px 26px; border-radius: 8px; background: #fef3c7; color: #92400e; font-size: 13.5px; }
+
+/* ===== Вкладка «Mini App» ===== */
+.ma-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin: 12px 0 8px; }
+.ma-kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; }
+.ma-kpi-label { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.ma-kpi-value { font-size: 26px; font-weight: 800; margin-top: 4px; color: var(--text); }
+.ma-kpi-sub { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.ma-h2 { font-size: 16px; margin: 22px 0 10px; }
+.ma-chart { position: relative; display: flex; align-items: flex-end; gap: 2px; height: 160px; padding: 18px 12px 26px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.ma-chart::before { content: attr(data-first); position: absolute; left: 12px; bottom: 6px; font-size: 12px; color: var(--muted); }
+.ma-chart::after { content: attr(data-last); position: absolute; right: 12px; bottom: 6px; font-size: 12px; color: var(--muted); }
+.ma-col { position: relative; flex: 1 1 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; border-bottom: 1px solid var(--border); }
+.ma-col:hover { background: var(--bg); }
+.ma-bar { width: min(22px, 80%); background: #0a2a5c; border-radius: 3px 3px 0 0; }
+.ma-val { font-size: 11px; font-weight: 700; color: var(--text); margin-bottom: 2px; }

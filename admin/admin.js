@@ -148,6 +148,7 @@ function bindEvents() {
   $("o-refresh").addEventListener("click", loadOrders);
   $("tab-health").addEventListener("click", () => showTab("health"));
   $("tab-reviews").addEventListener("click", () => showTab("reviews"));
+  $("tab-miniapp").addEventListener("click", () => showTab("miniapp"));
   $("h-refresh").addEventListener("click", loadHealth);
   $("o-tg-invite").addEventListener("click", onOrderTgInvite);
   for (const [value, label] of Object.entries(ORDER_STATUS_LABELS)) {
@@ -760,7 +761,7 @@ async function onOrderTgInvite() {
   }
 }
 
-const TABS = ["businesses", "groups", "cards", "orders", "health", "reviews"];
+const TABS = ["businesses", "groups", "cards", "orders", "health", "reviews", "miniapp"];
 
 function showTab(name) {
   for (const tab of TABS) {
@@ -769,6 +770,7 @@ function showTab(name) {
   }
   // Отзывы Mini App — в отдельном файле admin/reviews.js
   if (name === "reviews" && typeof loadAppReviews === "function") loadAppReviews();
+  if (name === "miniapp" && typeof loadMiniApp === "function") loadMiniApp();
   if (name === "groups" && !state.groupsLoaded) loadGroups();
   if (name === "cards" && !state.cardsLoaded) loadCards();
   if (name === "orders") loadOrders();

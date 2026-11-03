@@ -161,3 +161,151 @@ function reviewCard(r) {
   box.append(actions);
   return box;
 }
+
+// ================= Вкладка «Mini App»: статистика платформы и пользователи =================
+
+const maState = { days: 30, filter: "all", q: "", offset: 0 };
+
+document.addEventListener("DOMContentLoaded", () => {
+  for (const chip of document.querySelectorAll("[data-madays]")) {
+    chip.addEventListener("click", () => {
+      maState.days = Number(chip.dataset.madays);
+      for (const c of document.querySelectorAll("[data-madays]")) c.classList.toggle("active", c === chip);
+      loadMiniAppStats();
+    });
+  }
+  for (const chip of document.querySelectorAll("[data-mafilter]")) {
+    chip.addEventListener("click", () => {
+      maState.filter = chip.dataset.mafilter;
+      for (const c of document.querySelectorAll("[data-mafilter]")) c.classList.toggle("active", c === chip);
+      loadMiniAppUsers();
+    });
+  }
+  let timer;
+  $("ma-q").addEventListener("input", () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      maState.q = $("ma-q").value.trim();
+      loadMiniAppUsers();
+    }, 350);
+  });
+  $("ma-more").addEventListener("click", () => loadMiniAppUsers(true));
+});
+
+function loadMiniApp() {
+  loadMiniAppStats();
+  loadMiniAppUsers();
+}
+
+async function loadMiniAppStats() {
+  hideError("ma-error");
+  try {
+    const s = await api(`/api/admin/app/stats?days=${maState.days}`);
+    const tile = (label, value, sub) => {
+      const t = el("div", "ma-kpi");
+      t.append(el("div", "ma-kpi-label", label), el("div", "ma-kpi-value", String(value)));
+      if (sub) t.append(el("div", "ma-kpi-sub", sub));
+      return t;
+    };
+    const h = s.reviews.medianModerationHours;
+    $("ma-kpis").replaceChildren(
+      tile("Пользователей", s.users.total, `+${s.users.new} новых · ${s.users.active} заходили`),
+      tile("Новых отзывов", s.reviews.new, `опубл. ${s.reviews.published} · откл. ${s.reviews.rejected}`),
+      tile("Ждут проверки", s.reviews.pending, h === null ? "время проверки: нет данных" : `проверка обычно ${h < 1 ? "меньше часа" : `${h} ч`}`),
+      tile("Заведений в каталоге", s.places.inCatalog, `из ${s.places.total} активных`),
+      tile("Отзывов по карте", s.reviews.viaCard, `с фото: ${s.reviews.withPhoto}`),
+      tile("Жалоб", s.reports.new, `открыто: ${s.reports.open}`),
+      tile("Голосов «Полезно»", s.votes, `в избранном: ${s.favorites}`),
+      tile("Сообщения включили", s.users.notify, `заблокировано: ${s.users.banned}`)
+    );
+
+    // Один ряд — новые отзывы по дням; число — по наведению (title) и над столбиком, если он не нулевой и дней мало
+    const max = Math.max(1, ...s.daily.map((d) => d.reviews));
+    const fmt = (iso) => new Date(`${iso}T12:00:00Z`).toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+    $("ma-chart").replaceChildren(
+      ...s.daily.map((d) => {
+        const col = el("div", "ma-col");
+        col.title = `${fmt(d.day)}: отзывов ${d.reviews}, новых пользователей ${d.users}`;
+        const bar = el("div", `ma-bar${d.reviews ? "" : " zero"}`);
+        bar.style.height = `${d.reviews ? Math.max(4, (d.reviews / max) * 100) : 0}%`;
+        if (s.days <= 30 && d.reviews) col.append(el("span", "ma-val", String(d.reviews)));
+        col.append(bar);
+        return col;
+      })
+    );
+    $("ma-chart").dataset.first = fmt(s.daily[0].day);
+    $("ma-chart").dataset.last = "сегодня";
+
+    $("ma-top").replaceChildren(
+      ...(s.top.length
+        ? s.top.map((p) => {
+            const tr = document.createElement("tr");
+            tr.append(el("td", "cell-name", p.name), el("td", "", String(p.reviews)), el("td", "", `★ ${String(p.avg).replace(".", ",")}`));
+            return tr;
+          })
+        : [(() => {
+            const tr = document.createElement("tr");
+            const td = el("td", "muted", "За период опубликованных отзывов нет");
+            td.colSpan = 3;
+            tr.append(td);
+            return tr;
+          })()])
+    );
+  } catch (error) {
+    showError("ma-error", `Не удалось загрузить: ${error.message}`);
+  }
+}
+
+async function loadMiniAppUsers(more = false) {
+  maState.offset = more ? maState.offset + 50 : 0;
+  try {
+    const qs = new URLSearchParams({ q: maState.q.replace(/^#/, ""), filter: maState.filter, offset: String(maState.offset) });
+    const data = await api(`/api/admin/app/users?${qs}`);
+    const rows = data.users.map((u) => {
+      const tr = document.createElement("tr");
+      const who = el("td");
+      who.append(el("div", "cell-name", `#${u.id}${u.notify ? " · 🔔" : ""}`), el("div", "cell-sub", `с ${new Date(u.created).toLocaleDateString("ru-RU")}`));
+      if (u.banned) who.append(el("div", "cell-gaps", `Заблокирован${u.banReason ? `: ${u.banReason}` : ""}`));
+      const rv = u.reviews;
+      const act = el("td", "cell-actions");
+      const b = el("button", "btn btn-ghost btn-small", u.banned ? "Разблокировать" : "Заблокировать");
+      b.type = "button";
+      b.addEventListener("click", async () => {
+        let reason = "";
+        if (!u.banned) {
+          reason = prompt(`Причина блокировки #${u.id} (для себя). Его отзывы на проверке будут отклонены:`, "Накрутка / спам");
+          if (reason === null) return;
+        }
+        b.disabled = true;
+        try {
+          await api(`/api/admin/app/users/${u.id}`, { method: "PATCH", body: { banned: !u.banned, reason } });
+          loadMiniAppUsers();
+        } catch (error) {
+          alert(error.message);
+          b.disabled = false;
+        }
+      });
+      act.append(b);
+      tr.append(
+        who,
+        el("td", "", `${rv.published} опубл. · ${rv.pending} на пров. · ${rv.rejected} откл.`),
+        el("td", "", String(u.reportsMade)),
+        el("td", "cell-sub", new Date(u.lastSeen).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })),
+        act
+      );
+      return tr;
+    });
+    if (more) $("ma-users").append(...rows);
+    else $("ma-users").replaceChildren(...rows);
+    if (!more && !rows.length) {
+      const tr = document.createElement("tr");
+      const td = el("td", "muted", "Никого не нашли");
+      td.colSpan = 5;
+      tr.append(td);
+      $("ma-users").append(tr);
+    }
+    $("ma-more").hidden = !data.more;
+  } catch (error) {
+    showError("ma-error", `Пользователи: ${error.message}`);
+  }
+}

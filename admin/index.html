@@ -52,6 +52,7 @@
         <button id="tab-orders" class="tab" type="button">Заявки <span id="orders-badge" class="tab-badge" hidden></span></button>
         <button id="tab-health" class="tab" type="button">Здоровье <span id="health-badge" class="tab-badge" hidden></span></button>
         <button id="tab-reviews" class="tab" type="button">Отзывы <span id="reviews-badge" class="tab-badge" hidden></span></button>
+        <button id="tab-miniapp" class="tab" type="button">Mini App</button>
       </nav>
 
       <!-- Здоровье: что не так с заведениями и с самим сервисом -->
@@ -97,6 +98,40 @@
         <p class="muted field-hint">Публикуйте отзывы, которые описывают личный опыт. Отклоняйте оскорбления, мат, рекламу,
           персональные данные (телефоны, фамилии сотрудников), угрозы и явную накрутку. Автору видна причина отказа.
           Метка «по карте» значит, что отзыв оставлен по ссылке с карты TapReview, но не доказывает визит.</p>
+      </section>
+
+      <!-- Mini App: статистика платформы и пользователи (reviews.js) -->
+      <section id="miniapp-section" hidden>
+        <div class="page-head">
+          <div>
+            <h1>Mini App</h1>
+            <p class="muted">Статистика каталога и отзывов, пользователи приложения</p>
+          </div>
+          <div class="filters" role="group" aria-label="Период">
+            <button class="chip" type="button" data-madays="7">7 дней</button>
+            <button class="chip active" type="button" data-madays="30">30 дней</button>
+            <button class="chip" type="button" data-madays="90">90 дней</button>
+          </div>
+        </div>
+        <p id="ma-error" class="error" hidden></p>
+        <div id="ma-kpis" class="ma-kpis"></div>
+        <h2 class="ma-h2">Новые отзывы по дням</h2>
+        <div id="ma-chart" class="ma-chart" role="img" aria-label="Новые отзывы по дням"></div>
+        <h2 class="ma-h2">Топ заведений за период</h2>
+        <div class="table-wrap"><table class="table"><thead><tr><th>Заведение</th><th>Опубликовано отзывов</th><th>Средняя</th></tr></thead><tbody id="ma-top"></tbody></table></div>
+
+        <h2 class="ma-h2">Пользователи</h2>
+        <div class="toolbar">
+          <input id="ma-q" class="search" type="search" placeholder="Номер пользователя (#…)" inputmode="numeric">
+          <div class="filters" role="group" aria-label="Пользователи">
+            <button class="chip active" type="button" data-mafilter="all">Все</button>
+            <button class="chip" type="button" data-mafilter="reviewers">С отзывами</button>
+            <button class="chip" type="button" data-mafilter="banned">Заблокированные</button>
+          </div>
+        </div>
+        <div class="table-wrap"><table class="table"><thead><tr><th>Пользователь</th><th>Отзывы</th><th>Жалоб подал</th><th>Был в приложении</th><th></th></tr></thead><tbody id="ma-users"></tbody></table></div>
+        <button id="ma-more" class="btn btn-secondary" type="button" hidden>Показать ещё</button>
+        <p class="muted field-hint">Telegram ID здесь не показывается — только внутренний номер. Он же виден в карточке отзыва во вкладке «Отзывы».</p>
       </section>
 
       <section id="businesses-section">

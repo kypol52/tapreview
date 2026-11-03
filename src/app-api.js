@@ -897,6 +897,8 @@ async function bizPhotoDelete(request, env, slug, photoId) {
 
 // ================= Модерация (админ-панель) =================
 //   GET   /api/admin/app/summary                  — пользователи, отзывы по статусам, открытые жалобы
+//   GET   /api/admin/app/stats?days=7|30|90       — статистика платформы: итоги, по дням, топ заведений
+//   GET   /api/admin/app/users?q=&filter=all|banned|reviewers&offset= — пользователи (без Telegram ID)
 //   GET   /api/admin/app/reviews?status=pending|published|rejected|reported&offset=
 //   PATCH /api/admin/app/reviews/:id              — { status, reject_reason } или { reply: null }
 //   POST  /api/admin/app/reviews/:id/resolve      — закрыть жалобы на отзыв
@@ -907,6 +909,8 @@ export async function handleAppAdmin(request, env, path, method, url) {
   if (!path.startsWith("/api/admin/app/")) return null;
   try {
     if (path === "/api/admin/app/summary" && method === "GET") return await adminSummary(env);
+    if (path === "/api/admin/app/stats" && method === "GET") return await adminStats(env, url);
+    if (path === "/api/admin/app/users" && method === "GET") return await adminUsers(env, url);
     if (path === "/api/admin/app/reviews" && method === "GET") return await adminReviews(env, url);
     let m = path.match(/^\/api\/admin\/app\/reviews\/(\d{1,18})$/);
     if (m && method === "PATCH") return await adminModerate(request, env, m[1]);
@@ -939,6 +943,129 @@ async function adminSummary(env) {
     reviews: byStatus,
     reportedReviews: new Set(reports.map((r) => r.review_id)).size,
     places: placesRows.length
+  });
+}
+
+// Статистика платформы. Объёмы пока небольшие — считаем в коде по строкам за период (без новых функций в базе).
+async function adminStats(env, url) {
+  const days = [7, 30, 90].includes(Number(url.searchParams.get("days"))) ? Number(url.searchParams.get("days")) : 30;
+  const now = Date.now();
+  const fromMs = now - days * DAY_MS;
+  const from = encodeURIComponent(new Date(fromMs).toISOString());
+  const [users, reviews, reports, votes, favs, places] = await Promise.all([
+    db(env, "app_users?select=id,created_at,last_seen_at,banned_at,notify&limit=200000"),
+    db(env, "reviews?select=id,business_id,score,status,created_at,moderated_at,card_id,photo_id&limit=200000"),
+    db(env, `review_reports?created_at=gte.${from}&select=id,resolved_at&limit=200000`),
+    db(env, `review_votes?created_at=gte.${from}&select=review_id&limit=200000`),
+    db(env, "favorites?select=user_id&limit=200000"),
+    db(env, "businesses?select=id,slug,name,catalog_visible,is_active&limit=10000")
+  ]);
+  const inPeriod = (iso) => iso && Date.parse(iso) >= fromMs;
+  const periodReviews = reviews.filter((r) => inPeriod(r.created_at));
+
+  // По дням (МСК): новые пользователи и новые отзывы
+  const dayKey = (ms) => new Date(ms + MSK).toISOString().slice(0, 10);
+  const daily = new Map();
+  for (let i = days - 1; i >= 0; i--) daily.set(dayKey(now - i * DAY_MS), { day: dayKey(now - i * DAY_MS), users: 0, reviews: 0 });
+  for (const u of users) { const d = daily.get(dayKey(Date.parse(u.created_at))); if (d && inPeriod(u.created_at)) d.users++; }
+  for (const r of periodReviews) { const d = daily.get(dayKey(Date.parse(r.created_at))); if (d) d.reviews++; }
+
+  // Время модерации: от отправки до решения (медиана, в часах) — по отзывам, решённым за период
+  const waits = reviews
+    .filter((r) => r.moderated_at && inPeriod(r.moderated_at) && r.status !== "pending")
+    .map((r) => (Date.parse(r.moderated_at) - Date.parse(r.created_at)) / 3600e3)
+    .filter((h) => h >= 0)
+    .sort((a, b) => a - b);
+  const median = waits.length ? Math.round(waits[Math.floor(waits.length / 2)] * 10) / 10 : null;
+
+  // Топ заведений по опубликованным отзывам за период
+  const byPlace = new Map();
+  for (const r of periodReviews.filter((x) => x.status === "published")) {
+    const p = byPlace.get(r.business_id) || { n: 0, sum: 0 };
+    p.n++;
+    p.sum += r.score;
+    byPlace.set(r.business_id, p);
+  }
+  const placeName = new Map(places.map((p) => [p.id, p]));
+  const top = [...byPlace.entries()]
+    .map(([id, p]) => ({ slug: (placeName.get(id) || {}).slug, name: (placeName.get(id) || {}).name || `#${id}`, reviews: p.n, avg: Math.round((p.sum / p.n) * 10) / 10 }))
+    .sort((a, b) => b.reviews - a.reviews || b.avg - a.avg)
+    .slice(0, 10);
+
+  const count = (list, f) => list.filter(f).length;
+  return json({
+    days,
+    users: {
+      total: users.length,
+      new: count(users, (u) => inPeriod(u.created_at)),
+      active: count(users, (u) => inPeriod(u.last_seen_at)),
+      notify: count(users, (u) => u.notify),
+      banned: count(users, (u) => u.banned_at)
+    },
+    reviews: {
+      new: periodReviews.length,
+      published: count(periodReviews, (r) => r.status === "published"),
+      rejected: count(periodReviews, (r) => r.status === "rejected"),
+      pending: count(reviews, (r) => r.status === "pending"),
+      viaCard: count(periodReviews, (r) => r.card_id),
+      withPhoto: count(periodReviews, (r) => r.photo_id),
+      medianModerationHours: median
+    },
+    reports: { new: reports.length, open: count(reports, (r) => !r.resolved_at) },
+    votes: votes.length,
+    favorites: favs.length,
+    places: { inCatalog: count(places, (p) => p.catalog_visible && p.is_active), total: count(places, (p) => p.is_active) },
+    daily: [...daily.values()],
+    top
+  });
+}
+
+// Пользователи Mini App: внутренний номер (не Telegram ID), даты, отзывы по статусам, жалобы от пользователя
+async function adminUsers(env, url) {
+  const q = String(url.searchParams.get("q") || "").replace(/[^0-9]/g, "");
+  const filter = url.searchParams.get("filter") || "all";
+  const offset = Math.max(0, Math.floor(Number(url.searchParams.get("offset")) || 0));
+  let path = "app_users?select=id,created_at,last_seen_at,banned_at,ban_reason,notify";
+  if (q) path += `&id=eq.${q}`;
+  if (filter === "banned") path += "&banned_at=not.is.null";
+  let rows;
+  if (filter === "reviewers" && !q) {
+    // С отзывами — по числу отзывов
+    const all = await db(env, "reviews?select=user_id&limit=200000");
+    const n = all.reduce((m, r) => m.set(r.user_id, (m.get(r.user_id) || 0) + 1), new Map());
+    const ids = [...n.entries()].sort((a, b) => b[1] - a[1]).slice(offset, offset + 51).map(([id]) => id);
+    rows = ids.length ? await db(env, `${path}&id=in.(${ids.join(",")})`) : [];
+    rows.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+  } else {
+    rows = await db(env, `${path}&order=last_seen_at.desc&limit=51&offset=${offset}`);
+  }
+  const page = rows.slice(0, 50);
+  const ids = page.map((u) => u.id);
+  const [revs, reps] = ids.length
+    ? await Promise.all([
+        db(env, `reviews?user_id=in.(${ids.join(",")})&select=user_id,status&limit=100000`),
+        db(env, `review_reports?user_id=in.(${ids.join(",")})&select=user_id&limit=100000`)
+      ])
+    : [[], []];
+  return json({
+    more: rows.length > 50,
+    users: page.map((u) => {
+      const mine = revs.filter((r) => r.user_id === u.id);
+      return {
+        id: u.id,
+        created: u.created_at,
+        lastSeen: u.last_seen_at,
+        banned: Boolean(u.banned_at),
+        banReason: u.ban_reason || null,
+        notify: u.notify,
+        reviews: {
+          published: mine.filter((r) => r.status === "published").length,
+          pending: mine.filter((r) => r.status === "pending").length,
+          rejected: mine.filter((r) => r.status === "rejected").length
+        },
+        reportsMade: reps.filter((r) => r.user_id === u.id).length
+      };
+    })
   });
 }
 
