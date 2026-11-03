@@ -4,6 +4,7 @@
 //   /g/:slug           — страница группы: список заведений, ведёт на их /b/:slug (public-page.js)
 //   /go/:slug/:platform — учёт клика и переход на Google / Яндекс / 2ГИС (public-page.js)
 //   /api/order           — заявка с сайта: калькулятор и форма на /order/ (orders.js)
+//   /api/app/...         — Telegram Mini App: каталог, отзывы, избранное (app-api.js); само приложение — /app/
 //   /api/...             — API админ-панели (admin-api.js)
 //   /tg/webhook          — сообщения Telegram-боту для владельцев (telegram.js)
 //   /s/:token            — статистика для владельца по личной ссылке (stats-page.js)
@@ -32,6 +33,7 @@ import { handleOrder, orderReminders } from "./orders.js";
 import { handleFeedback, purgeOldPhones } from "./rating.js";
 import { handleMedia } from "./media.js";
 import { uptimeCheck, UPTIME_CRON } from "./uptime.js";
+import { handleAppApi } from "./app-api.js";
 import { db } from "./supabase.js";
 
 // Должно совпадать с расписанием в server/server.mjs
@@ -113,6 +115,10 @@ export default {
 
     if (url.pathname === "/api/order") {
       return handleOrder(request, env, ctx);
+    }
+
+    if (url.pathname.startsWith("/api/app/")) {
+      return handleAppApi(request, env, url);
     }
 
     if (url.pathname.startsWith("/api/")) {

@@ -112,6 +112,7 @@ function bindEvents() {
   $("d-logo-clear").addEventListener("click", () => { designState.logo = null; showDesignPreview(); });
   $("d-dim").addEventListener("input", () => { $("d-dim-val").textContent = $("d-dim").value; });
   $("m-photo-file").addEventListener("change", onMomentPhoto);
+  $("f-photo-file").addEventListener("change", onCatalogPhoto);
   $("m-photo-clear").addEventListener("click", () => { momentState.photo = null; showMomentPhoto(); });
   $("f-color-on").addEventListener("change", () => {
     $("f-color").disabled = !$("f-color-on").checked;
@@ -146,6 +147,7 @@ function bindEvents() {
   $("tab-orders").addEventListener("click", () => showTab("orders"));
   $("o-refresh").addEventListener("click", loadOrders);
   $("tab-health").addEventListener("click", () => showTab("health"));
+  $("tab-reviews").addEventListener("click", () => showTab("reviews"));
   $("h-refresh").addEventListener("click", loadHealth);
   $("o-tg-invite").addEventListener("click", onOrderTgInvite);
   for (const [value, label] of Object.entries(ORDER_STATUS_LABELS)) {
@@ -437,6 +439,8 @@ function showApp() {
   api("/api/admin/health")
     .then((report) => renderHealth(report.businesses))
     .catch(() => {});
+  // Счётчик «Отзывы»: на проверке + с жалобами (admin/reviews.js)
+  if (typeof loadAppSummary === "function") loadAppSummary();
 }
 
 // ================= Заявки с сайта =================
@@ -756,13 +760,15 @@ async function onOrderTgInvite() {
   }
 }
 
-const TABS = ["businesses", "groups", "cards", "orders", "health"];
+const TABS = ["businesses", "groups", "cards", "orders", "health", "reviews"];
 
 function showTab(name) {
   for (const tab of TABS) {
     $(`${tab}-section`).hidden = tab !== name;
     $(`tab-${tab}`).classList.toggle("active", tab === name);
   }
+  // Отзывы Mini App — в отдельном файле admin/reviews.js
+  if (name === "reviews" && typeof loadAppReviews === "function") loadAppReviews();
   if (name === "groups" && !state.groupsLoaded) loadGroups();
   if (name === "cards" && !state.cardsLoaded) loadCards();
   if (name === "orders") loadOrders();
@@ -983,6 +989,7 @@ function openEditor(business) {
   $("f-tagline").value = business ? business.tagline || "" : "";
   $("f-category").value = business ? business.category || "" : "";
   $("f-address").value = business ? business.address || "" : "";
+  fillCatalog(business);
   $("f-google").value = business ? business.google_url || "" : "";
   $("f-yandex").value = business ? business.yandex_url || "" : "";
   $("f-twogis").value = business ? business.twogis_url || "" : "";
@@ -1483,8 +1490,64 @@ function readForm() {
     extra_links: readXlinks(),
     rating_first: $("f-rating-first").checked,
     tariff: $("f-tariff").value,
-    moment: readMoment()
+    moment: readMoment(),
+    catalog_visible: $("f-catalog").checked,
+    city: $("f-city").value,
+    description: $("f-description").value,
+    photos: catalogPhotos.slice()
   };
+}
+
+// ================= Каталог Mini App: город, описание, фото (миграция 034) =================
+
+let catalogPhotos = [];
+
+function fillCatalog(business) {
+  $("f-catalog").checked = Boolean(business && business.catalog_visible);
+  $("f-city").value = business ? business.city || "" : "";
+  $("f-description").value = business ? business.description || "" : "";
+  catalogPhotos = business && Array.isArray(business.photos) ? business.photos.slice() : [];
+  $("f-photo-status").textContent = "";
+  showCatalogPhotos();
+}
+
+function showCatalogPhotos() {
+  const box = $("f-photos");
+  box.replaceChildren(
+    ...catalogPhotos.map((id, i) => {
+      const b = el("button", "place-photo");
+      b.type = "button";
+      b.title = "Убрать фото";
+      b.style.backgroundImage = `url(/m/${id})`;
+      if (i === 0) b.append(el("span", "place-photo-cover", "обложка"));
+      b.addEventListener("click", () => {
+        catalogPhotos.splice(i, 1);
+        showCatalogPhotos();
+        $("f-photo-status").textContent = "Фото убрано. Нажмите «Сохранить».";
+      });
+      return b;
+    })
+  );
+  $("f-photo-file").disabled = catalogPhotos.length >= 8;
+}
+
+async function onCatalogPhoto() {
+  const input = $("f-photo-file");
+  const file = input.files && input.files[0];
+  input.value = "";
+  if (!file || catalogPhotos.length >= 8) return;
+  const status = $("f-photo-status");
+  status.textContent = "Обрабатываю фото…";
+  try {
+    const data = await compressPhoto(file);
+    status.textContent = "Загружаю…";
+    const res = await api("/api/admin/media", { method: "POST", body: { kind: "place", data } });
+    catalogPhotos.push(res.id);
+    showCatalogPhotos();
+    status.textContent = "Готово. Нажмите «Сохранить».";
+  } catch (error) {
+    status.textContent = `Не получилось: ${error.message}`;
+  }
 }
 
 // ================= «Сейчас у нас»: новость, событие, акция (миграция 025) =================

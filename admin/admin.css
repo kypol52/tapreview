@@ -658,3 +658,28 @@ input[type="number"] {
   .table td { padding: 4px 0; border: none; }
   .cell-actions { text-align: left; padding-top: 10px !important; }
 }
+
+/* ===== Каталог Mini App: фото заведения ===== */
+.place-photos { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 8px; }
+.place-photos:empty { display: none; }
+.place-photo { position: relative; width: 96px; height: 72px; border: 1px solid var(--border); border-radius: 8px; background: #eee center / cover no-repeat; cursor: pointer; padding: 0; }
+.place-photo:hover { outline: 2px solid var(--danger); }
+.place-photo-cover { position: absolute; left: 4px; bottom: 4px; padding: 1px 6px; border-radius: 99px; background: rgba(17, 24, 39, .75); color: #fff; font-size: 11px; }
+
+/* ===== Вкладка «Отзывы» (reviews.js) ===== */
+.rv-list { display: grid; gap: 12px; margin: 12px 0; }
+.rv-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+.rv-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.rv-stars { color: #e5aa0c; letter-spacing: 1px; font-size: 16px; }
+.rv-place { font-weight: 600; color: var(--text); }
+.rv-status, .rv-tag { padding: 2px 9px; border-radius: 99px; font-size: 12px; font-weight: 600; background: var(--off-bg); color: var(--off-text); }
+.rv-published { background: var(--success-bg); color: var(--success-text); }
+.rv-rejected { background: #fee2e2; color: var(--danger); }
+.rv-pending { background: #fef3c7; color: #92400e; }
+.rv-tag { background: #e0e7ff; color: #0a2a5c; }
+.rv-meta { margin: 6px 0 0; font-size: 13px; }
+.rv-text { margin: 8px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.rv-photo { display: block; width: 160px; height: 120px; border-radius: 8px; background: #eee center / cover no-repeat; margin: 6px 0; }
+.rv-reply { margin: 6px 0; padding: 8px 10px; border-left: 3px solid #e5aa0c; background: var(--bg); white-space: pre-wrap; }
+.rv-reports { margin: 6px 0; padding-left: 18px; color: var(--danger); font-size: 14px; }
+.rv-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }

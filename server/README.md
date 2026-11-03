@@ -25,6 +25,8 @@
 | `ADMIN_EMAILS`, `ADMIN_PASSWORD_HASH`, `ADMIN_SESSION_SECRET` | вход в админку |
 | `ORDERS_DIRECT=1` | форма заявок пишет прямо в базу этого сервера (она в России) |
 | `TG_BOT_TOKEN`, `TG_WEBHOOK_SECRET` | Telegram-бот |
+| `APP_BOT_TOKEN` | токен бота Mini App для гостей (секрет: им проверяется подпись входа) |
+| `APP_BOT_USERNAME`, `APP_SHORT_NAME` | имя бота без @ и короткое имя приложения из @BotFather — для ссылок t.me/бот/приложение |
 
 После изменения: `sudo systemctl restart tapreview`.
 
@@ -63,4 +65,5 @@ sudo -u postgres pg_restore --clean --if-exists -d tapreview tapreview.dump
 
 Как и раньше: загрузить файлы на GitHub. Сервер сам проверяет GitHub каждые 2 минуты и перезапускается,
 если что-то изменилось. Миграции базы (`supabase/migrations/*.sql`) — запускать на сервере:
-`sudo -u postgres psql -d tapreview -f /opt/tapreview/site/supabase/migrations/ФАЙЛ.sql`
+`sudo cat /opt/tapreview/site/supabase/migrations/ФАЙЛ.sql | sudo -u postgres psql -d tapreview -v ON_ERROR_STOP=1`
+(не `-f`: у пользователя postgres нет доступа к папке сайта — будет «Permission denied»)

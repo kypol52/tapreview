@@ -22,6 +22,7 @@ export const DEFAULT_ACCENT = "#c9a27e";
 const CATEGORY_TAGLINES = {
   restaurant: "Ресторан",
   beauty: "Салон красоты",
+  barber: "Барбершоп",
   shop: "Магазин",
   hotel: "Отель",
   auto: "Автосервис"

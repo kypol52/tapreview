@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/admin/admin.css">
   <script src="/admin/vendor/qrcode.js" defer></script>
   <script src="/admin/admin.js" defer></script>
+  <script src="/admin/reviews.js" defer></script>
 </head>
 <body>
 
@@ -50,6 +51,7 @@
         <button id="tab-cards" class="tab" type="button">Карты</button>
         <button id="tab-orders" class="tab" type="button">Заявки <span id="orders-badge" class="tab-badge" hidden></span></button>
         <button id="tab-health" class="tab" type="button">Здоровье <span id="health-badge" class="tab-badge" hidden></span></button>
+        <button id="tab-reviews" class="tab" type="button">Отзывы <span id="reviews-badge" class="tab-badge" hidden></span></button>
       </nav>
 
       <!-- Здоровье: что не так с заведениями и с самим сервисом -->
@@ -68,6 +70,33 @@
         <div id="h-list" class="h-list"></div>
         <p class="muted field-hint">Красное — гости или деньги теряются прямо сейчас. Жёлтое — стоит написать владельцу.
           Открытия и переходы — за последние 7 дней, в скобках — за 7 дней до них.</p>
+      </section>
+
+      <!-- Отзывы из Telegram Mini App: проверка перед публикацией, жалобы, блокировки (reviews.js) -->
+      <section id="reviews-section" hidden>
+        <div class="page-head">
+          <div>
+            <h1>Отзывы Mini App</h1>
+            <p id="rv-summary" class="muted"></p>
+          </div>
+          <button id="rv-refresh" class="btn btn-secondary" type="button">Обновить</button>
+        </div>
+        <div class="toolbar">
+          <div class="filters" role="group" aria-label="Статус отзывов">
+            <button class="chip active" type="button" data-rvstatus="pending">На проверке</button>
+            <button class="chip" type="button" data-rvstatus="reported">Жалобы</button>
+            <button class="chip" type="button" data-rvstatus="published">Опубликованы</button>
+            <button class="chip" type="button" data-rvstatus="rejected">Отклонены</button>
+          </div>
+        </div>
+        <p id="rv-error" class="error" hidden></p>
+        <p id="rv-loading" class="muted" hidden>Загрузка…</p>
+        <div id="rv-list" class="rv-list"></div>
+        <p id="rv-empty" class="empty" hidden>Здесь пусто.</p>
+        <button id="rv-more" class="btn btn-secondary" type="button" hidden>Показать ещё</button>
+        <p class="muted field-hint">Публикуйте отзывы, которые описывают личный опыт. Отклоняйте оскорбления, мат, рекламу,
+          персональные данные (телефоны, фамилии сотрудников), угрозы и явную накрутку. Автору видна причина отказа.
+          Метка «по карте» значит, что отзыв оставлен по ссылке с карты TapReview, но не доказывает визит.</p>
       </section>
 
       <section id="businesses-section">
@@ -427,7 +456,8 @@
           <select id="f-category">
             <option value="">— не выбрана —</option>
             <option value="restaurant">Ресторан / кафе</option>
-            <option value="beauty">Салон красоты / барбершоп</option>
+            <option value="beauty">Салон красоты</option>
+            <option value="barber">Барбершоп</option>
             <option value="shop">Магазин</option>
             <option value="hotel">Отель</option>
             <option value="auto">Автосервис</option>
@@ -440,6 +470,32 @@
           <input id="f-address" type="text" maxlength="300">
         </label>
       </div>
+
+      <fieldset class="billing">
+        <legend>Каталог в Telegram Mini App</legend>
+        <p class="muted field-hint">В каталоге гости видят заведение, рейтинг и публичные отзывы (после вашей проверки во вкладке «Отзывы»).
+          Включайте только с согласия заведения.</p>
+        <label class="check">
+          <input id="f-catalog" type="checkbox">
+          Показывать в каталоге
+        </label>
+        <label class="field">
+          <span>Город</span>
+          <input id="f-city" type="text" maxlength="60" placeholder="Ижевск">
+        </label>
+        <label class="field">
+          <span>Описание для каталога</span>
+          <textarea id="f-description" rows="3" maxlength="1000" placeholder="Пара предложений: что за место, чем известно"></textarea>
+        </label>
+        <div class="design-slot">
+          <span class="design-title">Фото (до 8, первое — обложка; нажмите на фото, чтобы убрать)</span>
+          <div id="f-photos" class="place-photos"></div>
+          <div class="design-actions">
+            <label class="btn btn-ghost btn-small">Добавить фото<input id="f-photo-file" type="file" accept="image/*" hidden></label>
+          </div>
+          <p id="f-photo-status" class="muted field-hint"></p>
+        </div>
+      </fieldset>
 
       <label class="field">
         <span>Ссылка на отзывы Google</span>

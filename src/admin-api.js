@@ -40,6 +40,7 @@
 //   POST   /api/admin/businesses/:id/stats-links     — создать ссылку
 //   PATCH  /api/admin/stats-links/:token             — какие заведения показывает ссылка { business_ids }
 //   DELETE /api/admin/stats-links/:token             — отключить ссылку
+//   /api/admin/app/...                               — Mini App: модерация отзывов, жалобы, блокировки (app-api.js)
 //
 // Каждый запрос к /api/admin/ проверяет токен входа Supabase и email из ADMIN_EMAILS.
 // С базой работаем секретным ключом SUPABASE_SECRET_KEY — он есть только на сервере.
@@ -53,8 +54,10 @@ import { localAuthEnabled, verifyToken, handleLogin } from "./admin-auth.js";
 import { saveMedia, MEDIA_ID_RE } from "./media.js";
 import { billingState, formatDay } from "./billing.js";
 import { TARIFF_KEYS } from "./tariffs.js";
+import { handleAppAdmin } from "./app-api.js";
 
-const CATEGORIES = ["restaurant", "beauty", "shop", "hotel", "auto", "other"];
+const CATEGORIES = ["restaurant", "beauty", "barber", "shop", "hotel", "auto", "other"];
+const MAX_PLACE_PHOTOS = 8;
 
 const ADMIN_COLUMNS =
   "id,slug,name,tagline,category,address,logo_url,brand_color," +
@@ -63,6 +66,7 @@ const ADMIN_COLUMNS =
   "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions,bonus_daily_limit," +
   "stamps_goal,stamps_prize,friend_gift,friend_reward,vip_visits,vip_gift," +
   "referred_by,ref_reward_at,theme,design,extra_links,rating_first,moment,tariff," +
+  "catalog_visible,catalog_since,description,city,photos," +
   "created_at,updated_at";
 
 const EXTRA_LINK_TYPES = ["menu", "catalog", "services", "booking", "delivery", "site", "tips", "pay", "custom"];
@@ -114,6 +118,10 @@ export async function handleApi(request, env, url) {
     if (path.startsWith("/api/admin/")) {
       await requireAdmin(request, env);
       isAdmin = true;
+
+      // Mini App: модерация отзывов, жалобы, блокировки (app-api.js)
+      const appResponse = await handleAppAdmin(request, env, path, method, url);
+      if (appResponse) return appResponse;
 
       if (path === "/api/admin/businesses") {
         if (method === "GET") return await listBusinesses(env);
@@ -617,8 +625,20 @@ function validateBusiness(input) {
     rating_first: input.rating_first !== false,
     tariff: TARIFF_KEYS.includes(input.tariff) ? input.tariff : "standard",
     moment: cleanMoment(input.moment),
+    // Каталог Mini App (миграция 034): показывать только с согласия заведения
+    catalog_visible: input.catalog_visible === true,
+    description: cleanText(input.description, 1000, "Описание для каталога") || null,
+    city: cleanText(input.city, 60, "Город") || null,
+    photos: cleanPhotos(input.photos),
     ...cleanBonus(input)
   };
+}
+
+function cleanPhotos(value) {
+  const list = Array.isArray(value) ? value.map(String) : [];
+  if (list.length > MAX_PLACE_PHOTOS) throw new HttpError(400, `Фото для каталога: не больше ${MAX_PLACE_PHOTOS}`);
+  if (list.some((id) => !MEDIA_ID_RE.test(id))) throw new HttpError(400, "Фото для каталога: неверная картинка");
+  return [...new Set(list)];
 }
 
 // Кнопки «Меню», «Каталог», «Услуги и цены»… на странице отзывов (миграция 020)

@@ -33,7 +33,7 @@ export async function handleMedia(request, env, id) {
 
 // dataUrl — "data:image/jpeg;base64,...". Возвращает id или бросает Error с понятным текстом.
 export async function saveMedia(env, kind, dataUrl) {
-  if (!["bg", "logo", "moment"].includes(kind)) throw new Error("Неизвестный тип картинки");
+  if (!["bg", "logo", "moment", "review", "place"].includes(kind)) throw new Error("Неизвестный тип картинки");
   const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String(dataUrl || ""));
   if (!match) throw new Error("Картинка должна быть JPG, PNG или WebP");
   const [, mime, data] = match;
