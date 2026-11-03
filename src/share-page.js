@@ -1,11 +1,12 @@
 // /p/:slug — страница «Поделиться» заведением из каталога Mini App.
 // Telegram (и другие мессенджеры) по этой ссылке показывает превью: фото заведения, название и рейтинг (Open Graph).
 // На самой странице — рейтинг, 3 последних опубликованных отзыва и кнопка «Открыть в Telegram».
-// Только заведения с согласием на каталог (catalog_visible); поисковикам закрыта (noindex — как все страницы renderPage).
+// Только заведения с согласием на каталог (catalog_visible); поисковикам закрыта (noindex для yandex/googlebot/bingbot,
+// а не общий robots — с ним Telegram не строит превью).
 // Без скриптов, тот же вид и та же защита (CSP), что у страницы отзывов.
 
 import { db } from "./supabase.js";
-import { renderPage, escapeHtml, customDesign } from "./public-page.js";
+import { renderPage, escapeHtml, customDesign, ROBOTS_SEARCH_ONLY } from "./public-page.js";
 import { MEDIA_ID_RE } from "./media.js";
 
 const SLUG_RE = /^[A-Za-z0-9_-]{3,64}$/;
@@ -120,6 +121,8 @@ export async function handleSharePage(request, env, slug) {
     theme: b.theme,
     design: customDesign(b),
     meta,
+    // Общий noindex отключает превью в Telegram — запрещаем индексацию только поисковикам
+    robots: ROBOTS_SEARCH_ONLY,
     extraCss,
     footer: { href: `/r/${b.slug}?s=link`, text: "Хочу такую карту" },
     body

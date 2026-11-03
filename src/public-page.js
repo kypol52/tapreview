@@ -769,7 +769,11 @@ function designCss(d) {
 // theme — ключ из THEMES.
 // design — customDesign(business) для темы «Свой дизайн».
 // meta — готовые теги для <head> (превью ссылки в Telegram: og:title, og:image… — share-page.js); значения экранирует вызывающий.
-export function renderPage({ status, title, accent, body, extraCss = "", footer = null, theme = "classic", design = null, meta = "" }) {
+// robots — запрет индексации. По умолчанию для всех роботов; share-page.js запрещает только поисковикам,
+//   потому что общий noindex отключает и превью ссылки в Telegram.
+const ROBOTS_ALL = `<meta name="robots" content="noindex">`;
+export const ROBOTS_SEARCH_ONLY = `<meta name="yandex" content="noindex, nofollow">\n  <meta name="googlebot" content="noindex, nofollow">\n  <meta name="bingbot" content="noindex, nofollow">`;
+export function renderPage({ status, title, accent, body, extraCss = "", footer = null, theme = "classic", design = null, meta = "", robots = ROBOTS_ALL }) {
   const t = THEMES[theme] || THEMES.classic;
   if (design) extraCss = designCss(design) + extraCss;
   const footerHtml = footer
@@ -784,7 +788,7 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="robots" content="noindex">
+  ${robots}
   <meta name="theme-color" content="${t.bg}">
   <title>${escapeHtml(title)}</title>${meta}
   <link rel="preload" href="/fonts/playfair-display-600-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
