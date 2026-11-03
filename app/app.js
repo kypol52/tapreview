@@ -1123,7 +1123,9 @@ function requireTelegram(p) {
 // Ссылка tapreview.ru/p/… — Telegram покажет превью с фото, названием и рейтингом (src/share-page.js),
 // а кнопка на странице откроет заведение в приложении
 function sharePlace(p) {
-  const link = `${location.origin}/p/${encodeURIComponent(p.slug)}`;
+  // share.tapreview.ru (если настроен): Telegram не может открыть сервер в РФ, превью строит Cloudflare
+  const base = (state.config && state.config.share) || location.origin;
+  const link = `${base.replace(/\/+$/, "")}/p/${encodeURIComponent(p.slug)}`;
   const text = `${p.name} — отзывы гостей в TapReview`;
   haptic.tap();
   openLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`);

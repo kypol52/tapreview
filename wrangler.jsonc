@@ -8,8 +8,9 @@
     "directory": ".",
     "binding": "ASSETS",
     "not_found_handling": "404-page",
-    // Адреса /b/..., /c/..., /g/..., /go/..., /s/..., /k/..., /r/..., /api/..., /tg/... и /bonus всегда обрабатывает код из src/, а не файлы
-    "run_worker_first": ["/b/*", "/c/*", "/g/*", "/go/*", "/s/*", "/k/*", "/r/*", "/api/*", "/tg/*", "/tg-api/*", "/tg-hook", "/bonus"]
+    // Адреса /b/..., /c/..., /g/..., /go/..., /s/..., /k/..., /r/..., /api/..., /tg/... и /bonus всегда обрабатывает код из src/, а не файлы.
+    // "/", "/p/*", "/m/*" — превью ссылок для Telegram на share.tapreview.ru (src/share-page.js → handleShareProxy)
+    "run_worker_first": ["/b/*", "/c/*", "/g/*", "/go/*", "/s/*", "/k/*", "/r/*", "/api/*", "/tg/*", "/tg-api/*", "/tg-hook", "/bonus", "/", "/p/*", "/m/*"]
   },
   // Это публичные значения (не секреты): publishable-ключ защищён RLS в Supabase.
   // Секретные ключи сюда НЕ писать — только через Settings → Variables and Secrets (тип Secret).
@@ -17,6 +18,9 @@
     // Адрес, который попадает в ссылки, QR-коды и NFC-карты.
     // Постоянный домен (подключён 2026-10-11). Менять только при переезде на другой домен.
     "PUBLIC_BASE_URL": "https://tapreview.ru",
+    // Worker отдаёт превью ссылок (share.tapreview.ru): страницы и картинки берёт с основного сервера в РФ.
+    // На сервере в РФ эта переменная НЕ задаётся.
+    "SHARE_ORIGIN": "https://tapreview.ru",
     "SUPABASE_URL": "https://snrnusvqqrhnljcmnncb.supabase.co",
     "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_6tOGONYM3yQkS8ZOeJDLHQ_f9u75f0d"
   },

@@ -35,7 +35,7 @@ import { handleFeedback, purgeOldPhones } from "./rating.js";
 import { handleMedia } from "./media.js";
 import { uptimeCheck, UPTIME_CRON } from "./uptime.js";
 import { handleAppApi } from "./app-api.js";
-import { handleSharePage } from "./share-page.js";
+import { handleSharePage, handleShareProxy } from "./share-page.js";
 import { db } from "./supabase.js";
 
 // Должно совпадать с расписанием в server/server.mjs
@@ -46,6 +46,12 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const isRead = request.method === "GET" || request.method === "HEAD";
+
+    // Только на Cloudflare Worker (share.tapreview.ru, задано SHARE_ORIGIN): превью ссылок для Telegram (share-page.js)
+    if (env.SHARE_ORIGIN) {
+      const shared = await handleShareProxy(request, env, url);
+      if (shared) return shared;
+    }
 
     const pageMatch = url.pathname.match(/^\/b\/([^/]+)\/?$/);
     if (pageMatch && isRead) {

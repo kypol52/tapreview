@@ -163,7 +163,8 @@ export async function handleAppApi(request, env, url) {
 
     // Имя бота и приложения — для ссылок «Открыть в Telegram» и «Поделиться» (не секрет)
     if (path === "/api/app/config" && method === "GET") {
-      return json({ bot: env.APP_BOT_USERNAME || null, app: env.APP_SHORT_NAME || null });
+      // share — домен для ссылок «Поделиться» (share.tapreview.ru на Cloudflare: Telegram строит превью там)
+      return json({ bot: env.APP_BOT_USERNAME || null, app: env.APP_SHORT_NAME || null, share: env.SHARE_BASE_URL || null });
     }
     if (path === "/api/app/home" && method === "GET") return await home(env, url);
     if (path === "/api/app/places" && method === "GET") return await places(env, url);

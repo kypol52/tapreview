@@ -4,6 +4,10 @@
 // Только заведения с согласием на каталог (catalog_visible); поисковикам закрыта (noindex для yandex/googlebot/bingbot,
 // а не общий robots — с ним Telegram не строит превью).
 // Без скриптов, тот же вид и та же защита (CSP), что у страницы отзывов.
+//
+// Превью через Cloudflare (handleShareProxy ниже): серверы Telegram не могут открыть наш сервер в РФ (блокировка
+// адресов Telegram в дата-центре), поэтому ссылки «Поделиться» ведут на share.tapreview.ru — это наш Cloudflare Worker.
+// Роботу превью он отдаёт эту же страницу (и картинку) через себя, человека сразу перенаправляет на tapreview.ru.
 
 import { db } from "./supabase.js";
 import { renderPage, escapeHtml, customDesign, ROBOTS_SEARCH_ONLY } from "./public-page.js";
@@ -134,5 +138,53 @@ function notFound() {
     status: 404,
     title: "Заведение не найдено",
     body: `<h1 class="name">Не нашли</h1><p class="lead">Заведения нет в каталоге TapReview или оно скрыто.</p>`
+  });
+}
+
+// ================= Превью через Cloudflare Worker (share.tapreview.ru) =================
+// Работает только там, где задано SHARE_ORIGIN (переменная Worker в wrangler.jsonc). На сервере в РФ не задано —
+// там эта функция не вызывается. Обслуживает только «/», «/p/:slug» и картинки «/m/:id»; остальное — как раньше.
+
+const PREVIEW_BOTS = /TelegramBot|WhatsApp|facebookexternalhit|Facebot|Twitterbot|vkShare|Viber|Slackbot|Discordbot|LinkedInBot|SkypeUriPreview|Iframely|redditbot|Applebot|Pinterest|Embedly|Snapchat/i;
+const SHARE_PAGE_RE = /^\/p\/[A-Za-z0-9_-]{3,64}\/?$/;
+const SHARE_MEDIA_RE = /^\/m\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+export async function handleShareProxy(request, env, url) {
+  if (request.method !== "GET" && request.method !== "HEAD") return null;
+  const path = url.pathname;
+  const isMedia = SHARE_MEDIA_RE.test(path);
+  const isPage = path === "/" || SHARE_PAGE_RE.test(path);
+  if (!isMedia && !isPage) return null;
+  const origin = String(env.SHARE_ORIGIN).replace(/\/+$/, "");
+
+  // Картинка превью: берём с нашего сервера и отдаём от себя
+  if (isMedia) {
+    const r = await fetch(`${origin}${path}`);
+    return new Response(r.ok ? r.body : null, {
+      status: r.status,
+      headers: {
+        "Content-Type": r.headers.get("Content-Type") || "application/octet-stream",
+        "Cache-Control": r.ok ? "public, max-age=86400" : "no-store",
+        "X-Content-Type-Options": "nosniff"
+      }
+    });
+  }
+
+  // Человек — сразу на основной сайт
+  if (!PREVIEW_BOTS.test(request.headers.get("User-Agent") || "")) {
+    return Response.redirect(`${origin}${path}${url.search}`, 302);
+  }
+
+  // Робот превью — та же страница с нашего сервера; адреса картинок и страницы меняем на этот домен,
+  // иначе Telegram снова пойдёт за картинкой на сервер в РФ и не дойдёт
+  const r = await fetch(`${origin}${path}`, { headers: { "User-Agent": "TapReviewSharePreview/1.0" } });
+  const self = url.origin;
+  const html = (await r.text())
+    .split(`${origin}/m/`).join(`${self}/m/`)
+    .split(`${origin}/assets/`).join(`${self}/assets/`)
+    .split(`content="${origin}/p/`).join(`content="${self}/p/`);
+  return new Response(html, {
+    status: r.status,
+    headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "public, max-age=300", "X-Content-Type-Options": "nosniff" }
   });
 }
