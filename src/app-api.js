@@ -249,11 +249,30 @@ async function home(env, url) {
   const city = wanted ? wanted.name : null;
   const inCity = city ? all.filter((b) => cityKey(b.city) === cityKey(city)) : all;
 
-  const [top, popular, recent] = await Promise.all([
+  const monthFrom = encodeURIComponent(new Date(Date.now() - 30 * 864e5).toISOString());
+  const [top, popular, recent, monthReviews, inCatalog] = await Promise.all([
     catalog(env, { p_sort: "top", p_min_reviews: 1, p_limit: 10, p_city: city }),
     catalog(env, { p_sort: "popular", p_limit: 10, p_city: city }),
-    catalog(env, { p_sort: "new", p_limit: 10, p_city: city })
+    catalog(env, { p_sort: "new", p_limit: 10, p_city: city }),
+    db(env, `reviews?status=eq.published&created_at=gte.${monthFrom}&select=business_id,score&limit=100000`),
+    catalog(env, { p_sort: "name", p_limit: 50, p_city: city })
   ]);
+  // «Лучшее за месяц»: средняя по отзывам за 30 дней, минимум 2 отзыва (рейтинг на плитке — тоже за месяц)
+  const month = new Map();
+  for (const r of monthReviews) {
+    const m = month.get(r.business_id) || { n: 0, sum: 0 };
+    m.n++;
+    m.sum += r.score;
+    month.set(r.business_id, m);
+  }
+  const best = inCatalog
+    .filter((b) => (month.get(b.id) || { n: 0 }).n >= 2)
+    .map((b) => {
+      const m = month.get(b.id);
+      return { ...b, reviews: m.n, avg_score: Math.round((m.sum / m.n) * 10) / 10 };
+    })
+    .sort((a, b) => b.avg_score - a.avg_score || b.reviews - a.reviews)
+    .slice(0, 10);
   const counts = {};
   for (const b of inCity) {
     const key = MAIN_CATS.has(b.category) ? b.category : "other";
@@ -265,6 +284,7 @@ async function home(env, url) {
     categories: APP_CATEGORIES.map((c) => ({ ...c, count: counts[c.key] || 0 })),
     total: inCity.length,
     top: top.map(card),
+    month: best.map(card),
     popular: popular.filter((r) => Number(r.views_30d) > 0).map(card),
     recent: recent.map(card)
   });

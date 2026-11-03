@@ -768,7 +768,8 @@ function designCss(d) {
 // Без footer — скромная подпись «TapReview» со ссылкой на Telegram-канал (служебные страницы).
 // theme — ключ из THEMES.
 // design — customDesign(business) для темы «Свой дизайн».
-export function renderPage({ status, title, accent, body, extraCss = "", footer = null, theme = "classic", design = null }) {
+// meta — готовые теги для <head> (превью ссылки в Telegram: og:title, og:image… — share-page.js); значения экранирует вызывающий.
+export function renderPage({ status, title, accent, body, extraCss = "", footer = null, theme = "classic", design = null, meta = "" }) {
   const t = THEMES[theme] || THEMES.classic;
   if (design) extraCss = designCss(design) + extraCss;
   const footerHtml = footer
@@ -785,7 +786,7 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
   <meta name="theme-color" content="${t.bg}">
-  <title>${escapeHtml(title)}</title>
+  <title>${escapeHtml(title)}</title>${meta}
   <link rel="preload" href="/fonts/playfair-display-600-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
   <style>
     /* Фирменный шрифт названия (Playfair Display, лицензия OFL — fonts/OFL.txt).

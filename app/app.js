@@ -490,6 +490,7 @@ async function homeView() {
     data.total === 0
       ? emptyView(I.store, "Каталог только открывается", "Скоро здесь появятся заведения. Если у вас карта TapReview — коснитесь её телефоном.")
       : null,
+    rail("Лучшее за месяц", data.month || [], null),
     rail("Лучшие по оценкам", data.top, "#/catalog?sort=top"),
     rail("Популярные", data.popular, "#/catalog?sort=popular"),
     rail(data.city ? "Новые в городе" : "Недавно добавлены", data.recent, "#/catalog?sort=new")
@@ -1119,13 +1120,22 @@ function requireTelegram(p) {
   return false;
 }
 
+// Ссылка tapreview.ru/p/… — Telegram покажет превью с фото, названием и рейтингом (src/share-page.js),
+// а кнопка на странице откроет заведение в приложении
 function sharePlace(p) {
-  const link = appLink(`p_${p.slug}`);
-  if (!link) return toast("Ссылка появится после запуска приложения в Telegram");
+  const link = `${location.origin}/p/${encodeURIComponent(p.slug)}`;
   const text = `${p.name} — отзывы гостей в TapReview`;
-  const share = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
   haptic.tap();
-  openLink(share);
+  openLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`);
+}
+
+// «Позвать друзей»: ссылка на само приложение
+function inviteFriends() {
+  const link = appLink("");
+  if (!link) return toast("Ссылка появится чуть позже");
+  haptic.tap();
+  const text = "Смотрю тут оценки кафе, салонов и барбершопов от настоящих гостей — TapReview в Telegram";
+  openLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`);
 }
 
 // ================= Кабинет заведения (для владельца) =================
@@ -1404,6 +1414,10 @@ async function meView() {
       h("div", { class: "section-head", style: "padding:6px 0 0" }, h("h2", { class: "section-title" }, "Мои отзывы"), h("span", { class: "fine" }, data.reviews.length ? String(data.reviews.length) : "")),
       reviews,
       ...business,
+      h("button", { class: "card invite-card", type: "button", onclick: inviteFriends },
+        h("div", { class: "invite-icon" }, icon(I.share)),
+        h("div", { class: "grow" }, h("div", { style: "font-weight:700;color:var(--ink)" }, "Позвать друзей"), h("div", { class: "fine" }, "Чем больше честных отзывов, тем проще найти хорошее место")),
+        h("span", { class: "info-go" }, "›")),
       h("div", { class: "section-head", style: "padding:18px 0 0" }, h("h2", { class: "section-title" }, "Уведомления")),
       notifyToggle(data.notify),
       h("div", { class: "section-head", style: "padding:18px 0 0" }, h("h2", { class: "section-title" }, "Данные и приватность")),

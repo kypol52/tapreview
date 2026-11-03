@@ -1,6 +1,7 @@
 // TapReview — серверная часть (Cloudflare Worker).
 //   /b/:slug             — публичная страница бизнеса (public-page.js)
 //   /c/:code             — шаблонная карта: страница привязанного бизнеса или «не активирована»
+//   /p/:slug             — «Поделиться» заведением из каталога Mini App: превью с фото и рейтингом (share-page.js)
 //   /g/:slug           — страница группы: список заведений, ведёт на их /b/:slug (public-page.js)
 //   /go/:slug/:platform — учёт клика и переход на Google / Яндекс / 2ГИС (public-page.js)
 //   /api/order           — заявка с сайта: калькулятор и форма на /order/ (orders.js)
@@ -34,6 +35,7 @@ import { handleFeedback, purgeOldPhones } from "./rating.js";
 import { handleMedia } from "./media.js";
 import { uptimeCheck, UPTIME_CRON } from "./uptime.js";
 import { handleAppApi } from "./app-api.js";
+import { handleSharePage } from "./share-page.js";
 import { db } from "./supabase.js";
 
 // Должно совпадать с расписанием в server/server.mjs
@@ -53,6 +55,11 @@ export default {
     const cardMatch = url.pathname.match(/^\/c\/([^/]+)\/?$/);
     if (cardMatch && isRead) {
       return handleCardPage(request, env, ctx, cardMatch[1]);
+    }
+
+    const shareMatch = url.pathname.match(/^\/p\/([^/]+)\/?$/);
+    if (shareMatch && isRead) {
+      return handleSharePage(request, env, shareMatch[1]);
     }
 
     const groupMatch = url.pathname.match(/^\/g\/([^/]+)\/?$/);
