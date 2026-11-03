@@ -437,6 +437,7 @@ async function placeView(slug) {
   }
   state.lastPlace = data;
   const p = data.place;
+  data.onChanged = () => placeView(p.slug);
 
   // Фото
   const photos = p.photos.length ? p.photos : [];
@@ -525,6 +526,10 @@ async function placeView(slug) {
     myNotice = h("div", { class: "notice notice-info" }, icon(I.card), h("div", null, h("b", null, "Вы пришли по карте TapReview"), "Ваш отзыв получит метку «по карте TapReview»."));
   }
   if (data.banned) myNotice = h("div", { class: "notice notice-rejected" }, h("div", null, h("b", null, "Отзывы недоступны"), "Ваш аккаунт заблокирован за нарушение правил."));
+  const ownerNotice = data.isOwner
+    ? h("a", { class: "notice notice-info", href: `#/biz/${encodeURIComponent(p.slug)}` }, icon(I.store),
+        h("div", null, h("b", null, "Вы представитель заведения"), "Кабинет: статистика, отзывы без ответа, профиль"), h("span", { class: "info-go", style: "margin-left:auto" }, "›"))
+    : null;
 
   // Отзывы
   const reviewsBox = h("div", { class: "reviews" }, data.reviews.map((rv) => reviewItem(rv, data)));
@@ -555,6 +560,7 @@ async function placeView(slug) {
       h("div", { class: "actions" }, reviewBtn, favBtn, shareBtn)
     ),
     h("div", { class: "stack" },
+      ownerNotice,
       myNotice,
       ratingCard,
       infoCard,
@@ -596,8 +602,8 @@ function reviewItem(rv, data) {
   if (data.isOwner) {
     node.append(
       h("div", { class: "owner-actions" },
-        h("button", { class: "btn btn-ghost", onclick: () => replySheet(rv, data) }, rv.reply ? "Изменить ответ" : "Ответить"),
-        rv.reply ? h("button", { class: "btn btn-ghost", style: "color:var(--bad)", onclick: () => deleteReply(rv) }, "Удалить ответ") : null
+        h("button", { class: "btn btn-ghost", onclick: () => replySheet(rv, data.onChanged) }, rv.reply ? "Изменить ответ" : "Ответить"),
+        rv.reply ? h("button", { class: "btn btn-ghost", style: "color:var(--bad)", onclick: () => deleteReply(rv, data.onChanged) }, "Удалить ответ") : null
       )
     );
   }
@@ -759,7 +765,7 @@ async function removeReview(mine, sheet, p) {
   }
 }
 
-function replySheet(rv) {
+function replySheet(rv, onDone) {
   const textarea = h("textarea", { class: "textarea", maxlength: "1000", placeholder: "Спасибо за отзыв! …" });
   textarea.value = rv.reply ? rv.reply.text : "";
   const send = h("button", { class: "btn btn-primary btn-block" }, "Опубликовать ответ");
@@ -776,7 +782,7 @@ function replySheet(rv) {
       haptic.ok();
       sheet.close();
       toast("Ответ опубликован");
-      placeView(state.lastPlace.place.slug);
+      if (onDone) onDone();
     } catch (error) {
       toast(error.message);
       send.disabled = false;
@@ -784,12 +790,12 @@ function replySheet(rv) {
   });
 }
 
-async function deleteReply(rv) {
+async function deleteReply(rv, onDone) {
   if (!(await confirmBox("Удалить ответ заведения?"))) return;
   try {
     await api(`/api/app/reviews/${rv.id}/reply`, { method: "DELETE" });
     toast("Ответ удалён");
-    placeView(state.lastPlace.place.slug);
+    if (onDone) onDone();
   } catch (error) {
     toast(error.message);
   }
@@ -879,6 +885,207 @@ function sharePlace(p) {
   openLink(share);
 }
 
+// ================= Кабинет заведения (для владельца) =================
+
+const MONTHS_FULL = { "01": "Январь", "02": "Февраль", "03": "Март", "04": "Апрель", "05": "Май", "06": "Июнь", "07": "Июль", "08": "Август", "09": "Сентябрь", "10": "Октябрь", "11": "Ноябрь", "12": "Декабрь" };
+
+function delta(cur, prev) {
+  if (!prev && !cur) return h("span", { class: "kpi-delta" }, "без изменений");
+  if (!prev) return h("span", { class: "kpi-delta" }, "раньше не было");
+  const pct = Math.round(((cur - prev) / prev) * 100);
+  if (pct === 0) return h("span", { class: "kpi-delta" }, "как в прошлый период");
+  return h("span", { class: `kpi-delta ${pct > 0 ? "up" : "down"}` }, `${pct > 0 ? "↑" : "↓"} ${Math.abs(pct)}% к прошлому периоду`);
+}
+
+function kpi(label, value, sub) {
+  return h("div", { class: "kpi" }, h("div", { class: "kpi-label" }, label), h("div", { class: "kpi-value" }, value), sub || null);
+}
+
+// Столбики одного ряда: высота — значение, подпись сверху — само число; касание — подробности
+function barChart(items, { valueOf, labelOf, topOf, bottomOf, tipOf, ariaLabel }) {
+  const max = Math.max(1, ...items.map(valueOf));
+  const chart = h("div", { class: "chart", role: "img", "aria-label": ariaLabel });
+  for (const item of items) {
+    const v = valueOf(item);
+    chart.append(
+      h("button", { class: "chart-col", type: "button", "aria-label": tipOf(item), onclick: () => { haptic.tap(); toast(tipOf(item)); } },
+        h("span", { class: "chart-top" }, topOf ? topOf(item) : ""),
+        h("span", { class: "chart-track" }, h("span", { class: `chart-bar${v ? "" : " zero"}`, style: `height:${v ? Math.max(4, (v / max) * 100) : 0}%` })),
+        h("span", { class: "chart-x" }, labelOf(item)),
+        bottomOf ? h("span", { class: "chart-sub" }, bottomOf(item)) : null
+      )
+    );
+  }
+  return chart;
+}
+
+async function bizView(slug, period = "month") {
+  const head = h("header", { class: "head" }, h("p", { class: "eyebrow" }, "Кабинет заведения"), h("div", { class: "sk sk-line", style: "height:24px;width:60%" }));
+  render(head, skeletonList(3));
+  let d;
+  try {
+    d = await api(`/api/app/biz/${encodeURIComponent(slug)}?period=${period}`);
+  } catch (error) {
+    return render(errorView(error, () => bizView(slug, period)));
+  }
+  const p = d.place;
+  const t = d.traffic;
+  const days = period === "week" ? 7 : 30;
+  const reload = () => bizView(slug, period);
+
+  const seg = h("div", { class: "seg", role: "group", "aria-label": "Период" },
+    [["week", "7 дней"], ["month", "30 дней"]].map(([v, label]) =>
+      h("button", { class: v === period ? "on" : "", onclick: () => { haptic.tap(); if (v !== period) bizView(slug, v); } }, label)
+    )
+  );
+
+  // Показатели
+  const kpis = h("div", { class: "kpis" },
+    kpi("Рейтинг в каталоге", h("span", null, fmtRating(d.rating.avg), d.rating.avg !== null ? h("small", null, " ★") : null),
+      h("span", { class: "kpi-delta" }, d.rating.count ? reviewsWord(d.rating.count) : "пока нет отзывов")),
+    kpi(`Новых отзывов за ${days} дн.`, String(d.rating.periodNew),
+      h("span", { class: "kpi-delta" }, d.rating.pending ? `ещё ${d.rating.pending} на проверке` : "опубликованных")),
+    t ? kpi("Открытий страницы", String(t.cur.views), delta(t.cur.views, t.prev.views)) : null,
+    t ? kpi("Переходов на карты", String(t.cur.clicks), delta(t.cur.clicks, t.prev.clicks)) : null
+  );
+
+  // Динамика оценок — 6 месяцев: высота = число отзывов, под месяцем — средняя оценка
+  const months = barChart(d.months, {
+    valueOf: (m) => m.count,
+    labelOf: (m) => m.label,
+    topOf: (m) => (m.count ? String(m.count) : ""),
+    bottomOf: (m) => (m.avg !== null ? `★ ${fmtRating(m.avg)}` : "—"),
+    tipOf: (m) => `${MONTHS_FULL[m.month.slice(5)]}: ${m.count ? `${reviewsWord(m.count)}, средняя ${fmtRating(m.avg)}` : "отзывов не было"}`,
+    ariaLabel: "Отзывы по месяцам"
+  });
+
+  // Открытия страницы с карт по дням
+  const fmtDay = (iso) => new Date(`${iso}T12:00:00Z`).toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
+  const daily = t
+    ? barChart(t.daily, {
+        valueOf: (x) => x.views,
+        labelOf: (x, i) => "",
+        topOf: null,
+        tipOf: (x) => `${fmtDay(x.day)}: ${x.views} ${plural(x.views, "открытие", "открытия", "открытий")}, ${x.clicks} ${plural(x.clicks, "переход", "перехода", "переходов")}`,
+        ariaLabel: "Открытия страницы по дням"
+      })
+    : null;
+  if (daily) {
+    daily.classList.add(period === "week" ? "chart-week" : "chart-month");
+    if (period === "week") {
+      [...daily.children].forEach((col, i) => (col.querySelector(".chart-x").textContent = new Date(`${t.daily[i].day}T12:00:00Z`).toLocaleDateString("ru-RU", { weekday: "short" })));
+    }
+  }
+  const dailyAxis = t && period === "month"
+    ? h("div", { class: "chart-axis" }, h("span", null, fmtDay(t.daily[0].day)), h("span", null, "сегодня"))
+    : null;
+
+  const pairs = (rows) => h("div", { class: "pairs" }, rows.map(([k, v]) => h("div", { class: "pair" }, h("span", null, k), h("b", null, String(v)))));
+
+  // Отзывы без ответа
+  const ctx = { isOwner: true, onChanged: reload };
+  const unanswered = d.unanswered.length
+    ? h("div", { class: "reviews" }, d.unanswered.map((rv) => reviewItem(rv, ctx)))
+    : h("div", { class: "card fine" }, "На все опубликованные отзывы есть ответ. Отлично!");
+
+  // Профиль заведения
+  const city = h("input", { class: "input", maxlength: "60", value: p.city, placeholder: "Город" });
+  const desc = h("textarea", { class: "textarea", maxlength: "1000", placeholder: "Пара предложений: что за место, чем известно" });
+  desc.value = p.description;
+  const save = h("button", { class: "btn btn-primary btn-block" }, "Сохранить");
+  save.addEventListener("click", async () => {
+    save.disabled = true;
+    try {
+      await api(`/api/app/biz/${encodeURIComponent(slug)}`, { method: "PATCH", body: { city: city.value, description: desc.value } });
+      haptic.ok();
+      toast("Сохранено");
+    } catch (error) {
+      haptic.err();
+      toast(error.message);
+    } finally {
+      save.disabled = false;
+    }
+  });
+
+  const photoGrid = h("div", { class: "photo-grid" });
+  const photoInput = h("input", { type: "file", accept: "image/*", hidden: true });
+  const showPhotos = (list) => {
+    photoGrid.replaceChildren(
+      ...list.map((ph, i) =>
+        h("div", { class: "photo-cell" },
+          h("img", { src: ph.url, alt: "", loading: "lazy" }),
+          i === 0 ? h("span", { class: "photo-cover" }, "обложка") : null,
+          h("button", { class: "photo-del", type: "button", "aria-label": "Удалить фото", onclick: async () => {
+            if (!(await confirmBox("Удалить это фото?"))) return;
+            try {
+              showPhotos((await api(`/api/app/biz/${encodeURIComponent(slug)}/photos/${ph.id}`, { method: "DELETE" })).photos);
+            } catch (error) {
+              toast(error.message);
+            }
+          } }, "×")
+        )
+      ),
+      list.length < 8 ? h("button", { class: "photo-add", type: "button", onclick: () => photoInput.click() }, icon(I.photo), "Добавить") : null,
+      photoInput
+    );
+  };
+  photoInput.addEventListener("change", async () => {
+    const file = photoInput.files && photoInput.files[0];
+    photoInput.value = "";
+    if (!file) return;
+    toast("Загружаю фото…");
+    try {
+      const photo = await compressPhoto(file);
+      showPhotos((await api(`/api/app/biz/${encodeURIComponent(slug)}/photos`, { method: "POST", body: { photo } })).photos);
+      haptic.ok();
+      toast("Фото добавлено");
+    } catch (error) {
+      toast(error.message);
+    }
+  });
+  showPhotos(p.photos);
+
+  const sectionHead = (title, extra) => h("div", { class: "section-head", style: "padding:14px 0 0" }, h("h2", { class: "section-title" }, title), extra || null);
+
+  render(
+    h("header", { class: "head" },
+      h("p", { class: "eyebrow" }, "Кабинет заведения"),
+      h("h1", { class: "title" }, p.name),
+      h("div", { class: "biz-status" },
+        h("span", { class: `pill ${p.inCatalog ? "pill-published" : "pill-pending"}` }, p.inCatalog ? "В каталоге" : "Не в каталоге"),
+        p.inCatalog ? h("a", { class: "section-link", href: `#/place/${encodeURIComponent(p.slug)}` }, "Открыть страницу →") : null
+      )
+    ),
+    h("div", { class: "stack" },
+      h("div", { class: "row-between" }, h("span", { class: "fine" }, "Период"), seg),
+      kpis,
+      sectionHead("Отзывы по месяцам"),
+      h("div", { class: "card" }, months, h("p", { class: "fine", style: "margin:10px 0 0" }, "Высота — сколько опубликовано отзывов, внизу — средняя оценка за месяц. Нажмите на месяц, чтобы увидеть цифры.")),
+      t ? sectionHead("Открытия страницы по дням") : null,
+      t ? h("div", { class: "card" }, daily, dailyAxis) : null,
+      t ? h("div", { class: "card" },
+        h("div", { class: "pairs-title" }, "Как открывали"),
+        pairs([["NFC (касание)", t.cur.nfc], ["QR-код", t.cur.qr], ["По ссылке", t.cur.direct]]),
+        h("div", { class: "pairs-title" }, "Куда переходили"),
+        pairs([["Яндекс Карты", t.cur.yandex], ["2ГИС", t.cur.twogis], ["Google Maps", t.cur.google]]),
+        d.cardRatings.count ? [h("div", { class: "pairs-title" }, "Оценки на странице карты"), pairs([["Средняя", `★ ${fmtRating(d.cardRatings.avg)}`], ["Оценок", d.cardRatings.count]])] : null
+      ) : null,
+      t && t.cards.length ? sectionHead("Карты") : null,
+      t && t.cards.length ? h("div", { class: "card" }, pairs(t.cards.map((c) => [c.name, `${c.views} откр. · ${c.clicks} перех.`]))) : null,
+      sectionHead("Ждут ответа", d.unanswered.length ? h("span", { class: "fine" }, String(d.unanswered.length)) : null),
+      unanswered,
+      sectionHead("Профиль в каталоге"),
+      h("div", { class: "card" },
+        h("label", { class: "field", style: "margin-top:0" }, h("span", { class: "field-label" }, "Город"), city),
+        h("label", { class: "field" }, h("span", { class: "field-label" }, "Описание"), desc),
+        h("div", { class: "field" }, h("span", { class: "field-label" }, "Фото (до 8, первое — обложка)"), photoGrid),
+        h("div", { class: "sheet-actions" }, save),
+        h("p", { class: "fine", style: "margin:10px 0 0" }, "Показ в каталоге и кнопку «Отзыв в Telegram» на картах включает TapReview — напишите нам.")
+      )
+    )
+  );
+}
+
 // ================= Избранное и профиль =================
 
 async function favoritesView() {
@@ -937,9 +1144,9 @@ async function meView() {
         h("div", { class: "section-head", style: "padding:18px 0 10px" }, h("h2", { class: "section-title" }, "Мои заведения")),
         h("div", { class: "menu" },
           data.businesses.map((b) =>
-            h("a", { class: "menu-item", href: b.inCatalog ? `#/place/${encodeURIComponent(b.slug)}` : "#/me", onclick: b.inCatalog ? null : () => toast("Заведение пока не в каталоге") },
+            h("a", { class: "menu-item", href: `#/biz/${encodeURIComponent(b.slug)}` },
               icon(I.store, "menu-icon"),
-              h("div", { class: "grow" }, h("div", { style: "font-weight:700;color:var(--ink)" }, b.name), h("span", { class: "sub" }, b.inCatalog ? "Отвечайте на отзывы на странице заведения" : "Не показывается в каталоге")),
+              h("div", { class: "grow" }, h("div", { style: "font-weight:700;color:var(--ink)" }, b.name), h("span", { class: "sub" }, b.inCatalog ? "Кабинет: статистика, отзывы, профиль" : "Кабинет · не показывается в каталоге")),
               h("span", { class: "info-go" }, "›")
             )
           )
@@ -1014,12 +1221,13 @@ function syncBackButton(sheetOpen) {
 function route() {
   const { parts, params } = parseHash();
   if (state.sheet && state.sheet.isOpen()) state.sheet.close();
-  const tab = parts[0] === "place" ? null : TAB_OF[parts[0] || ""];
+  const tab = parts[0] === "place" ? null : parts[0] === "biz" ? "me" : TAB_OF[parts[0] || ""];
   for (const t of document.querySelectorAll(".tabbar .tab")) t.classList.toggle("on", t.dataset.tab === tab);
   syncBackButton();
   window.scrollTo(0, 0);
 
   if (parts[0] === "place" && parts[1]) return placeView(parts[1]);
+  if (parts[0] === "biz" && parts[1]) return bizView(parts[1]);
   if (parts[0] === "catalog") return catalogView(params);
   if (parts[0] === "favorites") return favoritesView();
   if (parts[0] === "me") return meView();
@@ -1029,9 +1237,10 @@ function route() {
 window.addEventListener("hashchange", (e) => {
   const from = new URL(e.oldURL).hash;
   const to = location.hash;
-  // глубина для «Назад»: заведение — на шаг глубже
-  if (/^#\/place\//.test(to) && !/^#\/place\//.test(from)) depth++;
-  else if (/^#\/place\//.test(from) && !/^#\/place\//.test(to)) depth = Math.max(0, depth - 1);
+  // глубина для «Назад»: заведение и кабинет — на шаг глубже вкладок
+  const deep = (hash) => /^#\/(place|biz)\//.test(hash);
+  if (deep(to) && !deep(from)) depth++;
+  else if (deep(from) && !deep(to)) depth = Math.max(0, depth - 1);
   route();
 });
 

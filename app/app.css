@@ -319,3 +319,48 @@ h1.title { margin: 0 0 4px; font-size: 24px; line-height: 1.2; font-weight: 800;
 /* Иконки внутри уведомлений и пунктов меню */
 .notice > svg { flex: none; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; margin-top: 1px; }
 .menu-icon { flex: none; width: 22px; height: 22px; fill: none; stroke: var(--navy); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- Кабинет заведения ---------- */
+.eyebrow { margin: 0 0 4px; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.biz-status { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+.row-between { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.kpi { background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); padding: 14px; min-width: 0; }
+.kpi-label { font-size: 12px; font-weight: 600; color: var(--muted); }
+.kpi-value { margin-top: 6px; font-size: 28px; line-height: 1; font-weight: 800; color: var(--ink); letter-spacing: -.02em; }
+.kpi-value small { font-size: 18px; color: var(--gold); }
+.kpi-delta { display: block; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.kpi-delta.up { color: var(--ok); }
+.kpi-delta.down { color: var(--bad); }
+
+.chart { display: flex; align-items: stretch; gap: 2px; height: 168px; }
+.chart-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 0; border: 0; background: none; border-radius: 8px; }
+.chart-col:active { background: var(--bg); }
+.chart-top { height: 16px; font-size: 12px; font-weight: 700; color: var(--ink); }
+.chart-track { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center; border-bottom: 1px solid var(--line); }
+.chart-bar { display: block; width: min(28px, 70%); background: var(--navy); border-radius: 4px 4px 0 0; transform-origin: bottom; animation: rise .5s ease-out both; }
+@keyframes rise { from { transform: scaleY(0); } }
+.chart-x { font-size: 11.5px; font-weight: 600; color: var(--muted); height: 15px; }
+.chart-sub { font-size: 11px; color: var(--faint); height: 14px; white-space: nowrap; }
+.chart-month { height: 120px; gap: 1px; }
+.chart-month .chart-bar { width: 80%; border-radius: 2px 2px 0 0; }
+.chart-month .chart-x { display: none; }
+.chart-week { height: 140px; }
+.chart-axis { display: flex; justify-content: space-between; margin-top: 6px; font-size: 11.5px; color: var(--muted); }
+
+.pairs-title { margin: 14px 0 6px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.pairs-title:first-child { margin-top: 0; }
+.pairs { display: grid; }
+.pair { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.pair:first-child { border-top: 0; }
+.pair b { font-weight: 700; color: var(--ink); white-space: nowrap; }
+
+.input { width: 100%; height: 44px; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); font-size: 15px; outline: none; }
+.input:focus { border-color: var(--navy-2); box-shadow: 0 0 0 3px rgba(22, 61, 122, .12); }
+.photo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.photo-cell { position: relative; aspect-ratio: 4 / 3; border-radius: 10px; overflow: hidden; background: var(--chip); }
+.photo-cell img { width: 100%; height: 100%; object-fit: cover; }
+.photo-cover { position: absolute; left: 6px; bottom: 6px; padding: 1px 7px; border-radius: 99px; background: rgba(15, 23, 42, .7); color: #fff; font-size: 11px; font-weight: 600; }
+.photo-add { aspect-ratio: 4 / 3; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: 1.5px dashed var(--line); border-radius: 10px; background: none; font-size: 12.5px; font-weight: 600; color: var(--navy-2); }
+.photo-add svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+a.notice { color: var(--navy); }

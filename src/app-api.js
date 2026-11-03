@@ -18,12 +18,17 @@
 //   GET    /api/app/me                         — мои отзывы, избранное, мои заведения
 //   DELETE /api/app/me                         — удалить мои данные (отзывы, жалобы, избранное)
 //   GET    /api/app/ticket?t=                  — проверить билет карты (для метки в форме)
+//   GET    /api/app/biz/:slug?period=week|month — кабинет заведения (только владелец): рейтинг, динамика,
+//                                                 отзывы без ответа, переходы с карт (report.js — те же цифры, что в боте)
+//   PATCH  /api/app/biz/:slug                  — { description, city }
+//   POST   /api/app/biz/:slug/photos           — { photo: dataURL } (до 8), DELETE …/photos/:id
 //
 // Модерация (админ-панель, /api/admin/app/*) — handleAppAdmin внизу файла.
 
 import { db } from "./supabase.js";
 import { verifyInitData, readCardTicket } from "./app-auth.js";
 import { saveMedia, MEDIA_ID_RE } from "./media.js";
+import { loadReports, loadDaily } from "./report.js";
 
 export const APP_CATEGORIES = [
   { key: "restaurant", label: "Кафе и рестораны" },
@@ -171,6 +176,14 @@ export async function handleAppApi(request, env, url) {
 
     m = path.match(/^\/api\/app\/favorites\/([^/]+)$/);
     if (m && (method === "PUT" || method === "DELETE")) return await favorite(request, env, m[1], method === "PUT");
+
+    m = path.match(/^\/api\/app\/biz\/([^/]+)$/);
+    if (m && method === "GET") return await bizCabinet(request, env, m[1], url);
+    if (m && method === "PATCH") return await bizUpdate(request, env, m[1]);
+    m = path.match(/^\/api\/app\/biz\/([^/]+)\/photos$/);
+    if (m && method === "POST") return await bizPhotoAdd(request, env, m[1]);
+    m = path.match(/^\/api\/app\/biz\/([^/]+)\/photos\/([0-9a-f-]{36})$/);
+    if (m && method === "DELETE") return await bizPhotoDelete(request, env, m[1], m[2]);
 
     if (path === "/api/app/me" && method === "GET") return await me(request, env);
     if (path === "/api/app/me" && method === "DELETE") return await deleteMe(request, env);
@@ -536,6 +549,138 @@ async function deleteMe(request, env) {
   for (const p of photos) await dropMedia(env, p.photo_id);
   userCache.delete(user.tgId);
   return json({ deleted: true });
+}
+
+// ================= Кабинет заведения (владелец) =================
+
+const MONTHS_SHORT = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+const MSK = 3 * 3600e3;
+const MAX_PLACE_PHOTOS = 8;
+
+// Заведение, которым управляет пользователь (в каталоге оно может и не быть)
+async function ownedPlace(request, env, slug, { write = false } = {}) {
+  const user = await requireUser(request, env, { write });
+  if (!SLUG_RE.test(slug)) throw new AppError(404, "Заведение не найдено");
+  const rows = await db(env, `businesses?slug=eq.${encodeURIComponent(slug)}&select=id,slug,name,city,description,photos,catalog_visible,app_button,is_active&limit=1`);
+  if (!rows.length || !(await ownedIds(env, user)).includes(rows[0].id)) {
+    throw new AppError(403, "Кабинет доступен только представителю заведения");
+  }
+  return { user, b: rows[0] };
+}
+
+async function bizCabinet(request, env, slug, url) {
+  const { b } = await ownedPlace(request, env, slug);
+  const period = url.searchParams.get("period") === "week" ? "week" : "month";
+  const now = Date.now();
+
+  // 6 месяцев по МСК, включая текущий
+  const nowMsk = new Date(now + MSK);
+  const startMsk = Date.UTC(nowMsk.getUTCFullYear(), nowMsk.getUTCMonth() - 5, 1) - MSK;
+  const days = period === "week" ? 7 : 30;
+  const periodFrom = encodeURIComponent(new Date(now - days * 864e5).toISOString());
+
+  const [published, pendingRows, unanswered, reports, daily, cardScores] = await Promise.all([
+    db(env, `reviews?business_id=eq.${b.id}&status=eq.published&select=score,created_at&limit=100000`),
+    db(env, `reviews?business_id=eq.${b.id}&status=eq.pending&select=id`),
+    db(env, `reviews?business_id=eq.${b.id}&status=eq.published&reply_text=is.null&select=${REVIEW_COLUMNS}&order=created_at.desc&limit=30`),
+    loadReports(env, [b.id], period, now),
+    loadDaily(env, [b.id], period, now),
+    db(env, `ratings?business_id=eq.${b.id}&created_at=gte.${periodFrom}&select=score&limit=100000`)
+  ]);
+
+  const dist = [0, 0, 0, 0, 0];
+  let sum = 0;
+  const byMonth = new Map();
+  for (let i = 0; i < 6; i++) {
+    const d = new Date(Date.UTC(nowMsk.getUTCFullYear(), nowMsk.getUTCMonth() - 5 + i, 1));
+    byMonth.set(d.toISOString().slice(0, 7), { month: d.toISOString().slice(0, 7), label: MONTHS_SHORT[d.getUTCMonth()], count: 0, sum: 0 });
+  }
+  let periodNew = 0;
+  for (const r of published) {
+    dist[r.score - 1]++;
+    sum += r.score;
+    const t = Date.parse(r.created_at);
+    if (t >= now - days * 864e5) periodNew++;
+    if (t >= startMsk) {
+      const m = byMonth.get(new Date(t + MSK).toISOString().slice(0, 7));
+      if (m) {
+        m.count++;
+        m.sum += r.score;
+      }
+    }
+  }
+  const rep = reports.get(b.id);
+  const cardAvg = cardScores.length ? Math.round((cardScores.reduce((a, r) => a + r.score, 0) / cardScores.length) * 10) / 10 : null;
+
+  return json({
+    place: {
+      slug: b.slug,
+      name: b.name,
+      city: b.city || "",
+      description: b.description || "",
+      photos: (b.photos || []).map((id) => ({ id, url: mediaUrl(id) })),
+      inCatalog: Boolean(b.catalog_visible && b.is_active),
+      appButton: Boolean(b.app_button)
+    },
+    rating: {
+      avg: published.length ? Math.round((sum / published.length) * 10) / 10 : null,
+      count: published.length,
+      dist,
+      pending: pendingRows.length,
+      periodNew
+    },
+    months: [...byMonth.values()].map((m) => ({ month: m.month, label: m.label, count: m.count, avg: m.count ? Math.round((m.sum / m.count) * 10) / 10 : null })),
+    unanswered: unanswered.map((r) => publicReview(r, null)),
+    period,
+    traffic: rep
+      ? {
+          cur: rep.cur,
+          prev: rep.prev,
+          daily,
+          cards: rep.allCards.map((c) => ({ name: c.name, views: c.cur.views, clicks: c.cur.clicks }))
+        }
+      : null,
+    cardRatings: { avg: cardAvg, count: cardScores.length }
+  });
+}
+
+async function bizUpdate(request, env, slug) {
+  const { user, b } = await ownedPlace(request, env, slug, { write: true });
+  rateLimit(`b:${user.id}`, 30, 3600e3);
+  const input = await readJson(request);
+  const body = {
+    description: cleanUserText(input.description, 1000, "Описание") || null,
+    city: cleanUserText(input.city, 60, "Город").replace(/\s+/g, " ") || null
+  };
+  await db(env, `businesses?id=eq.${b.id}`, { method: "PATCH", body, prefer: "return=minimal" });
+  return json({ ok: true, ...body });
+}
+
+async function bizPhotoAdd(request, env, slug) {
+  const { user, b } = await ownedPlace(request, env, slug, { write: true });
+  rateLimit(`p:${user.id}`, 20, 3600e3);
+  const photos = b.photos || [];
+  if (photos.length >= MAX_PLACE_PHOTOS) throw new AppError(400, `Не больше ${MAX_PLACE_PHOTOS} фото`);
+  const input = await readJson(request, MAX_BODY);
+  let id;
+  try {
+    id = await saveMedia(env, "place", input.photo);
+  } catch (error) {
+    throw new AppError(400, error.message);
+  }
+  const next = [...photos, id];
+  await db(env, `businesses?id=eq.${b.id}`, { method: "PATCH", body: { photos: next }, prefer: "return=minimal" });
+  return json({ photos: next.map((p) => ({ id: p, url: mediaUrl(p) })) }, 201);
+}
+
+async function bizPhotoDelete(request, env, slug, photoId) {
+  const { b } = await ownedPlace(request, env, slug, { write: true });
+  const photos = b.photos || [];
+  if (!photos.includes(photoId)) throw new AppError(404, "Фото не найдено");
+  const next = photos.filter((p) => p !== photoId);
+  await db(env, `businesses?id=eq.${b.id}`, { method: "PATCH", body: { photos: next }, prefer: "return=minimal" });
+  await dropMedia(env, photoId);
+  return json({ photos: next.map((p) => ({ id: p, url: mediaUrl(p) })) });
 }
 
 // ================= Модерация (админ-панель) =================
