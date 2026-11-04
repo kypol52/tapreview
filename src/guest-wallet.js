@@ -11,6 +11,7 @@
 import { db } from "./supabase.js";
 import { deviceFrom, visitorKeyOf, stampsOn, vipOn } from "./guests.js";
 import { renderPage } from "./public-page.js";
+import { pointsOn } from "./points.js";
 
 const TOKEN_RE = /^[A-Za-z0-9]{24}$/;
 const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
@@ -94,7 +95,7 @@ export async function unlinkDevices(env, user) {
 
 const PLACE_COLUMNS =
   "id,slug,name,city,address,logo_url,design,photos,catalog_visible,is_active," +
-  "stamps_goal,stamps_prize,vip_visits,vip_gift,bonus_mode,tariff";
+  "stamps_goal,stamps_prize,vip_visits,vip_gift,bonus_mode,tariff,points_on";
 
 // Визиты, штампы, уровень и действующие коды подарков гостя во всех заведениях
 export async function walletSummary(env, user) {
@@ -110,15 +111,21 @@ export async function walletSummary(env, user) {
   const keys = [...keyToPlace.keys()];
   const visits = [];
   const codes = [];
+  const pointOps = [];
   for (let i = 0; i < keys.length; i += KEYS_PER_REQUEST) {
     const chunk = keys.slice(i, i + KEYS_PER_REQUEST).join(",");
-    const [v, c] = await Promise.all([
+    const [v, c, o] = await Promise.all([
       db(env, `guest_visits?visitor_key=in.(${chunk})&select=business_id,day&limit=100000`),
-      db(env, `bonus_codes?visitor_key=in.(${chunk})&select=business_id,code,prize,valid_from,valid_until,redeemed_at,created_at,stamp_reward,vip,reward_kind&order=created_at.desc&limit=100000`)
+      db(env, `bonus_codes?visitor_key=in.(${chunk})&select=business_id,code,prize,valid_from,valid_until,redeemed_at,created_at,stamp_reward,vip,reward_kind&order=created_at.desc&limit=100000`),
+      // Баллы (points.js, миграция 045)
+      db(env, `point_ops?visitor_key=in.(${chunk})&select=business_id,points&limit=100000`)
     ]);
     visits.push(...v);
     codes.push(...c);
+    pointOps.push(...o);
   }
+  const pointsBy = new Map();
+  for (const o of pointOps) pointsBy.set(o.business_id, (pointsBy.get(o.business_id) || 0) + o.points);
 
   const byPlace = new Map();
   const slot = (id) => {
@@ -132,8 +139,8 @@ export async function walletSummary(env, user) {
   const mediaUrl = (id) => (id ? `/m/${id}` : null);
   const out = [];
   for (const p of places) {
-    const s = byPlace.get(p.id);
-    if (!s || (!s.days.size && !s.codes.length)) continue;
+    const s = byPlace.get(p.id) || { days: new Set(), codes: [] };
+    if (!s.days.size && !s.codes.length && !pointsBy.get(p.id)) continue;
     const visitsCount = s.days.size;
     const lastVisit = [...s.days].sort().pop() || null;
     s.codes.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
@@ -172,6 +179,8 @@ export async function walletSummary(env, user) {
       level,
       vip,
       stamps,
+      // Баллы: только если включены у заведения или ещё остались на счёте
+      points: pointsOn(p) || pointsBy.get(p.id) ? Math.max(0, pointsBy.get(p.id) || 0) : null,
       codes: active
     });
   }

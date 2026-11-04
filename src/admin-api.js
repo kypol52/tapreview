@@ -58,6 +58,18 @@ import { TARIFF_KEYS, MODULE_KEYS } from "./tariffs.js";
 import { handleAppAdmin } from "./app-api.js";
 import { listStaff, createStaff, updateStaff, setStaffCard, StaffError } from "./staff.js";
 
+import { cleanPoints, PointsError } from "./points.js";
+
+// Баллы: ошибка проверки — понятный ответ 400
+function pointsFields(input) {
+  try {
+    return cleanPoints(input);
+  } catch (error) {
+    if (error instanceof PointsError) throw new HttpError(400, error.message);
+    throw error;
+  }
+}
+
 // Ошибки проверки сотрудников (StaffError) — понятный ответ 400
 async function staffCall(fn) {
   try {
@@ -78,6 +90,7 @@ const ADMIN_COLUMNS =
   "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions,bonus_daily_limit," +
   "stamps_goal,stamps_prize,friend_gift,friend_reward,vip_visits,vip_gift," +
   "referred_by,ref_reward_at,theme,design,extra_links,rating_first,moment,tariff,modules," +
+  "points_on,points_percent,points_max_share,points_expire_days,points_max_check," +
   "catalog_visible,catalog_since,catalog_consent_at,description,city,photos,app_button,lat,lon," +
   "created_at,updated_at";
 
@@ -698,6 +711,8 @@ function validateBusiness(input) {
     extra_links: cleanExtraLinks(input.extra_links),
     rating_first: input.rating_first !== false,
     tariff: TARIFF_KEYS.includes(input.tariff) ? input.tariff : "standard",
+    // Баллы лояльности (points.js, миграция 045)
+    ...pointsFields(input),
     // Модули сверх тарифа (миграция 042): только известные ключи, без повторов
     modules: [...new Set((Array.isArray(input.modules) ? input.modules : []).filter((m) => MODULE_KEYS.includes(m)))],
     moment: cleanMoment(input.moment),

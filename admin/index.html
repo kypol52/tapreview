@@ -716,6 +716,21 @@
           Каждый гость получает свой одноразовый код; кассир проверяет и гасит его по ссылке статистики → «Проверить код подарка».
           Подарок не должен зависеть от отзыва — так требуют правила Яндекс Карт и 2ГИС; не пишите «за отзыв».
         </p>
+
+        <div class="staff-box">
+          <label class="check">
+            <input id="f-points-on" type="checkbox">
+            Баллы лояльности (тариф «Плюс»): процент от чека возвращается баллами, 1 балл = 1 ₽ скидки
+          </label>
+          <div class="grid-2">
+            <label class="field"><span>Баллов от чека, %</span><input id="f-points-percent" type="number" min="1" max="30" inputmode="numeric" placeholder="5"></label>
+            <label class="field"><span>Оплатить баллами до, % чека</span><input id="f-points-share" type="number" min="1" max="100" inputmode="numeric" placeholder="30"></label>
+            <label class="field"><span>Сгорают без визитов через, дней</span><input id="f-points-expire" type="number" min="30" max="730" inputmode="numeric" placeholder="180"></label>
+            <label class="field"><span>Самый большой чек, ₽</span><input id="f-points-max" type="number" min="100" max="10000000" inputmode="numeric" placeholder="50000"></label>
+          </div>
+          <p class="muted field-hint">Гость на странице с карты нажимает «Код для кассы» и показывает 6 цифр. Кассир по ссылке персонала → «Баллы гостя»
+            вводит код и сумму чека, при желании списывает баллы. Работает вместе с колесом подарков или вместо него.</p>
+        </div>
       </fieldset>
 
       <fieldset class="billing">

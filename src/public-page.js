@@ -15,6 +15,7 @@ import { flowFrom, logRating, LIKES, PHONE_KEEP_DAYS, reasonLabels } from "./rat
 import { makeCardTicket } from "./app-auth.js";
 import { serviceBlock, SERVICE_CSS } from "./service.js";
 import { staffOfCard, withStaffTips } from "./staff.js";
+import { pointsBlock, POINTS_CSS } from "./points.js";
 
 const SLUG_RE = /^[A-Za-z0-9_-]{3,64}$/;
 const COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
@@ -77,7 +78,9 @@ export const GIFT = `<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20"
 // Настройки бонуса для гостей (bonus.js, миграции 015, 023)
 export const BONUS_COLUMNS =
   "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions,bonus_daily_limit," +
-  "stamps_goal,stamps_prize,friend_gift,friend_reward,vip_visits,vip_gift,tariff";
+  "stamps_goal,stamps_prize,friend_gift,friend_reward,vip_visits,vip_gift,tariff," +
+  // Баллы (points.js, миграция 045)
+  "points_on,points_percent,points_max_share,points_expire_days,points_max_check";
 
 const BUSINESS_COLUMNS =
   "id,slug,name,tagline,category,logo_url,brand_color,google_url,yandex_url,twogis_url," +
@@ -556,9 +559,12 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
   // не зависит от отзыва. Без JavaScript — обычная форма.
   // Подарки — только в тарифе «Плюс» (tariffs.js)
   const discount = !has(business, "gifts") ? "" : bonusBlock(business, source, cardCode, guest ? guest.stamps : null, guest ? guest.rewards : 0, guest ? guest.visits : 0);
+  // Баллы (points.js): баланс и «Код для кассы» — на любом шаге, они про чек, а не про оценку
+  const pointsBox = pointsBlock(business, source, cardCode, guest ? guest.points : null);
+  const pointsHtml = pointsBox ? `${pointsBox}<style>${POINTS_CSS}</style>` : "";
 
   if (business.rating_first && has(business, "rating")) {
-    return ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, discount, design, appLink, service });
+    return ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, discount, design, appLink, service, pointsHtml });
   }
 
   const actions = buttons
@@ -587,13 +593,14 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
       ${appBlock(appLink)}
       ${momentBlock(business)}
       ${extraLinksBlock(business)}
+      ${pointsHtml}
       ${discount}`
   });
 }
 
 // Сначала оценка (rating.js): карточка заведения → «Как вам у нас?» → площадки (4–5) или сообщение владельцу (1–3).
 // Площадки доступны при любой оценке, подарок — после любой оценки.
-function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, discount, design, appLink, service = "" }) {
+function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, discount, design, appLink, service = "", pointsHtml = "" }) {
   const base = new URLSearchParams();
   if (source !== "direct") base.set("s", source);
   const link = (extra) => {
@@ -702,6 +709,7 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
       ${appBlock(appLink)}
       ${all || sent || score >= 4 ? momentBlock(business) : ""}
       ${extraLinksBlock(business)}
+      ${pointsHtml}
       ${score || all ? discount : ""}`
   });
 }

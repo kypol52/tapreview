@@ -12,10 +12,11 @@ import { BONUS_COLUMNS, EXTRA_LINKS } from "./public-page.js";
 import { saveMedia } from "./media.js";
 import { has, hasModule } from "./tariffs.js";
 import { listStaff, createStaff, updateStaff, setStaffCard, STAFF_MAX } from "./staff.js";
+import { cleanPoints } from "./points.js";
 
 const MAX_PRIZES = 8;
 const MAX_BODY = 1200000; // фото уже сжато в браузере до ~300 КБ (≈ 400 КБ в base64)
-const SECTIONS = { moment: "«Сейчас у нас»", bonus: "Подарок для гостей", links: "Ссылки «Ещё у нас»", staff: "Сотрудники" };
+const SECTIONS = { moment: "«Сейчас у нас»", bonus: "Подарок для гостей", points: "Баллы", links: "Ссылки «Ещё у нас»", staff: "Сотрудники" };
 const NEW_STAFF_ROWS = 2;
 
 export async function handleOwnerSettings(request, env, token) {
@@ -39,6 +40,7 @@ export async function handleOwnerSettings(request, env, token) {
       const venues = await db(env, `businesses?id=in.(${ids.join(",")})&select=id,name&order=name.asc`);
       return html(200, "Настройки", chooserBody(token, venues));
     }
+    // BONUS_COLUMNS включает и настройки баллов (points.js)
     const rows = await db(env, `businesses?id=eq.${id}&select=id,name,slug,discount_text,moment,extra_links,modules,${BONUS_COLUMNS}`);
     if (!rows.length) return notFound();
     const business = rows[0];
@@ -69,6 +71,10 @@ export async function handleOwnerSettings(request, env, token) {
       else if (section === "bonus") {
         if (!has(business, "gifts")) throw new Error("Подарки доступны в тарифе «Плюс» — напишите в TapReview, чтобы сменить тариф");
         patch = bonusPatch(form);
+      }
+      else if (section === "points") {
+        if (!has(business, "gifts")) throw new Error("Баллы доступны в тарифе «Плюс» — напишите в TapReview, чтобы сменить тариф");
+        patch = cleanPoints(Object.fromEntries(form));
       }
       else if (section === "links") patch = linksPatch(form);
       else if (section === "staff") {
@@ -243,6 +249,7 @@ function settingsBody(token, multi, b, { ok = null, error = null, team = null } 
     ${momentSection(b, hidden, flash("moment"))}
     ${has(b, "gifts") ? bonusSection(b, hidden, flash("bonus")) : `<section class="panel" id="bonus"><h2>Подарок для гостей</h2>
       <p class="set-hint">Колесо подарков, штампы, VIP-гости и «Подарите другу» — в тарифе «Плюс». Чтобы подключить, напишите в TapReview.</p></section>`}
+    ${has(b, "gifts") ? pointsSettingsSection(b, hidden, flash("points")) : ""}
     ${linksSection(b, hidden, flash("links"))}
     ${team ? staffSettingsSection(team, hidden, flash("staff")) : ""}
     ${multi ? `<a class="back back-dark" href="/s/${token}">← Статистика</a>` : ""}
@@ -365,6 +372,32 @@ function linksSection(b, hidden, msg) {
       <form class="set-form" method="post" action="">
         ${hidden}<input type="hidden" name="section" value="links">
         ${rows}
+        <button class="set-save" type="submit">Сохранить</button>
+      </form>
+    </section>`;
+}
+
+function pointsSettingsSection(b, hidden, msg) {
+  const n = (name, value, min, max) =>
+    `<input name="${name}" type="number" min="${min}" max="${max}" inputmode="numeric" value="${esc(String(value ?? ""))}">`;
+  return `
+    <section class="panel" id="points">
+      <h2>Баллы</h2>
+      <p class="set-hint">Часть каждого чека возвращается гостю баллами, 1 балл = 1 ₽ скидки в следующий раз. Гость показывает кассиру код
+        со своей страницы, кассир вводит код и сумму чека на кассе («Баллы гостя»). Можно вместе с подарками или вместо них.</p>
+      ${msg}
+      <form class="set-form" method="post" action="">
+        ${hidden}<input type="hidden" name="section" value="points">
+        <label class="set-check"><input type="checkbox" name="points_on" value="1"${b.points_on ? " checked" : ""}> Баллы включены</label>
+        <div class="set-two">
+          <label>Баллов от чека, %${n("points_percent", b.points_percent ?? 5, 1, 30)}</label>
+          <label>Оплатить баллами до, % чека${n("points_max_share", b.points_max_share ?? 30, 1, 100)}</label>
+        </div>
+        <div class="set-two">
+          <label>Сгорают без визитов через, дней${n("points_expire_days", b.points_expire_days ?? 180, 30, 730)}</label>
+          <label>Самый большой чек, ₽${n("points_max_check", b.points_max_check ?? 50000, 100, 10000000)}</label>
+        </div>
+        <p class="set-hint">«Самый большой чек» защищает от опечаток и накруток: чек больше — кассир не проведёт.</p>
         <button class="set-save" type="submit">Сохранить</button>
       </form>
     </section>`;

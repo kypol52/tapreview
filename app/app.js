@@ -1616,6 +1616,12 @@ async function walletView() {
           ? `Все штампы собраны! Следующий подарок — «${p.stamps.prize}»`
           : `${p.stamps.have} из ${p.stamps.goal} — до подарка «${p.stamps.prize}». Штамп — за каждый погашенный код подарка.`)));
     }
+    // Баллы лояльности: 1 балл = 1 ₽ скидки; код для кассы — на странице заведения с карты
+    if (p.points !== null && p.points !== undefined) {
+      parts.push(h("div", { class: "w-block" },
+        h("div", { class: "row-name" }, `💰 ${p.points} ${plural(p.points, "балл", "балла", "баллов")}`),
+        h("div", { class: "fine" }, "1 балл = 1 ₽ скидки. Чтобы начислить или списать, коснитесь карты заведения и нажмите «Код для кассы».")));
+    }
     if (p.vip) {
       parts.push(h("div", { class: "w-block fine" }, p.level === "vip"
         ? `⭐ Вы VIP-гость: «${p.vip.gift}»`

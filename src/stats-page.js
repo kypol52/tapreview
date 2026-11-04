@@ -14,6 +14,7 @@ import { rewardInviter } from "./friends.js";
 import { has, hasModule } from "./tariffs.js";
 import { serviceStats, serviceSection } from "./service.js";
 import { staffStats, staffSection } from "./staff.js";
+import { pointsOn, pointsStats, pointsSection } from "./points.js";
 
 const TOKEN_RE = /^[A-Za-z0-9]{24}$/;
 // Куда владелец пишет, чтобы продлить подписку (личный Telegram TapReview)
@@ -65,7 +66,7 @@ async function statsPage(request, env, ctx, token) {
   const [reports, extraRows] = await Promise.all([
     loadReports(env, linkIds, period, now),
     // slug — для ссылки-приглашения; bonus_mode — показывать ли кнопку кассы подарков
-    db(env, `businesses?id=in.(${linkIds.join(",")})&select=id,slug,category,bonus_mode,vip_visits,vip_gift,tariff,modules`).catch(() => [])
+    db(env, `businesses?id=in.(${linkIds.join(",")})&select=id,slug,category,bonus_mode,vip_visits,vip_gift,tariff,modules,points_on`).catch(() => [])
   ]);
   const bonusRows = extraRows.filter((b) => b.bonus_mode && b.bonus_mode !== "off" && has(b, "gifts"));
   // Тарифы (tariffs.js): что показывать владельцу — по заведению на экране (сводка — если есть хоть у одного)
@@ -172,10 +173,20 @@ async function statsPage(request, env, ctx, token) {
       })
     : null;
 
+  // Баллы (points.js): касса баллов в шапке и раздел — если баллы включены у заведений на экране
+  const pointsIds = view.dailyIds.filter((id) => pointsOn(rowOf(id)));
+  const points = view.kind !== "card" && pointsIds.length
+    ? await pointsStats(env, pointsIds, venues[0].range).catch((error) => {
+        console.error(`pointsStats: ${error.message}`);
+        return null;
+      })
+    : null;
+  const pointsDesk = extraRows.some(pointsOn);
+
   // Подписи причин недовольства: «Еда и напитки» / «Результат услуги»… — по виду заведения на экране
   const reasonNames = reasonLabels(view.kind === "all" ? null : rowOf(view.dailyIds[0]).category);
 
-  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn, invite, ratings, names, bonus, score, levels, service, staff, reasonNames,
+  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn, invite, ratings, names, bonus, score, levels, service, staff, reasonNames, points, pointsDesk,
     canEdit: Boolean(link.can_edit) && anyHas("settings"), wrappedOn: anyHas("wrapped") };
   return html(200, `Статистика · ${view.title}`, renderBody(view, daily, page));
 }
@@ -227,11 +238,12 @@ function deskError(error) {
 }
 
 async function renderDesk(request, env, { ids, base, owner, token, by, onRedeem }) {
-    const businesses = await db(env, `businesses?id=in.(${ids.join(",")})&select=id,name,modules`);
+    const businesses = await db(env, `businesses?id=in.(${ids.join(",")})&select=id,name,modules,tariff,points_on`);
     if (!businesses.length) return notFound();
     const names = new Map(businesses.map((b) => [b.id, b.name]));
-    // Ссылка персонала + «Сервис в зале» → переход на страницу вызовов (service.js)
-    const callsLink = !owner && hasModule(businesses[0], "service") ? `<a class="back" href="${base}/calls">🙋 Вызовы гостей</a>` : "";
+    // Ссылка персонала + «Сервис в зале» → переход на страницу вызовов (service.js); баллы → касса баллов (points.js)
+    const callsLink = (!owner && hasModule(businesses[0], "service") ? `<a class="back" href="${base}/calls">🙋 Вызовы гостей</a>` : "") +
+      (businesses.some(pointsOn) ? `<a class="back" href="${owner ? `/s/${token}/points` : `${base}/points`}">💰 Баллы гостя</a>` : "");
 
     // Погашение — обычной ссылкой ?code=…&redeem=1 (а не формой): в РФ соединения с Cloudflare
     // иногда обрываются, и обычный переход браузер повторяет сам. Если повтор пришёл сразу после
@@ -285,7 +297,7 @@ async function renderDesk(request, env, { ids, base, owner, token, by, onRedeem 
   <header class="top">
     <div class="top-inner">
       <div class="brand">TapReview <span>· касса</span></div>
-      ${owner ? `<a class="back" href="/s/${token}">← Статистика</a>` : callsLink}
+      ${owner ? `<a class="back" href="/s/${token}">← Статистика</a>` : ""}${callsLink}
       <h1 class="name">Проверка подарка</h1>
       ${venueName ? `<p class="sub">${esc(venueName)}</p>` : ""}
       <p class="range">Введите код с экрана гостя: 6 цифр, например 123-456</p>
@@ -583,6 +595,7 @@ function renderBody(view, daily, page) {
       <p class="range">${p.title} · ${formatDateRange(period, range)}</p>
       <nav class="tabs" aria-label="Период">${tabs}</nav>
       ${page.bonusOn ? `<a class="desk-link" href="/s/${token}/bonus">🎁 Проверить код подарка</a>` : ""}
+      ${page.pointsDesk ? `<a class="desk-link" href="/s/${token}/points">💰 Баллы гостя</a>` : ""}
       ${page.wrappedOn ? `<a class="desk-link" href="/s/${token}/wrapped${view.kind === "all" ? "" : `?b=${view.dailyIds[0]}`}">✨ Итоги месяца</a>` : ""}
       ${page.canEdit ? `<a class="desk-link" href="/s/${token}/settings${view.kind === "all" ? "" : `?b=${view.dailyIds[0]}`}">⚙ Настройки</a>` : ""}
     </div>
@@ -606,6 +619,7 @@ function renderBody(view, daily, page) {
     ${empty ? "" : funnelSection(cur, page.ratings, page.bonus)}
     ${ratingsSection(page.ratings, page.names, view.kind === "all", token, `p=${period}${view.query}`, page.reasonNames)}
     ${levelsSection(page.levels)}
+    ${pointsSection(page.points, token)}
     ${staffSection(page.staff, page.reasonNames)}
     ${serviceSection(page.service)}
     ${sections}

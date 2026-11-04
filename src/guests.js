@@ -8,6 +8,7 @@
 import { db } from "./supabase.js";
 import { friendOn, inviterRewards } from "./friends.js";
 import { has } from "./tariffs.js";
+import { pointsOn, balanceOf } from "./points.js";
 
 export const DEVICE_COOKIE = "tr_device";
 const DEVICE_RE = /^[A-Za-z0-9]{24}$/;
@@ -80,8 +81,15 @@ export async function guestOf(request, env, business, source) {
       ? inviterRewards(env, business, key).then((rows) => rows.length).catch(() => 0)
       : 0
   ]);
+  // Баллы (points.js): у нового телефона — 0, у знакомого — баланс; null — баллы выключены или ошибка
+  const points = pointsOn(business)
+    ? setCookie ? 0 : await balanceOf(env, business.id, key).catch((error) => {
+        console.error(`points balance: ${error.message}`);
+        return null;
+      })
+    : null;
   // walletLink — кнопка «Мои штампы и подарки — в Telegram» (guest-wallet.js), если бот Mini App настроен
-  return { visits: Number(visits) || null, stamps, rewards, setCookie, walletLink: Boolean(env.APP_BOT_USERNAME && env.APP_SHORT_NAME) };
+  return { visits: Number(visits) || null, stamps, rewards, points, setCookie, walletLink: Boolean(env.APP_BOT_USERNAME && env.APP_SHORT_NAME) };
 }
 
 // Раз в день: визиты старше VISITS_KEEP_DAYS удаляем

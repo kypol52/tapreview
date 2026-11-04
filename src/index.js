@@ -16,6 +16,8 @@
 //   /k/:token            — касса для персонала: только проверить и погасить код (stats-page.js)
 //   /k/:token/calls      — вызовы гостей для персонала: «Сервис в зале» (service.js)
 //   GET /call            — гость зовёт сотрудника со стола (service.js)
+//   GET /points          — одноразовый код гостя для кассы баллов (points.js)
+//   /k/:token/points, /s/:token/points — касса баллов: персонал и владелец (points.js)
 //   POST /bonus          — выдать гостю код подарка, колесо призов (bonus.js)
 //   /f/:code             — «Подарите другу»: подарок новому гостю по приглашению (friends.js)
 //   /m/:id               — картинки «Своего дизайна»: фон и логотип заведения (media.js)
@@ -40,6 +42,7 @@ import { handleAppApi } from "./app-api.js";
 import { handleSharePage, handleShareProxy } from "./share-page.js";
 import { handleMeLink } from "./guest-wallet.js";
 import { handleCall, handleStaffCalls, purgeOldCalls } from "./service.js";
+import { handlePointsCode, handleStaffPoints, handleOwnerPoints, pointsDaily } from "./points.js";
 import { db } from "./supabase.js";
 
 // Должно совпадать с расписанием в server/server.mjs
@@ -146,6 +149,19 @@ export default {
     if (url.pathname === "/call") {
       return handleCall(request, env, ctx);
     }
+    // Баллы лояльности (points.js): код гостя для кассы и касса баллов персонала / владельца
+    if (url.pathname === "/points") {
+      return handlePointsCode(request, env);
+    }
+    const staffPointsMatch = url.pathname.match(/^\/k\/([^/]+)\/points\/?$/);
+    if (staffPointsMatch && (isRead || request.method === "POST")) {
+      return handleStaffPoints(request, env, staffPointsMatch[1]);
+    }
+    const ownerPointsMatch = url.pathname.match(/^\/s\/([^/]+)\/points\/?$/);
+    if (ownerPointsMatch && (isRead || request.method === "POST")) {
+      return handleOwnerPoints(request, env, ownerPointsMatch[1]);
+    }
+
     const callsMatch = url.pathname.match(/^\/k\/([^/]+)\/calls\/?$/);
     if (callsMatch && (isRead || request.method === "POST")) {
       return handleStaffCalls(request, env, callsMatch[1]);
@@ -208,6 +224,7 @@ export default {
       ctx.waitUntil(purgeOldPhones(env).catch((error) => console.error(`Phone purge failed: ${error.message}`)));
       ctx.waitUntil(purgeOldVisits(env).catch((error) => console.error(`Visits purge failed: ${error.message}`)));
       ctx.waitUntil(purgeOldCalls(env).catch((error) => console.error(`Calls purge failed: ${error.message}`)));
+      ctx.waitUntil(pointsDaily(env).catch((error) => console.error(`Points daily failed: ${error.message}`)));
       // 1-го числа — «Итоги месяца» владельцам в Telegram (внутри проверка даты)
       ctx.waitUntil(monthlyWrapped(env).catch((error) => console.error(`Monthly wrapped failed: ${error.message}`)));
       return;

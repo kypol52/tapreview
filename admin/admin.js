@@ -1063,6 +1063,12 @@ function openEditor(business) {
   $("f-paid-until").value = business ? business.paid_until || "" : addMonths(mskToday(), 1);
   $("f-tariff").value = (business && business.tariff) || "standard";
   $("f-mod-service").checked = Boolean(business && Array.isArray(business.modules) && business.modules.includes("service"));
+  // Баллы лояльности (миграция 045)
+  $("f-points-on").checked = Boolean(business && business.points_on);
+  $("f-points-percent").value = business ? String(business.points_percent ?? 5) : "5";
+  $("f-points-share").value = business ? String(business.points_max_share ?? 30) : "30";
+  $("f-points-expire").value = business ? String(business.points_expire_days ?? 180) : "180";
+  $("f-points-max").value = business ? String(business.points_max_check ?? 50000) : "50000";
   $("f-price").value = business && business.monthly_price != null ? String(business.monthly_price) : business ? "" : "189";
   $("f-billing-note").value = business ? business.billing_note || "" : "";
   fillReferredBy(business);
@@ -1565,6 +1571,11 @@ function readForm() {
     rating_first: $("f-rating-first").checked,
     tariff: $("f-tariff").value,
     modules: $("f-mod-service").checked ? ["service"] : [],
+    points_on: $("f-points-on").checked,
+    points_percent: $("f-points-percent").value,
+    points_max_share: $("f-points-share").value,
+    points_expire_days: $("f-points-expire").value,
+    points_max_check: $("f-points-max").value,
     moment: readMoment(),
     catalog_visible: $("f-catalog").checked,
     app_button: $("f-app-button").checked,
