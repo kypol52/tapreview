@@ -1,4 +1,4 @@
-// Баллы лояльности (миграция 045, тариф «Плюс»). 1 балл = 1 ₽ скидки; деньги через TapReview не идут.
+// Баллы лояльности (миграция 045, тариф Plus и Pro). 1 балл = 1 ₽ скидки; деньги через TapReview не идут.
 //
 //   Гость: на странице с карты — «У вас N баллов» и кнопка «Код для кассы».
 //     GET /points?b=SLUG&s=nfc|qr[&c=КОД][&new=1] — одноразовый код из 6 цифр на 10 минут (только с cookie устройства).
@@ -228,7 +228,7 @@ async function pointsDesk(request, env, { ids, base, back, by, staffId, onUse })
     const on = businesses.filter(pointsOn);
     if (!on.length) {
       return html(200, "Баллы", `<main class="wrap wrap-center"><section class="panel"><h1 class="lost">Баллы не включены</h1>
-        <p>Баллы лояльности — в тарифе «Плюс». Владелец включает их в «Настройках» → «Баллы».</p>
+        <p>Баллы лояльности — в тарифах Plus и Pro. Владелец включает их в «Настройках» → «Баллы».</p>
         <a class="back back-dark" href="${back.href}">${back.text}</a></section></main>`);
     }
     const url = new URL(request.url);

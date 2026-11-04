@@ -82,6 +82,10 @@
     .seg + .seg { margin-top: 10px; }
     @media (max-width: 520px) { .seg-3 { grid-template-columns: 1fr; } }
     .design-opt { display: flex; gap: 12px; align-items: flex-start; margin: 16px 0 0; padding: 14px 16px; border-radius: 14px; background: var(--soft); cursor: pointer; }
+    /* Early Partner — золотая рамка; при нём выбор тарифа заблокирован (всегда Plus) */
+    .early-opt { margin: 0 0 16px; border: 1.5px solid var(--gold, #e5aa0c); }
+    .is-locked { opacity: .5; pointer-events: none; }
+    #modules-box[hidden] { display: none; }
     .design-opt input { width: 20px; height: 20px; margin: 2px 0 0; flex: none; accent-color: var(--navy); }
     .design-opt span { font-size: 13.5px; color: var(--muted); line-height: 1.45; }
     .design-opt b { display: block; font-size: 15px; color: var(--ink); }
@@ -148,6 +152,7 @@
     .sum-rows { margin: 18px 0 0; padding: 0; list-style: none; }
     .sum-rows li { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1); font-size: 14.5px; }
     .sum-rows li span:last-child { color: #fff; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .sum-rows li[hidden] { display: none; }
     .sum-rows small { display: block; color: #8fa1c4; font-size: 12.5px; }
     .total { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 18px 0 4px; }
     .total span { font-size: 15px; font-weight: 650; color: #fff; }
@@ -230,15 +235,31 @@
         <form id="order-form" novalidate>
           <section class="panel" aria-labelledby="calc-title">
             <h2 id="calc-title">Расчёт</h2>
-            <p class="panel-sub">Тариф задаёт цену первой карты, каждая следующая — во всех тарифах одинаково и тем дешевле, чем больше карт: 2–5-я по 49 ₽, 6–10-я по 39 ₽, 11–20-я по 29 ₽, дальше по 19 ₽ в месяц. Подключение: 1–2-я карта по 150 ₽, 3–5-я по 130 ₽, дальше по 100 ₽. Первый месяц подписки бесплатно.</p>
+            <p class="panel-sub">Подписка — за заведение, карты — разовая покупка: в подключение входит пакет карт (Start — 5, Plus — 20, Pro — 50), каждая карта сверх пакета — 199 ₽. Со второй точки подписка на 20% дешевле. Первый месяц подписки бесплатно.</p>
 
-            <div class="seg seg-3" role="radiogroup" aria-label="Тариф">
+            <label class="design-opt early-opt">
+              <input type="checkbox" id="early" name="early">
+              <span><b>Early Partner — для первых 20 заведений</b>Подключение 1 990 ₽ с 10 картами и «Своим дизайном», 490 ₽ в месяц первые полгода — с функциями Plus. Одно заведение, оплата помесячно.</span>
+            </label>
+
+            <div class="seg seg-3" role="radiogroup" aria-label="Тариф" id="tariff-seg">
               <input type="radio" name="tariff" id="tariff-start" value="start">
-              <label for="tariff-start"><b>Старт</b><span>129 ₽ · просто отзывы</span></label>
+              <label for="tariff-start"><b>Start</b><span>490 ₽ · отзывы и жалобы вам</span></label>
               <input type="radio" name="tariff" id="tariff-standard" value="standard" checked>
-              <label for="tariff-standard"><b>Стандарт</b><span>189 ₽ · оценки, меню, итоги</span></label>
+              <label for="tariff-standard"><b>Plus</b><span>990 ₽ · + меню, подарки, баллы</span></label>
               <input type="radio" name="tariff" id="tariff-plus" value="plus">
-              <label for="tariff-plus"><b>Плюс</b><span>299 ₽ · + подарки, штампы, VIP</span></label>
+              <label for="tariff-plus"><b>Pro</b><span>1 990 ₽ · + вызов официанта, AI</span></label>
+            </div>
+
+            <div id="modules-box">
+              <label class="design-opt">
+                <input type="checkbox" id="mod-service" name="mod_service">
+                <span><b>+ «Сервис в зале» — 490 ₽ в месяц</b>Гость зовёт официанта и заказывает из меню со стола, оценки сотрудников. Карты на столы — из пакета.</span>
+              </label>
+              <label class="design-opt">
+                <input type="checkbox" id="mod-ai" name="mod_ai">
+                <span><b>+ AI-разбор отзывов — 490 ₽ в месяц</b>«🔥 Срочно» в жалобах, разбор недели, AI-ассистент по вашим цифрам.</span>
+              </label>
             </div>
 
             <div class="seg seg-period" role="radiogroup" aria-label="Оплата">
@@ -258,7 +279,7 @@
             </div>
 
             <div class="counter">
-              <div class="counter-text"><b id="cards-label">Карт</b><span>На каждый стол, кассу, ресепшен — чем больше карт, тем дешевле каждая</span></div>
+              <div class="counter-text"><b id="cards-label">Карт</b><span id="cards-note">На каждый стол, кассу, ресепшен — пакет карт входит в подключение</span></div>
               <div class="stepper">
                 <button type="button" data-step="cards" data-dir="-1" aria-label="Меньше карт">−</button>
                 <input id="cards" name="cards" type="number" inputmode="numeric" min="1" max="500" value="1" aria-labelledby="cards-label">
@@ -269,7 +290,7 @@
               <input type="checkbox" id="custom-design" name="custom_design">
               <span><b>«Свой дизайн» страницы — 990 ₽ разово</b>Фото вашего зала на фоне, ваш логотип со свечением, фирменные цвета кнопок.</span>
             </label>
-            <p class="hint" id="network-hint" hidden>Для сетей от 3 точек можем предложить индивидуальные условия — обсудим после заявки.</p>
+            <p class="hint" id="network-hint" hidden>Со второй точки подписка на 20% дешевле. Для сетей от 5 точек обсудим индивидуальные условия после заявки.</p>
           </section>
 
           <!-- Пока форма выключена (FORM_ENABLED = false в скрипте ниже): расчёт отправляют в Telegram -->
@@ -325,12 +346,12 @@
         <section class="panel summary" id="summary" aria-labelledby="sum-title" aria-live="polite">
           <h2 id="sum-title">Итого</h2>
           <ul class="sum-rows">
-            <li><span>Подключение<small id="s-conn-note">1 карта</small></span><span id="s-conn">150 ₽</span></li>
+            <li><span>Подключение<small id="s-conn-note">Plus · до 20 карт</small></span><span id="s-conn">3 490 ₽</span></li>
             <li id="s-design-row" hidden><span>«Свой дизайн»<small>разово</small></span><span>990 ₽</span></li>
-            <li><span>Подписка<small id="s-sub-note">Стандарт · 1 карта · 189 ₽ в месяц</small></span><span id="s-sub">0 ₽ первый месяц</span></li>
+            <li><span>Подписка<small id="s-sub-note">Plus · 990 ₽ в месяц</small></span><span id="s-sub">0 ₽ первый месяц</span></li>
           </ul>
-          <div class="total"><span>При заказе</span><strong id="s-total">150 ₽</strong></div>
-          <p class="next">Через месяц — <b id="s-next">189 ₽ в месяц</b></p>
+          <div class="total"><span>При заказе</span><strong id="s-total">3 490 ₽</strong></div>
+          <p class="next">Через месяц — <b id="s-next">990 ₽ в месяц</b></p>
           <ul class="sum-notes">
             <li><svg aria-hidden="true"><use href="#i-check"/></svg><b>Первый месяц подписки бесплатно</b></li>
             <li id="ref-note" hidden><svg aria-hidden="true"><use href="#i-check"/></svg><b>По приглашению: ещё месяц подписки в подарок</b></li>
@@ -344,7 +365,7 @@
   </main>
 
   <div class="mbar" id="mbar" aria-hidden="true">
-    <div>При заказе<strong id="m-total">150 ₽</strong><span id="m-next">через месяц 189 ₽ в месяц</span></div>
+    <div>При заказе<strong id="m-total">3 490 ₽</strong><span id="m-next">через месяц 990 ₽ в месяц</span></div>
     <a href="#summary">Подробнее</a>
   </div>
 
@@ -365,25 +386,32 @@
       // Пусто — формы нет, расчёт отправляют в Telegram.
       var ORDER_ENDPOINT = "/api/order";
       var FORM_ENABLED = ORDER_ENDPOINT !== "";
-      // Цены — те же, что на главной, в src/orders.js и src/tariffs.js (сервер пересчитывает итог сам).
-      // Первая карта — по тарифу, каждая следующая одинаково во всех тарифах и тем дешевле, чем больше карт.
-      // Год = 10 месяцев, первый месяц подписки бесплатно, «Свой дизайн» — 990 ₽ разово.
-      var TARIFFS = { start: { label: "Старт", base: 129 }, standard: { label: "Стандарт", base: 189 }, plus: { label: "Плюс", base: 299 } };
-      var PRICES = {
-        extraCards: [{ upTo: 1, price: 0 }, { upTo: 5, price: 49 }, { upTo: 10, price: 39 }, { upTo: 20, price: 29 }, { upTo: Infinity, price: 19 }],
-        connection: [{ upTo: 2, price: 150 }, { upTo: 5, price: 130 }, { upTo: Infinity, price: 100 }],
-        yearMonths: 10,
-        design: 990
+      // Цены — те же, что на главной, в src/tariffs.js и src/orders.js orderTotals (сервер пересчитывает итог сам).
+      // Подписка за заведение, со второй точки −20%; в подключение входит пакет карт, сверх него — 199 ₽ за карту.
+      // Модули к Plus — по 490 ₽ в месяц за точку (в Pro включены). Год = 10 месяцев, первый месяц бесплатно.
+      var TARIFFS = {
+        start: { label: "Start", base: 490, connection: 1490, cards: 5 },
+        standard: { label: "Plus", base: 990, connection: 3490, cards: 20 },
+        plus: { label: "Pro", base: 1990, connection: 5990, cards: 50 }
       };
-      function tieredTotal(tiers, n) {
-        var sum = 0, from = 0;
-        for (var i = 0; i < tiers.length; i++) {
-          var count = Math.min(n, tiers[i].upTo) - from;
-          if (count <= 0) break;
-          sum += count * tiers[i].price;
-          from = tiers[i].upTo;
+      var PRICES = { extraCard: 199, module: 490, network: 0.2, yearMonths: 10, design: 990 };
+      var EARLY = { connection: 1990, cards: 10, monthly: 490 };
+      function totals(o) {
+        var extra, connection, monthly;
+        if (o.early) {
+          extra = Math.max(0, o.cards - EARLY.cards);
+          connection = EARLY.connection + extra * PRICES.extraCard;
+          monthly = EARLY.monthly + o.modules.length * PRICES.module;
+          return { extra: extra, connection: connection, design: 0, monthly: monthly, subscription: monthly, now: connection, next: monthly };
         }
-        return sum;
+        var t = TARIFFS[o.tariff];
+        extra = Math.max(0, o.cards - t.cards * o.venues);
+        connection = t.connection * o.venues + extra * PRICES.extraCard;
+        var perVenue = t.base + (o.tariff === "standard" ? o.modules.length * PRICES.module : 0);
+        monthly = perVenue + (o.venues - 1) * Math.round(perVenue * (1 - PRICES.network));
+        var sub = o.plan === "year" ? monthly * PRICES.yearMonths : monthly;
+        var design = o.design ? PRICES.design : 0;
+        return { extra: extra, connection: connection, design: design, monthly: monthly, subscription: sub, now: connection + design, next: sub };
       }
       var form = document.getElementById("order-form");
       var venuesInput = document.getElementById("venues");
@@ -415,43 +443,67 @@
       function plan() { return form.plan.value === "year" ? "year" : "month"; }
       function tariff() { return TARIFFS[form.tariff.value] ? form.tariff.value : "standard"; }
       function design() { return document.getElementById("custom-design").checked; }
+      function early() { return document.getElementById("early").checked; }
+      // Модули — только к Plus (в Pro включены, в Start недоступны)
+      function modules() {
+        if (tariff() !== "standard" && !early()) return [];
+        var list = [];
+        if (document.getElementById("mod-service").checked) list.push("service");
+        if (document.getElementById("mod-ai").checked) list.push("ai");
+        return list;
+      }
+      var MODULE_NAMES = { service: "Сервис в зале", ai: "AI" };
 
       function update() {
-        var venues = clamp(venuesInput.value, 1, 50);
+        var isEarly = early();
+        // Early Partner: одно заведение, функции Plus, помесячно
+        if (isEarly) {
+          venuesInput.value = 1;
+          document.getElementById("plan-month").checked = true;
+          document.getElementById("tariff-standard").checked = true;
+        }
+        var venues = clamp(venuesInput.value, 1, isEarly ? 1 : 50);
         var cards = clamp(cardsInput.value, venues, 500);
         venuesInput.value = venues;
         cardsInput.value = cards;
         var p = plan();
         var t = tariff();
-        var conn = tieredTotal(PRICES.connection, cards);
-        var monthly = TARIFFS[t].base + tieredTotal(PRICES.extraCards, cards);
-        var designCost = design() ? PRICES.design : 0;
-        var now = conn + designCost;
-        var sub = p === "year" ? monthly * PRICES.yearMonths : monthly;
+        var mods = modules();
+        var r = totals({ early: isEarly, tariff: t, venues: venues, cards: cards, plan: p, design: design(), modules: mods });
         var per = p === "year" ? "в год" : "в месяц";
+        var label = isEarly ? "Early Partner" : TARIFFS[t].label;
+        var included = isEarly ? EARLY.cards : TARIFFS[t].cards * venues;
 
-        document.getElementById("s-conn-note").textContent = cards + " " + plural(cards, "карта", "карты", "карт") +
-          (cards > 1 ? " · в среднем " + rub(Math.round(conn / cards)) + " за карту" : "");
-        document.getElementById("s-conn").textContent = rub(conn);
-        document.getElementById("plan-month-note").textContent = "от " + rub(TARIFFS[t].base) + " в месяц";
-        document.getElementById("plan-year-note").textContent = "от " + rub(TARIFFS[t].base * PRICES.yearMonths) + " в год";
-        document.getElementById("s-design-row").hidden = !designCost;
-        document.getElementById("s-sub-note").textContent = TARIFFS[t].label + " · " + cards + " " + plural(cards, "карта", "карты", "карт") + " · " + rub(monthly) + " в месяц" +
-          (cards > 1 ? ", в среднем " + rub(Math.round(monthly / cards)) + " за карту" : "");
+        document.getElementById("tariff-seg").classList.toggle("is-locked", isEarly);
+        document.getElementById("modules-box").hidden = !(t === "standard" || isEarly);
+        document.getElementById("custom-design").disabled = isEarly;
+        document.getElementById("cards-note").textContent = "В подключение входит " + included + " " + plural(included, "карта", "карты", "карт") +
+          ", каждая сверх — 199 ₽";
+        document.getElementById("s-conn-note").textContent = label + " · " + cards + " " + plural(cards, "карта", "карты", "карт") +
+          (r.extra ? " (" + r.extra + " сверх пакета)" : "") + (isEarly ? " · «Свой дизайн» в подарок" : "");
+        document.getElementById("s-conn").textContent = rub(r.connection);
+        document.getElementById("plan-month-note").textContent = rub(isEarly ? r.monthly : TARIFFS[t].base) + " в месяц";
+        document.getElementById("plan-year-note").textContent = isEarly ? "не для Early Partner" : rub(TARIFFS[t].base * PRICES.yearMonths) + " в год";
+        document.getElementById("plan-year").disabled = isEarly;
+        document.getElementById("s-design-row").hidden = !r.design;
+        document.getElementById("s-sub-note").textContent = label + (mods.length ? " + " + mods.map(function (m) { return MODULE_NAMES[m]; }).join(", ") : "") +
+          (venues > 1 ? " · " + venues + " " + plural(venues, "точка", "точки", "точек") + ", со второй −20%" : "") + " · " + rub(r.monthly) + " в месяц" +
+          (isEarly ? " первые 6 месяцев" : "");
         document.getElementById("s-sub").textContent = "0 ₽ первый месяц";
-        document.getElementById("s-total").textContent = rub(now);
-        document.getElementById("s-next").textContent = rub(sub) + " " + per;
-        document.getElementById("m-total").textContent = rub(now);
-        document.getElementById("m-next").textContent = "через месяц " + rub(sub) + " " + per;
+        document.getElementById("s-total").textContent = rub(r.now);
+        document.getElementById("s-next").textContent = rub(r.next) + " " + per;
+        document.getElementById("m-total").textContent = rub(r.now);
+        document.getElementById("m-next").textContent = "через месяц " + rub(r.next) + " " + per;
         document.getElementById("calc-text").textContent =
-          "Здравствуйте! Хочу заказать " + cards + " " + plural(cards, "карту", "карты", "карт") + " TapReview.\n" +
-          "Тариф: " + TARIFFS[t].label + ", оплата за " + (p === "year" ? "год" : "месяц") + (designCost ? " + «Свой дизайн»" : "") + "\n" +
+          "Здравствуйте! Хочу подключить TapReview.\n" +
+          "Тариф: " + label + (mods.length ? " + " + mods.map(function (m) { return MODULE_NAMES[m]; }).join(", ") : "") +
+          ", оплата за " + (p === "year" ? "год" : "месяц") + (r.design ? " + «Свой дизайн»" : "") + "\n" +
           "Заведений: " + venues + ", карт: " + cards + "\n" +
-          "При заказе: " + rub(now) + " (подключение карт" + (designCost ? " и дизайн" : "") + "), первый месяц подписки бесплатно\n" +
-          "Дальше: " + rub(sub) + " " + per + "\n" +
+          "При заказе: " + rub(r.now) + " (подключение" + (r.design ? " и дизайн" : "") + "), первый месяц подписки бесплатно\n" +
+          "Дальше: " + rub(r.next) + " " + per + "\n" +
           (REF ? "По приглашению: " + REF + " (ещё месяц в подарок)\n" : "") +
           "Заведение: ";
-        document.getElementById("network-hint").hidden = venues < 3;
+        document.getElementById("network-hint").hidden = venues < 2;
 
         document.querySelector('[data-step="venues"][data-dir="-1"]').disabled = venues <= 1;
         document.querySelector('[data-step="venues"][data-dir="1"]').disabled = venues >= 50;
@@ -465,6 +517,10 @@
       var qt = new URLSearchParams(location.search).get("tariff");
       if (TARIFFS[qt]) document.getElementById("tariff-" + qt).checked = true;
       if (new URLSearchParams(location.search).get("design") === "1") document.getElementById("custom-design").checked = true;
+      if (new URLSearchParams(location.search).get("early") === "1") document.getElementById("early").checked = true;
+      var qm = (new URLSearchParams(location.search).get("modules") || "").split(",");
+      if (qm.indexOf("service") !== -1) document.getElementById("mod-service").checked = true;
+      if (qm.indexOf("ai") !== -1) document.getElementById("mod-ai").checked = true;
       if (q === "network") { document.getElementById("plan-year").checked = true; venuesInput.value = 3; cardsInput.value = 6; }
 
       document.querySelectorAll("[data-step]").forEach(function (button) {
@@ -480,7 +536,7 @@
         });
       });
       [venuesInput, cardsInput].forEach(function (input) { input.addEventListener("change", update); });
-      form.querySelectorAll('input[name="plan"], input[name="tariff"], #custom-design').forEach(function (r) { r.addEventListener("change", update); });
+      form.querySelectorAll('input[name="plan"], input[name="tariff"], #custom-design, #early, #mod-service, #mod-ai').forEach(function (r) { r.addEventListener("change", update); });
       update();
 
       // ---------- Пока без формы: расчёт → Telegram ----------
@@ -558,7 +614,9 @@
         var payload = {
           plan: plan(),
           tariff: tariff(),
-          custom_design: design(),
+          modules: modules(),
+          early: early(),
+          custom_design: design() || early(),
           venues: parseInt(venuesInput.value, 10),
           cards: parseInt(cardsInput.value, 10),
           name: f.name.value,

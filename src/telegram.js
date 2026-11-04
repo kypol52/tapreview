@@ -183,7 +183,7 @@ async function onMessage(env, message) {
 async function askFromChat(env, chat, question) {
   const subs = await db(env, `tg_subscribers?chat_id=eq.${chat.id}&can_manage=is.true&select=business_id&order=created_at.asc`);
   const venues = subs.length
-    ? await db(env, `businesses?id=in.(${subs.map((s) => s.business_id).join(",")})&select=id,name,category,modules,vip_visits`)
+    ? await db(env, `businesses?id=in.(${subs.map((s) => s.business_id).join(",")})&select=id,name,category,modules,tariff,vip_visits`)
     : [];
   const withAi = venues.filter((b) => aiOn(env, b));
   if (!withAi.length) {
@@ -402,7 +402,7 @@ export async function weeklyReports(env) {
 
   // Модуль AI (ai.js): разбор недели — цифры считает код, модель только формулирует
   if (aiConfigured(env)) {
-    const venues = await db(env, `businesses?id=in.(${ids.join(",")})&select=id,name,category,modules`).catch(() => []);
+    const venues = await db(env, `businesses?id=in.(${ids.join(",")})&select=id,name,category,modules,tariff`).catch(() => []);
     for (const b of venues) {
       const text = reports.get(b.id);
       if (!text || text.startsWith("⏸") || !aiOn(env, b)) continue;

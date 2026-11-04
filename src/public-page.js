@@ -569,7 +569,7 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
 
   // Подарок для гостей (bonus.js): только при скане карты, появляется через несколько секунд,
   // не зависит от отзыва. Без JavaScript — обычная форма.
-  // Подарки — только в тарифе «Плюс» (tariffs.js)
+  // Подарки — с тарифа Plus (tariffs.js)
   const discount = !has(business, "gifts") ? "" : bonusBlock(business, source, cardCode, guest ? guest.stamps : null, guest ? guest.rewards : 0, guest ? guest.visits : 0);
   // Баллы (points.js): баланс и «Код для кассы» — на любом шаге, они про чек, а не про оценку
   const pointsBox = pointsBlock(business, source, cardCode, guest ? guest.points : null);

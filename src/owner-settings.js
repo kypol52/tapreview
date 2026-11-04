@@ -50,12 +50,12 @@ export async function handleOwnerSettings(request, env, token) {
       staff: await listStaff(env, id),
       cards: await db(env, `cards?business_id=eq.${id}&is_active=is.true&is_table=is.false&select=id,code,label,staff_id&order=code.asc`)
     } : null);
-    // Тарифы (tariffs.js): «Настройки» — с «Стандарта», раздел подарков — только в «Плюсе»
+    // Тарифы (tariffs.js): «Настройки», подарки, баллы и меню — с Plus
     if (!has(business, "settings")) {
       return html(200, "Настройки", `${header(token, business.name, "", `/s/${token}`, "Статистика")}
   <main class="wrap"><section class="panel">
-    <p>В тарифе «Старт» страница ведёт гостей сразу к отзывам, и настраивать здесь нечего.
-      «Сейчас у нас», кнопки «Меню», «Запись», «Чаевые» и оценка гостей есть в тарифе «Стандарт», подарки и штампы — в «Плюсе».
+    <p>В тарифе Start на странице отзывы и оценка гостя, а настраивать здесь нечего.
+      Меню, «Сейчас у нас», кнопки «Запись», «Чаевые», подарки, штампы и баллы — в тарифе Plus, вызов официанта и AI — в Pro.
       Чтобы сменить тариф, напишите в TapReview.</p>
   </section></main>`);
     }
@@ -80,11 +80,11 @@ export async function handleOwnerSettings(request, env, token) {
     try {
       if (section === "moment") patch = await momentPatch(env, form, business);
       else if (section === "bonus") {
-        if (!has(business, "gifts")) throw new Error("Подарки доступны в тарифе «Плюс» — напишите в TapReview, чтобы сменить тариф");
+        if (!has(business, "gifts")) throw new Error("Подарки доступны в тарифе Plus — напишите в TapReview, чтобы сменить тариф");
         patch = bonusPatch(form);
       }
       else if (section === "points") {
-        if (!has(business, "gifts")) throw new Error("Баллы доступны в тарифе «Плюс» — напишите в TapReview, чтобы сменить тариф");
+        if (!has(business, "gifts")) throw new Error("Баллы доступны в тарифе Plus — напишите в TapReview, чтобы сменить тариф");
         patch = cleanPoints(Object.fromEntries(form));
       }
       else if (section === "links") patch = linksPatch(form);
@@ -94,7 +94,7 @@ export async function handleOwnerSettings(request, env, token) {
         patch = null;
       }
       else if (section === "menu" || section === "menu_stock" || section === "menu_item") {
-        if (!has(business, "menu")) throw new Error("Меню — с тарифа «Стандарт». Чтобы подключить, напишите в TapReview");
+        if (!has(business, "menu")) throw new Error("Меню — с тарифа Plus. Чтобы подключить, напишите в TapReview");
         if (section === "menu") await saveMenuText(env, id, String(form.get("menu") || ""));
         else if (section === "menu_stock") await setAvailability(env, id, form.getAll("on"));
         else {
@@ -275,7 +275,7 @@ function settingsBody(token, multi, b, { ok = null, error = null, team = null, m
   <main class="wrap">
     ${momentSection(b, hidden, flash("moment"))}
     ${has(b, "gifts") ? bonusSection(b, hidden, flash("bonus")) : `<section class="panel" id="bonus"><h2>Подарок для гостей</h2>
-      <p class="set-hint">Колесо подарков, штампы, VIP-гости и «Подарите другу» — в тарифе «Плюс». Чтобы подключить, напишите в TapReview.</p></section>`}
+      <p class="set-hint">Колесо подарков, штампы, VIP-гости и «Подарите другу» — в тарифе Plus. Чтобы подключить, напишите в TapReview.</p></section>`}
     ${has(b, "gifts") ? pointsSettingsSection(b, hidden, flash("points")) : ""}
     ${linksSection(b, hidden, flash("links"))}
     ${menu ? menuSection(token, b, menu, hidden, flash("menu"), menuDraft) : ""}

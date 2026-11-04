@@ -553,8 +553,9 @@ function renderOrder(order) {
   const sum = el(
     "div",
     "o-sum",
-    `Карт: ${order.cards} · заведений: ${order.venues} · тариф «${({ start: "Старт", standard: "Стандарт", plus: "Плюс" })[order.tariff] || "Стандарт"}», ` +
-      `оплата за ${order.plan === "year" ? "год" : "месяц"}${order.custom_design ? " · + свой дизайн" : ""} · ` +
+    `Карт: ${order.cards} · заведений: ${order.venues} · тариф ${order.early ? "Early Partner" : ({ start: "Start", standard: "Plus", plus: "Pro" })[order.tariff] || "Plus"}` +
+      `${(order.modules || []).length ? ` + ${order.modules.map((m) => (m === "ai" ? "AI" : "Сервис в зале")).join(", ")}` : ""}, ` +
+      `оплата за ${order.plan === "year" ? "год" : "месяц"}${order.custom_design && !order.early ? " · + свой дизайн" : ""} · ` +
       `при заказе ${rub(order.total_now)}, дальше ${rub(order.total_next)} ${per}`
   );
 
@@ -1073,7 +1074,7 @@ function openEditor(business) {
   $("f-points-share").value = business ? String(business.points_max_share ?? 30) : "30";
   $("f-points-expire").value = business ? String(business.points_expire_days ?? 180) : "180";
   $("f-points-max").value = business ? String(business.points_max_check ?? 50000) : "50000";
-  $("f-price").value = business && business.monthly_price != null ? String(business.monthly_price) : business ? "" : "189";
+  $("f-price").value = business && business.monthly_price != null ? String(business.monthly_price) : business ? "" : "990";
   $("f-billing-note").value = business ? business.billing_note || "" : "";
   fillReferredBy(business);
   loadReferrals(business);

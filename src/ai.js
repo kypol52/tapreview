@@ -192,7 +192,7 @@ export async function classifyFeedback(env, business, feedbackId, { text, score,
 // Отзыв в Mini App (app-api.js): размечаем, если у заведения модуль AI
 export async function classifyReview(env, businessId, reviewId, { text, score }) {
   try {
-    const rows = await db(env, `businesses?id=eq.${businessId}&select=id,category,modules&limit=1`);
+    const rows = await db(env, `businesses?id=eq.${businessId}&select=id,category,modules,tariff&limit=1`);
     if (!rows.length || !aiOn(env, rows[0]) || !String(text || "").trim()) return null;
     const ai = await classifyText(env, { text, score, category: rows[0].category, kind: "review", businessId });
     if (!ai) return null;

@@ -484,10 +484,16 @@
     .plan-featured .btn-ghost { background: transparent; color: #fff; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.3) inset; }
     .price-extra, .price-design { display: grid; gap: 20px; align-items: center; margin-top: 16px; padding: 24px; border-radius: var(--r-lg); background: #fff; box-shadow: 0 0 0 1px var(--line) inset; }
     .price-extra p, .price-design p { margin: 0 0 8px; color: var(--muted); font-size: 15px; }
+    /* Early Partner — над тарифами, золотая рамка */
+    .price-early { margin: 0 0 20px; box-shadow: 0 0 0 2px var(--gold) inset; }
+    .price-early .btn { justify-self: start; }
     .price-design .btn { margin-top: 8px; }
     .tiers th { padding: 7px 0; border-bottom: 1px solid var(--line-strong); font-size: 12.5px; font-weight: 700; color: var(--muted); text-align: right; }
     .tiers th:first-child, .tiers td:first-child { text-align: left; }
     .tiers td + td { text-align: right; }
+    /* Примеры цен: суммы не переносим и отделяем от соседней колонки */
+    .tiers td + td, .tiers th + th { white-space: nowrap; padding-left: 12px; }
+    .tiers td:first-child { font-size: 13.5px; }
     @media (min-width: 720px) {
       .price-extra { grid-template-columns: 1.1fr 0.9fr; gap: 40px; padding: 28px 32px; }
       .price-design { grid-template-columns: 240px 1fr; gap: 32px; padding: 24px 32px 24px 24px; }
@@ -681,10 +687,10 @@
             </a>
             <a class="btn btn-gold" href="/b/yarik">Посмотреть пример</a>
           </div>
-          <!-- ЦЕНЫ: тарифы Старт 129 / Стандарт 189 / Плюс 299 ₽ за первую карту в месяц; следующие во всех тарифах: 2–5-я по 49, 6–10-я по 39, 11–20-я по 29, дальше 19. «Свой дизайн» 990 ₽ разово.
-               Подключение: 1–2-я по 150 ₽, 3–5-я по 130, дальше 100. Год = 10 мес, первый месяц бесплатно.
-               Меняются здесь, в разделе «Цены», в order/index.html, src/orders.js и в оферте (п. 3.4) -->
-          <p class="hero-price reveal" style="--d:.2s">Подписка от <b>129&nbsp;₽/мес</b>, каждая следующая карта дешевле · <b>первый месяц бесплатно</b> · <a href="#pricing">все цены</a></p>
+          <!-- ЦЕНЫ (прайс 4.11.2026): подписка за заведение Start 490 / Plus 990 / Pro 1 990 ₽/мес, подключение 1 490 / 3 490 / 5 990 ₽
+               с пакетом 5 / 20 / 50 карт, карта сверх — 199 ₽, модули к Plus по 490 ₽, со 2-й точки −20%, год = 10 мес, первый месяц бесплатно.
+               Early Partner: 1 990 ₽ с 10 картами и дизайном, 490 ₽/мес полгода. Меняются здесь, в «Цены», order/index.html, src/tariffs.js и в оферте (п. 3.3–3.4) -->
+          <p class="hero-price reveal" style="--d:.2s">Первым 20 заведениям — <b>490&nbsp;₽/мес</b> и подключение с 10 картами за 1&nbsp;990&nbsp;₽ · <b>первый месяц бесплатно</b> · <a href="#pricing">все цены</a></p>
           <ul class="hero-meta reveal" style="--d:.25s">
             <li><svg aria-hidden="true"><use href="#i-check"/></svg>Без приложений</li>
             <li><svg aria-hidden="true"><use href="#i-check"/></svg>Без сбора телефонов гостей</li>
@@ -813,7 +819,7 @@
           <p class="kicker">Для гостей</p>
           <h2>Чтобы гости возвращались — и приводили друзей</h2>
           <p>Всё включается в настройках заведения. Гостю не нужно ничего скачивать и регистрироваться: мы узнаём телефон по обезличенной метке, без имён и номеров.
-            Подарки, штампы, VIP-гости и «Подарите другу» — в тарифе «Плюс», «Сейчас у нас» и кнопки меню — с «Стандарта».</p>
+            Подарки, штампы, VIP-гости, баллы, меню и «Сейчас у нас» — с тарифа Plus.</p>
         </div>
 
         <div class="feats">
@@ -965,71 +971,79 @@
       <div class="wrap">
         <div class="section-head reveal">
           <p class="kicker">Цены</p>
-          <h2>Три тарифа — выберите свой</h2>
-          <p>Тариф задаёт цену первой карты. Каждая следующая — одинаково во всех тарифах и тем дешевле, чем больше карт. Первый месяц подписки бесплатно.</p>
+          <h2>Подписка за заведение, карты — пакетом</h2>
+          <p>Вы платите за заведение, а не за каждую карту: в подключение уже входит пакет карт на столы, кассу и ресепшен. Первый месяц подписки бесплатно.</p>
+        </div>
+
+        <div class="price-extra price-early reveal">
+          <div>
+            <h3>Early Partner — первые 20 заведений</h3>
+            <p>Подключение <b>1&nbsp;990&nbsp;₽</b>: 10 карт NFC + QR, настройка и «Свой дизайн» страницы в подарок. Подписка <b>490&nbsp;₽ в месяц первые полгода</b> со всеми функциями Plus, дальше — обычный тариф. Первый месяц — бесплатно.</p>
+          </div>
+          <a class="btn btn-gold" href="/order/?early=1">Стать Early Partner</a>
         </div>
 
         <div class="plans">
           <article class="plan reveal">
-            <h3>Старт</h3>
-            <p class="plan-sub">Просто собирать отзывы</p>
-            <p class="price"><strong>129&nbsp;₽</strong><span>в месяц за первую карту</span></p>
-            <p class="price-note">или 1&nbsp;290&nbsp;₽ за год</p>
+            <h3>Start</h3>
+            <p class="plan-sub">Барбершоп, мастер, кофейня</p>
+            <p class="price"><strong>490&nbsp;₽</strong><span>в месяц за заведение</span></p>
+            <p class="price-note">подключение 1&nbsp;490&nbsp;₽ · до 5 карт</p>
             <ul>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Карта NFC + QR — вертикальная или горизонтальная</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Страница сразу с кнопками Яндекс Карт, 2ГИС, Google Maps</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Статистика переходов по каждой карте</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Отчёт в Telegram по понедельникам</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Смена ссылок без перепечатки</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Карты NFC + QR — вертикальные или горизонтальные</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Страница с кнопками Яндекс Карт, 2ГИС, Google Maps</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Оценка гостя: недовольные пишут вам, а не на карты</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Причины жалоб, «Перезвоните мне», напоминание, если не разобрано</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Статистика и отчёт в Telegram по понедельникам</li>
             </ul>
-            <a class="btn btn-ghost" href="/order/?tariff=start">Выбрать «Старт»</a>
+            <a class="btn btn-ghost" href="/order/?tariff=start">Выбрать Start</a>
           </article>
 
           <article class="plan plan-featured reveal" style="--d:.06s">
             <span class="plan-badge">Чаще выбирают</span>
-            <h3>Стандарт</h3>
-            <p class="plan-sub">Отзывы и обратная связь</p>
-            <p class="price"><strong>189&nbsp;₽</strong><span>в месяц за первую карту</span></p>
-            <p class="price-note">или 1&nbsp;890&nbsp;₽ за год</p>
+            <h3>Plus</h3>
+            <p class="plan-sub">Кафе, салон, студия</p>
+            <p class="price"><strong>990&nbsp;₽</strong><span>в месяц за заведение</span></p>
+            <p class="price-note">подключение 3&nbsp;490&nbsp;₽ · до 20 карт</p>
             <ul>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Всё, что в «Старте»</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Оценка гостя: недовольные пишут вам, а не на карты</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>«Перезвоните мне» и отметка «Разобрано»</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Меню, запись, чаевые и «Сейчас у нас»</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Что нравится гостям, Score и итоги месяца</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Настройки сами — по ссылке статистики</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Всё, что в Start</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Меню на странице, «Сейчас у нас», запись и чаевые</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Колесо подарков, штампы, VIP-гости, «Подарите другу»</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Баллы с каждого чека и касса для персонала</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Score, итоги месяца, настройки и управление из Telegram</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Модули по желанию: «Сервис в зале» и AI — по 490&nbsp;₽ в месяц</li>
             </ul>
-            <a class="btn btn-gold" href="/order/?tariff=standard">Выбрать «Стандарт»</a>
+            <a class="btn btn-gold" href="/order/?tariff=standard">Выбрать Plus</a>
           </article>
 
           <article class="plan reveal" style="--d:.12s">
-            <h3>Плюс</h3>
-            <p class="plan-sub">Чтобы гости возвращались</p>
-            <p class="price"><strong>299&nbsp;₽</strong><span>в месяц за первую карту</span></p>
-            <p class="price-note">или 2&nbsp;990&nbsp;₽ за год</p>
+            <h3>Pro</h3>
+            <p class="plan-sub">Ресторан с залом, большие заведения</p>
+            <p class="price"><strong>1&nbsp;990&nbsp;₽</strong><span>в месяц за заведение</span></p>
+            <p class="price-note">подключение 5&nbsp;990&nbsp;₽ · до 50 карт</p>
             <ul>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Всё, что в «Стандарте»</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Колесо подарков и касса для персонала</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Штампы и VIP-гости, «С возвращением!»</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>«Подарите другу» — гости приводят друзей</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Управление из Telegram</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Всё, что в Plus</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Вызов официанта и «Попросить счёт» со стола</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Заказ из меню со стола и «К этому часто берут»</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Сотрудники и их оценки, личные карты официантов</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>AI: «🔥 Срочно», разбор недели и ассистент по вашим цифрам</li>
             </ul>
-            <a class="btn btn-ghost" href="/order/?tariff=plus">Выбрать «Плюс»</a>
+            <a class="btn btn-ghost" href="/order/?tariff=plus">Выбрать Pro</a>
           </article>
         </div>
 
         <div class="price-extra reveal">
           <div>
-            <h3>Больше карт — дешевле каждая</h3>
-            <p>Каждая следующая карта в месяц, во всех тарифах: 2–5-я — по&nbsp;49&nbsp;₽, 6–10-я — по&nbsp;39&nbsp;₽, 11–20-я — по&nbsp;29&nbsp;₽, дальше по&nbsp;19&nbsp;₽. Карты всех ваших точек считаются вместе. Год — как 10&nbsp;месяцев.</p>
-            <p>Подключение карты разово: 1–2-я — по&nbsp;150&nbsp;₽, 3–5-я — по&nbsp;130&nbsp;₽, дальше по&nbsp;100&nbsp;₽.</p>
+            <h3>Больше столов — без доплаты каждый месяц</h3>
+            <p>Карты — разовая покупка: пакет входит в подключение, каждая карта сверх пакета — 199&nbsp;₽ один раз. Подписка от числа карт не зависит.</p>
+            <p>Сеть заведений: со второй точки подписка на 20% дешевле. Год — как 10&nbsp;месяцев.</p>
           </div>
-          <table class="tiers" aria-label="Подписка в месяц по числу карт">
-            <tr><th>Карт</th><th>Старт</th><th>Стандарт</th><th>Плюс</th></tr>
-            <tr><td>1</td><td>129&nbsp;₽</td><td>189&nbsp;₽</td><td>299&nbsp;₽</td></tr>
-            <tr><td>5</td><td>325&nbsp;₽</td><td>385&nbsp;₽</td><td>495&nbsp;₽</td></tr>
-            <tr><td>10</td><td>520&nbsp;₽</td><td>580&nbsp;₽</td><td>690&nbsp;₽</td></tr>
-            <tr><td>20</td><td>810&nbsp;₽</td><td>870&nbsp;₽</td><td>980&nbsp;₽</td></tr>
+          <table class="tiers" aria-label="Примеры: подключение и подписка">
+            <tr><th>Пример</th><th>Подключение</th><th>В месяц</th></tr>
+            <tr><td>Барбершоп, 3 карты · Start</td><td>1&nbsp;490&nbsp;₽</td><td>490&nbsp;₽</td></tr>
+            <tr><td>Кафе, 30 столов · Plus</td><td>5&nbsp;480&nbsp;₽</td><td>990&nbsp;₽</td></tr>
+            <tr><td>То же + «Сервис в зале»</td><td>5&nbsp;480&nbsp;₽</td><td>1&nbsp;480&nbsp;₽</td></tr>
+            <tr><td>Ресторан, 50 столов · Pro</td><td>5&nbsp;990&nbsp;₽</td><td>1&nbsp;990&nbsp;₽</td></tr>
           </table>
         </div>
 
@@ -1043,7 +1057,7 @@
         </div>
 
         <div class="pricing-foot reveal">
-          <p><svg aria-hidden="true"><use href="#i-check"/></svg>Первый месяц подписки бесплатно — при заказе вы платите только за подключение карт.</p>
+          <p><svg aria-hidden="true"><use href="#i-check"/></svg>Первый месяц подписки бесплатно — при заказе вы платите только за подключение с картами.</p>
           <p><svg aria-hidden="true"><use href="#i-check"/></svg>Без автосписаний — каждый период вы оплачиваете сами, за 5 дней до конца напомним.</p>
           <p><svg aria-hidden="true"><use href="#i-check"/></svg>Смена ссылок и перепривязка карт — бесплатно, пока действует подписка.</p>
         </div>

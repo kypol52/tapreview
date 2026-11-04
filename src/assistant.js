@@ -4,7 +4,7 @@
 //   (только чаты с «Может управлять»). Код сначала собирает справку по заведению за 8 недель — по неделям, дням недели,
 //   времени суток, причинам жалоб, сотрудникам, вызовам, заказам, баллам, гостям — и передаёт её YandexGPT Pro.
 //   Модель отвечает только по справке; предложения с числами, которых в справке нет, выбрасываем (keepKnownNumbers).
-//   Не больше QUESTIONS_PER_DAY вопросов в день на заведение.
+//   Не больше QUESTIONS_PER_MONTH вопросов в месяц (так в прайсе) и QUESTIONS_PER_DAY в день на заведение.
 
 import { db } from "./supabase.js";
 import { aiOn, complete, keepKnownNumbers, maskPersonal, AI_PRO } from "./ai.js";
@@ -13,6 +13,7 @@ import { hasModule } from "./tariffs.js";
 import { html, esc, notFound, TOKEN_RE } from "./stats-page.js";
 
 export const QUESTIONS_PER_DAY = 20;
+export const QUESTIONS_PER_MONTH = 100;
 const WEEKS = 8;
 const MSK = 3 * 3600e3;
 const DAY = 86400e3;
@@ -162,9 +163,12 @@ export async function askAssistant(env, business, question, source = "web", now 
   const q = String(question || "").replace(/[\u0000-\u001F\u007F]/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
   if (q.length < 3) return { error: "Напишите вопрос" };
   if (!aiOn(env, business)) return { error: "AI-ассистент — в модуле «AI-разбор отзывов». Чтобы подключить, напишите в TapReview." };
+  // Лимиты (прайс: до QUESTIONS_PER_MONTH вопросов в месяц): в день и в календарный месяц по МСК
   const today = new Date(`${mskDay(now)}T00:00:00+03:00`).toISOString();
-  const asked = await db(env, `ai_questions?business_id=eq.${business.id}&created_at=gte.${encodeURIComponent(today)}&select=id`);
-  if (asked.length >= QUESTIONS_PER_DAY) return { error: `Сегодня уже ${QUESTIONS_PER_DAY} вопросов — это лимит на день. Спросите завтра.` };
+  const month = new Date(`${mskDay(now).slice(0, 8)}01T00:00:00+03:00`).toISOString();
+  const asked = await db(env, `ai_questions?business_id=eq.${business.id}&created_at=gte.${encodeURIComponent(month)}&select=created_at&limit=1000`);
+  if (asked.length >= QUESTIONS_PER_MONTH) return { error: `В этом месяце уже ${QUESTIONS_PER_MONTH} вопросов — это лимит тарифа. Новые вопросы — с 1-го числа.` };
+  if (asked.filter((a) => Date.parse(a.created_at) >= Date.parse(today)).length >= QUESTIONS_PER_DAY) return { error: `Сегодня уже ${QUESTIONS_PER_DAY} вопросов — это лимит на день. Спросите завтра.` };
   const facts = await buildFacts(env, business, now);
   const answer = await complete(env, {
     model: AI_PRO,
@@ -197,7 +201,7 @@ export async function handleAsk(request, env, token) {
     const form = request.method === "POST" ? new URLSearchParams((await request.text()).slice(0, 2000)) : url.searchParams;
     const wanted = Number(form.get("b")) || (ids.length === 1 ? ids[0] : null);
     if (wanted && !ids.includes(wanted)) return notFound();
-    const venues = await db(env, `businesses?id=in.(${ids.join(",")})&select=id,name,category,modules,vip_visits&order=name.asc`);
+    const venues = await db(env, `businesses?id=in.(${ids.join(",")})&select=id,name,category,modules,tariff,vip_visits&order=name.asc`);
     const withAi = venues.filter((v) => aiOn(env, v));
     const business = withAi.find((v) => v.id === wanted) || (withAi.length === 1 ? withAi[0] : null);
     const head = (sub) => `
@@ -207,7 +211,7 @@ export async function handleAsk(request, env, token) {
       <a class="back" href="/s/${token}${business && ids.length > 1 ? `?b=${business.id}` : ""}">← Статистика</a>
       <h1 class="name">Спросить AI</h1>
       ${sub ? `<p class="sub">${esc(sub)}</p>` : ""}
-      <p class="range">Отвечает по цифрам вашего заведения за ${WEEKS} недель. Не больше ${QUESTIONS_PER_DAY} вопросов в день.</p>
+      <p class="range">Отвечает по цифрам вашего заведения за ${WEEKS} недель. До ${QUESTIONS_PER_MONTH} вопросов в месяц.</p>
     </div>
   </header>`;
     if (!withAi.length) {

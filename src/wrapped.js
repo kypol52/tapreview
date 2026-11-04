@@ -67,10 +67,10 @@ export async function handleWrapped(request, env, token) {
     if (wanted && !linkIds.includes(wanted)) return notFound();
 
     const linked = await db(env, `businesses?id=in.(${linkIds.join(",")})&select=id,name,paid_until,tariff`);
-    // «Итоги месяца» — с тарифа «Стандарт» (tariffs.js)
+    // «Итоги месяца» — с тарифа Plus (tariffs.js)
     if (linked.length && !linked.some((v) => has(v, "wrapped"))) {
       return html(200, "Итоги месяца", `<main class="wrap wrap-center"><section class="panel">
-        <h1 class="lost">Итоги месяца — в тарифе «Стандарт»</h1><p>Чтобы подключить, напишите в TapReview.</p>
+        <h1 class="lost">Итоги месяца — с тарифа Plus</h1><p>Чтобы подключить, напишите в TapReview.</p>
         <a class="back back-dark" href="/s/${token}">← Статистика</a></section></main>`);
     }
     const venues = linked.filter((v) => billingState(v.paid_until).state !== "expired" && has(v, "wrapped"));

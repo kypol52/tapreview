@@ -126,7 +126,7 @@ export async function handleCall(request, env, ctx) {
     const cards = await db(env, `cards?code=eq.${code}&is_active=is.true&select=id,code,label,is_table,business_id&limit=1`);
     const card = cards[0];
     const business = card && card.business_id
-      ? (await db(env, `businesses?id=eq.${card.business_id}&is_active=eq.true&select=id,slug,name,theme,design,brand_color,paid_until,modules&limit=1`))[0]
+      ? (await db(env, `businesses?id=eq.${card.business_id}&is_active=eq.true&select=id,slug,name,theme,design,brand_color,paid_until,modules,tariff&limit=1`))[0]
       : null;
     if (!business || !callsOn(business, card, source) || isExpired(business.paid_until)) {
       return guestPage(404, business, "Вызов с этой карты сейчас недоступен. Обратитесь, пожалуйста, к персоналу.");

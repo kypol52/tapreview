@@ -28,7 +28,7 @@ async function managedBusinesses(env, chatId) {
   return ids.map((id) => rows.find((r) => r.id === id)).filter(Boolean);
 }
 
-// Управление из Telegram — тариф «Плюс» (tariffs.js)
+// Управление из Telegram — с тарифа Plus (tariffs.js)
 async function plusBusinesses(env, chatId) {
   const all = await managedBusinesses(env, chatId);
   return { all, list: all.filter((b) => has(b, "bot")) };
@@ -46,7 +46,7 @@ export async function handleManage(env, chat, text) {
     return "⚙ Управление из бота для этого чата не включено. Напишите нам — включим для владельца заведения.";
   }
   if (!list.length) {
-    return "⚙ Управление из Telegram доступно в тарифе «Плюс». Чтобы подключить, напишите в TapReview.";
+    return "⚙ Управление из Telegram доступно с тарифа Plus. Чтобы подключить, напишите в TapReview.";
   }
   if (name === "manage") return overview(env, list);
 
