@@ -2104,24 +2104,30 @@ function renderTeam(business, team, cards) {
       box.type = "checkbox";
       box.checked = s.is_active;
       active.append(box, " Работает");
-      const save = el("button", "btn btn-secondary btn-small", "Сохранить");
-      save.type = "button";
-      save.addEventListener("click", async () => {
+      // Сохраняется само при любом изменении — отдельную кнопку легко пропустить
+      // и нажать «Сохранить» всего заведения (тогда выбор карты терялся)
+      const status = el("span", "sl-meta", "");
+      const save = async () => {
         hideError("team-error");
-        save.disabled = true;
+        status.textContent = "Сохраняем…";
         try {
           await api(`/api/admin/staff/${s.id}`, {
             method: "PATCH",
             body: { name: name.value, tips_url: tips.value, is_active: box.checked, card_id: card.value || null }
           });
-          toast("Сохранено");
+          status.textContent = "✓ Сохранено";
+          toast(`Сохранено: ${name.value}`);
           await loadStaffLinks(business);
         } catch (error) {
+          status.textContent = "";
           showError("team-error", error.message);
-          save.disabled = false;
         }
-      });
-      li.append(row, active, save);
+      };
+      card.addEventListener("change", save);
+      box.addEventListener("change", save);
+      name.addEventListener("change", save);
+      tips.addEventListener("change", save);
+      li.append(row, active, status);
       return li;
     })
   );
