@@ -136,7 +136,8 @@
     .header .btn svg { width: 18px; height: 18px; }
 
     /* ---------- первый экран ---------- */
-    .hero { position: relative; padding: 36px 0 64px; }
+    /* overflow-x: clip — декоративная стойка сцены не должна давать горизонтальную прокрутку на телефоне */
+    .hero { position: relative; padding: 36px 0 64px; overflow-x: clip; }
     .hero::before {
       content: ""; position: absolute; inset: 0 0 auto; height: 620px; z-index: -1; pointer-events: none;
       background:
@@ -429,6 +430,51 @@
     .mini-wrapped small { font-size: 10px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); }
     .mini-wrapped b { font-size: 24px; font-weight: 800; }
     .mini-wrapped span { font-size: 12px; color: #f6d77a; }
+    /* баллы */
+    .mini-points { flex-direction: column; gap: 4px; }
+    .mini-points b { font-size: 16px; font-weight: 800; }
+    .mini-points .pts-code { padding: 6px 14px; border-radius: 10px; background: var(--navy); color: #fff; font-size: 18px; font-weight: 800; letter-spacing: 0.08em; }
+    .mini-points small { font-size: 11px; color: var(--muted); }
+    /* своё меню */
+    .mini-menu { flex-direction: column; align-items: stretch; gap: 5px; padding: 12px 16px; }
+    .mini-menu span { display: flex; justify-content: space-between; gap: 8px; padding: 5px 9px; border-radius: 9px; background: #fff; box-shadow: 0 0 0 1px var(--line) inset; }
+    .mini-menu em { font-style: normal; font-size: 10px; font-weight: 800; color: var(--gold-600); }
+    /* кошелёк и каталог в Telegram */
+    .mini-wallet { flex-direction: column; align-items: stretch; gap: 5px; padding: 12px 16px; background: #e7f2fb; }
+    .mini-wallet span { display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 10px; background: #fff; }
+    .mini-wallet span i { font-style: normal; color: #1f6fb2; }
+    .mini-catalog { flex-direction: column; gap: 4px; background: #e7f2fb; }
+    .mini-catalog b { font-size: 14px; }
+    .mini-catalog span { color: #1f6fb2; }
+    /* вызов официанта */
+    .mini-call { gap: 6px; }
+    .mini-call i { display: grid; place-items: center; gap: 2px; width: 30%; padding: 10px 4px; border-radius: 12px; background: #fff; box-shadow: 0 0 0 1px var(--line) inset; font-style: normal; font-size: 11px; text-align: center; }
+    .mini-call i b { font-size: 20px; line-height: 1; }
+    .mini-call i.on { box-shadow: 0 0 0 2px var(--gold) inset; }
+    /* заказ со стола */
+    .mini-cart { flex-direction: column; align-items: stretch; gap: 5px; padding: 12px 16px; }
+    .mini-cart span { display: flex; justify-content: space-between; font-weight: 600; }
+    .mini-cart .bar-total { margin-top: 2px; padding: 7px 12px; border-radius: 99px; background: var(--navy); color: #fff; }
+    .mini-cart .bar-total em { font-style: normal; color: var(--gold); }
+    /* страница персонала */
+    .mini-staffcall { flex-direction: column; align-items: stretch; gap: 6px; padding: 12px 16px; }
+    .mini-staffcall span { display: flex; justify-content: space-between; align-items: center; padding: 7px 10px; border-radius: 10px; background: #fff8e6; box-shadow: 0 0 0 1px #f0d48a inset; }
+    .mini-staffcall span i { padding: 3px 9px; border-radius: 8px; background: var(--navy); color: #fff; font-style: normal; font-size: 11px; }
+    /* сотрудники */
+    .mini-staff { flex-direction: column; align-items: stretch; gap: 6px; padding: 12px 16px; }
+    .mini-staff span { display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 10px; background: #fff; box-shadow: 0 0 0 1px var(--line) inset; }
+    .mini-staff span b { color: var(--gold-600); }
+    /* AI */
+    .mini-urgent { flex-direction: column; align-items: flex-start; gap: 3px; background: #fdecec; }
+    .mini-urgent b { color: #b42318; }
+    .mini-ask { flex-direction: column; align-items: stretch; gap: 6px; padding: 12px 14px; }
+    .mini-ask .q { align-self: flex-end; max-width: 85%; padding: 6px 10px; border-radius: 12px 12px 2px 12px; background: var(--navy); color: #fff; font-size: 11.5px; }
+    .mini-ask .a { align-self: flex-start; max-width: 90%; padding: 6px 10px; border-radius: 12px 12px 12px 2px; background: #fff; box-shadow: 0 0 0 1px var(--line) inset; font-size: 11.5px; font-weight: 550; }
+    .mini-digest { flex-direction: column; align-items: flex-start; gap: 3px; padding: 12px 16px; background: linear-gradient(150deg, var(--navy) 0%, var(--navy-900) 70%); color: #fff; }
+    .mini-digest small { font-size: 10px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); }
+    .mini-digest span { font-size: 12px; font-weight: 550; }
+    /* подпись «в каком тарифе» в шапке раздела */
+    .plan-tag { display: inline-block; margin-top: 4px; padding: 5px 12px; border-radius: 99px; background: rgba(229, 170, 12, 0.14); color: var(--ink); font-size: 13px; font-weight: 700; }
     /* бот */
     .mini-bot { flex-direction: column; align-items: stretch; gap: 5px; background: #e7f2fb; }
     .mini-bot span { max-width: 88%; padding: 5px 10px; border-radius: 12px; font-size: 11.5px; }
@@ -657,6 +703,8 @@
         <a href="#how">Как работает</a>
         <a href="#guests">Гостям</a>
         <a href="#owner">Владельцу</a>
+        <a href="#service">Сервис в зале</a>
+        <a href="#ai">AI</a>
         <a href="#pricing">Цены</a>
         <a href="#faq">Вопросы</a>
       </nav>
@@ -850,9 +898,32 @@
           </article>
           <article class="feat reveal" style="--d:.12s">
             <div class="mini mini-links" aria-hidden="true"><i>🍴 Меню</i><i>📅 Запись</i><i>💳 Чаевые</i><i>🛵 Доставка</i></div>
-            <h3>Меню, запись, чаевые</h3>
-            <p>До шести кнопок «Ещё у нас»: меню, онлайн-запись, доставка, чаевые или оплата по СБП. Деньги идут напрямую заведению.</p>
+            <h3>Запись, чаевые, доставка</h3>
+            <p>До шести кнопок «Ещё у нас»: онлайн-запись, доставка, чаевые или оплата по СБП. Деньги идут напрямую заведению.</p>
           </article>
+          <article class="feat reveal">
+            <div class="mini mini-menu" aria-hidden="true"><span>Капучино <b>250 ₽</b></span><span>Чизкейк <em>РЕКОМЕНДУЕМ</em> <b>290 ₽</b></span></div>
+            <h3>Своё меню на странице</h3>
+            <p>Меню с фото, ценами и пометкой «рекомендуем» — в оформлении вашего заведения. Вставили список текстом — и оно готово. «Нет в наличии» — одной галочкой.</p>
+          </article>
+          <article class="feat reveal" style="--d:.06s">
+            <div class="mini mini-points" aria-hidden="true"><b>💰 У вас 105 баллов</b><span class="pts-code">482 913</span><small>код для кассы · 10 минут</small></div>
+            <h3>Баллы с каждого чека</h3>
+            <p>Часть чека возвращается гостю баллами: 1 балл = 1 ₽ скидки в следующий раз. Гость показывает одноразовый код, кассир вводит его и сумму чека. Баллы сгорают, если долго не приходить.</p>
+          </article>
+          <article class="feat reveal" style="--d:.12s">
+            <div class="mini mini-wallet" aria-hidden="true"><span>Кофейня «Утро» <i>3 из 5 штампов</i></span><span>Барбершоп <i>VIP · 105 баллов</i></span></div>
+            <h3>Все подарки — в Telegram</h3>
+            <p>Гость связывает телефон со своим Telegram и видит штампы, баллы и коды подарков во всех заведениях с картами TapReview. Без приложений и регистрации.</p>
+          </article>
+        </div>
+
+        <div class="design-strip reveal">
+          <div class="mini mini-catalog" aria-hidden="true" style="height:auto;margin:0"><b>★ 4,8 · Кофейня «Утро»</b><span>Отзыв в Telegram →</span></div>
+          <div>
+            <h3>Каталог и отзывы в Telegram</h3>
+            <p>По желанию заведение появляется в каталоге TapReview в Telegram: гости находят места рядом, читают отзывы и пишут свои — с проверкой модератором. Вы отвечаете на отзывы и видите рейтинг в кабинете.</p>
+          </div>
         </div>
 
         <div class="design-strip reveal">
@@ -865,8 +936,53 @@
       </div>
     </section>
 
+    <!-- ---------- сервис в зале (модуль) ---------- -->
+    <section id="service">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <p class="kicker">Сервис в зале</p>
+          <h2>Гость зовёт официанта и заказывает прямо со стола</h2>
+          <p>Карта на столе — это ещё и кнопка вызова. Без приложений, без касс и без оплаты через нас: гость платит официанту, как обычно.</p>
+          <p class="plan-tag">Входит в Pro · к Plus — 490&nbsp;₽ в месяц</p>
+        </div>
+
+        <div class="feats">
+          <article class="feat reveal">
+            <div class="mini mini-call" aria-hidden="true"><i class="on"><b>🙋</b>Позвать официанта</i><i><b>🧾</b>Попросить счёт</i><i><b>💬</b>Нужна помощь</i></div>
+            <h3>Вызов официанта</h3>
+            <p>Три кнопки на странице стола. Гость видит «Передали персоналу», а когда официант принял вызов — «Сотрудник идёт». Повторные и шуточные нажатия отсекаются.</p>
+          </article>
+          <article class="feat reveal" style="--d:.06s">
+            <div class="mini mini-links" aria-hidden="true"><i>Одним счётом</i><i>на 2</i><i>на 3</i><i>на 4</i></div>
+            <h3>Счёт — одним или пополам</h3>
+            <p>«Попросить счёт» сразу с выбором: одним счётом или разделить на 2–6 человек. Официант приходит уже готовым.</p>
+          </article>
+          <article class="feat reveal" style="--d:.12s">
+            <div class="mini mini-cart" aria-hidden="true"><span>Капучино × 2 <b>500 ₽</b></span><span>Чизкейк × 1 <b>290 ₽</b></span><span class="bar-total">3 шт. · 790 ₽ <em>Отправить →</em></span></div>
+            <h3>Заказ из меню со стола</h3>
+            <p>Гость выбирает блюда в вашем меню, пишет комментарий и отправляет заказ официанту. А «К этому часто берут» предлагает десерт к кофе — средний чек растёт.</p>
+          </article>
+          <article class="feat reveal">
+            <div class="mini mini-staffcall" aria-hidden="true"><span><b>Стол 5 · Зовут официанта</b><i>Принял</i></span><span><b>Стол 2 · Заказ 790 ₽</b><i>Принял</i></span></div>
+            <h3>Страница вызовов для персонала</h3>
+            <p>Вызовы и заказы появляются сами, со звуком, на телефоне или планшете официанта. Дублируются в Telegram-чат смены. «Принял» и «Готово» — одним касанием.</p>
+          </article>
+          <article class="feat reveal" style="--d:.06s">
+            <div class="mini mini-staff" aria-hidden="true"><span>Анна <b>4,9 ★ · 38 оценок</b></span><span>Олег <b>4,6 ★ · 21 оценка</b></span></div>
+            <h3>Сотрудники и их оценки</h3>
+            <p>У официанта своя карта: оценка гостя засчитывается ему, на странице — «Вас обслуживает: Анна». Вы видите средние оценки, жалобы и скорость реакции по каждому.</p>
+          </article>
+          <article class="feat reveal" style="--d:.12s">
+            <div class="mini mini-links" aria-hidden="true"><i>💳 Чаевые — Анна</i></div>
+            <h3>Чаевые конкретному официанту</h3>
+            <p>На личной карте кнопка «Оставить чаевые» ведёт на сервис чаевых этого сотрудника. Деньги идут напрямую ему, мы их не касаемся.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
     <!-- ---------- для владельца ---------- -->
-    <section id="owner">
+    <section class="section-soft" id="owner">
       <div class="wrap">
         <div class="section-head reveal">
           <p class="kicker">Для владельца</p>
@@ -878,7 +994,7 @@
           <article class="feat reveal">
             <div class="mini mini-tg" aria-hidden="true"><b>😟 Гость поставил ★★</b><span>«Долго ждали заказ»</span><em>📞 Просит перезвонить</em></div>
             <h3>Недовольные пишут вам</h3>
-            <p>Сообщение сразу приходит в Telegram. Гость может оставить телефон для звонка. В статистике отмечаете «Разобрано» — и видно, что ещё ждёт ответа.</p>
+            <p>Гость отмечает причину одним касанием — «Долго ждали», «Обслуживание», «Чистота» — и сообщение сразу приходит в Telegram. Не разобрали за 2 часа — бот напомнит. В статистике видно, на что жалуются чаще.</p>
           </article>
           <article class="feat reveal" style="--d:.06s">
             <div class="mini mini-funnel" aria-hidden="true"><i style="width:100%"></i><i style="width:46%"></i><i style="width:36%"></i><i style="width:26%" class="g"></i><i style="width:10%" class="g"></i></div>
@@ -941,6 +1057,36 @@
               <li><span>Терраса</span><b><i class="c-navy">30</i> · <i class="c-gold">11</i></b></li>
             </ul>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- AI (модуль) ---------- -->
+    <section id="ai">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <p class="kicker">AI-разбор отзывов</p>
+          <h2>AI читает отзывы за вас — и отвечает только по вашим цифрам</h2>
+          <p>Работает на YandexGPT, данные остаются в России. Телефоны и почту гостей мы вырезаем ещё до отправки. Все числа считает наш код, AI их только объясняет — придумать показатель он не может.</p>
+          <p class="plan-tag">Входит в Pro · к Plus — 490&nbsp;₽ в месяц</p>
+        </div>
+
+        <div class="feats">
+          <article class="feat reveal">
+            <div class="mini mini-urgent" aria-hidden="true"><b>🔥 СРОЧНО: возможное отравление</b><span>😟 Гость поставил ★★ · стол 5</span></div>
+            <h3>«Срочно» — первым делом</h3>
+            <p>Каждое сообщение недовольного гостя AI размечает по теме и тону. Отравление, грубость, опасная ситуация — придут с пометкой «🔥 Срочно», чтобы вы не пропустили.</p>
+          </article>
+          <article class="feat reveal" style="--d:.06s">
+            <div class="mini mini-digest" aria-hidden="true"><small>Разбор недели</small><span>Хорошо: хвалят десерты</span><span>Мешает: ожидание в пятницу вечером</span><span>Сделать: усилить смену</span></div>
+            <h3>Разбор недели</h3>
+            <p>По понедельникам — что хорошо, что мешает и что сделать на этой неделе. Коротко, по делу, с цифрами из вашей статистики.</p>
+          </article>
+          <article class="feat reveal" style="--d:.12s">
+            <div class="mini mini-ask" aria-hidden="true"><span class="q">Почему упала оценка?</span><span class="a">Жалобы на ожидание выросли по пятницам вечером…</span></div>
+            <h3>AI-ассистент</h3>
+            <p>Спросите обычными словами: «на что чаще жалуются?», «кто из сотрудников лучше?», «в какие дни больше недовольных?». Ответ — по вашим данным за 8 недель, на сайте или в Telegram.</p>
+          </article>
         </div>
       </div>
     </section>
@@ -1131,6 +1277,26 @@
           <details>
             <summary>У меня несколько заведений. Это удобно?</summary>
             <p>Да. Все точки и карты можно собрать в одну ссылку: видно общую сводку и каждое заведение отдельно. А один QR-код может вести на список ваших заведений.</p>
+          </details>
+          <details>
+            <summary>Как работает вызов официанта? Нужна касса или планшет?</summary>
+            <p>Ничего ставить не нужно. Гость касается карты на столе и нажимает «Позвать официанта», «Попросить счёт» или заказывает из меню. Официант видит вызов со звуком на своей ссылке — в браузере любого телефона, — и в Telegram-чате смены. Оплата — как обычно, официанту: деньги через TapReview не идут.</p>
+          </details>
+          <details>
+            <summary>А если гость нажмёт «Позвать официанта» из дома?</summary>
+            <p>Кнопки работают, только когда гость коснулся карты на столе с этого телефона. Повторное нажатие не создаёт второй вызов, а частые вызовы с одного телефона ограничены.</p>
+          </details>
+          <details>
+            <summary>Как начисляются баллы?</summary>
+            <p>Гость нажимает «Код для кассы» и показывает 6 цифр. Кассир на своей ссылке вводит код и сумму чека — баллы начисляются сами (например, 5% от чека), а при желании гостя списываются как скидка. Код одноразовый и живёт 10 минут, процент и правила задаёте вы.</p>
+          </details>
+          <details>
+            <summary>AI не придумает лишнего?</summary>
+            <p>Все цифры считает наш код по вашим данным, а AI только формулирует. Если в ответе появляется число, которого нет в ваших данных, мы убираем это предложение. Работает на YandexGPT в России, телефоны и почту гостей AI не получает.</p>
+          </details>
+          <details>
+            <summary>Можно оценить работу каждого официанта?</summary>
+            <p>Да, в модуле «Сервис в зале». У официанта своя карта — оценки и жалобы с неё засчитываются ему, а «Принял» на вызове — тоже ему. Средняя оценка показывается с 10 оценок, с одного телефона — не чаще раза в день, и видите её только вы.</p>
           </details>
           <details>
             <summary>Есть бонус за рекомендацию?</summary>
