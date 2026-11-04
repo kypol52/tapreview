@@ -11,6 +11,7 @@
 
 import { ratingStats, reasonLabels } from "./rating.js";
 import { aiConfigured, aiOn, weeklyDigest } from "./ai.js";
+import { askAssistant, SUGGESTIONS } from "./assistant.js";
 
 const escapeTg = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 import { db } from "./supabase.js";
@@ -34,6 +35,7 @@ export const BOT_COMMANDS = [
   { command: "month", description: "Статистика за 30 дней" },
   { command: "manage", description: "Управление: подарки и «Сейчас у нас»" },
   { command: "news", description: "Опубликовать «Сейчас у нас»" },
+  { command: "ask", description: "Спросить AI о своих цифрах (модуль AI)" },
   { command: "report_off", description: "Не присылать отчёт по понедельникам" },
   { command: "report_on", description: "Присылать отчёт по понедельникам" },
   { command: "stop", description: "Отключить бота от заведений" },
@@ -150,6 +152,10 @@ async function onMessage(env, message) {
     if (reply) return send(env, chat.id, reply, replyKeyboard(chat));
   }
 
+  // AI-ассистент (assistant.js): /ask вопрос — только чаты с «Может управлять» и модулем AI
+  const ask = text.match(/^\/ask(?:@\w+)?(?:\s+([\s\S]*))?$/i);
+  if (ask) return askFromChat(env, chat, ask[1] || "");
+
   // Команда: /start КОД, /week, /week@ИмяБота
   const command = text.match(/^\/([a-z_]+)(?:@\w+)?(?:\s+(\S+))?/i);
   if (command) {
@@ -172,6 +178,26 @@ async function onMessage(env, message) {
 
   // В группах не отвечаем на обычную переписку
   if (isPrivate) return greet(env, chat);
+}
+
+async function askFromChat(env, chat, question) {
+  const subs = await db(env, `tg_subscribers?chat_id=eq.${chat.id}&can_manage=is.true&select=business_id&order=created_at.asc`);
+  const venues = subs.length
+    ? await db(env, `businesses?id=in.(${subs.map((s) => s.business_id).join(",")})&select=id,name,category,modules,vip_visits`)
+    : [];
+  const withAi = venues.filter((b) => aiOn(env, b));
+  if (!withAi.length) {
+    return send(env, chat.id, "🤖 AI-ассистент отвечает владельцу в чате с правом «Может управлять», если у заведения подключён модуль «AI-разбор отзывов».");
+  }
+  if (!question.trim()) {
+    return send(env, chat.id, `🤖 Напишите вопрос после команды, например:\n<code>/ask ${escapeTg(SUGGESTIONS[0])}</code>\n\nЯ отвечу по цифрам «${escapeTg(withAi[0].name)}» за 8 недель.`);
+  }
+  const business = withAi[0];
+  await send(env, chat.id, "🤖 Смотрю ваши цифры, это займёт 10–20 секунд…").catch(() => {});
+  const r = await askAssistant(env, business, question, "tg");
+  return send(env, chat.id, r.answer
+    ? `🤖 <b>${escapeTg(business.name)}</b>\n${escapeTg(r.answer)}${withAi.length > 1 ? "\n\nОтвечаю по первому заведению в этом чате. Про остальные — на странице «Спросить AI» в статистике." : ""}`
+    : `🤖 ${escapeTg(r.error)}`);
 }
 
 async function chatBusinessIds(env, chatId) {

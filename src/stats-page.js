@@ -15,7 +15,7 @@ import { has, hasModule } from "./tariffs.js";
 import { serviceStats, serviceSection } from "./service.js";
 import { staffStats, staffSection } from "./staff.js";
 import { pointsOn, pointsStats, pointsSection } from "./points.js";
-import { aiStats } from "./ai.js";
+import { aiStats, aiConfigured } from "./ai.js";
 import { orderStats, orderSection } from "./menu.js";
 
 const TOKEN_RE = /^[A-Za-z0-9]{24}$/;
@@ -205,6 +205,7 @@ async function statsPage(request, env, ctx, token) {
   const reasonNames = reasonLabels(view.kind === "all" ? null : rowOf(view.dailyIds[0]).category);
 
   const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn, invite, ratings, names, bonus, score, levels, service, staff, reasonNames, points, pointsDesk, ai, orders,
+    askOn: aiConfigured(env) && extraRows.some((b) => hasModule(b, "ai")),
     canEdit: Boolean(link.can_edit) && anyHas("settings"), wrappedOn: anyHas("wrapped") };
   return html(200, `Статистика · ${view.title}`, renderBody(view, daily, page));
 }
@@ -614,6 +615,7 @@ function renderBody(view, daily, page) {
       <nav class="tabs" aria-label="Период">${tabs}</nav>
       ${page.bonusOn ? `<a class="desk-link" href="/s/${token}/bonus">🎁 Проверить код подарка</a>` : ""}
       ${page.pointsDesk ? `<a class="desk-link" href="/s/${token}/points">💰 Баллы гостя</a>` : ""}
+      ${page.askOn ? `<a class="desk-link" href="/s/${token}/ask${view.kind === "all" ? "" : `?b=${view.dailyIds[0]}`}">🤖 Спросить AI</a>` : ""}
       ${page.wrappedOn ? `<a class="desk-link" href="/s/${token}/wrapped${view.kind === "all" ? "" : `?b=${view.dailyIds[0]}`}">✨ Итоги месяца</a>` : ""}
       ${page.canEdit ? `<a class="desk-link" href="/s/${token}/settings${view.kind === "all" ? "" : `?b=${view.dailyIds[0]}`}">⚙ Настройки</a>` : ""}
     </div>

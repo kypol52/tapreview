@@ -20,6 +20,7 @@
 //   GET|POST /table-order — заказ со стола и его статус (menu.js); /order/ и /api/order — заявки с сайта, не путать
 //   GET /points          — одноразовый код гостя для кассы баллов (points.js)
 //   /k/:token/points, /s/:token/points — касса баллов: персонал и владелец (points.js)
+//   /s/:token/ask        — AI-ассистент владельца: вопросы по своим цифрам (assistant.js)
 //   POST /bonus          — выдать гостю код подарка, колесо призов (bonus.js)
 //   /f/:code             — «Подарите другу»: подарок новому гостю по приглашению (friends.js)
 //   /m/:id               — картинки «Своего дизайна»: фон и логотип заведения (media.js)
@@ -46,6 +47,7 @@ import { handleMeLink } from "./guest-wallet.js";
 import { handleCall, handleStaffCalls, purgeOldCalls } from "./service.js";
 import { handlePointsCode, handleStaffPoints, handleOwnerPoints, pointsDaily } from "./points.js";
 import { handleMenuPage, handleOrder as handleTableOrder, purgeOldOrders } from "./menu.js";
+import { handleAsk } from "./assistant.js";
 import { db } from "./supabase.js";
 
 // Должно совпадать с расписанием в server/server.mjs
@@ -168,6 +170,11 @@ export default {
     const staffPointsMatch = url.pathname.match(/^\/k\/([^/]+)\/points\/?$/);
     if (staffPointsMatch && (isRead || request.method === "POST")) {
       return handleStaffPoints(request, env, staffPointsMatch[1]);
+    }
+    // AI-ассистент владельца (assistant.js)
+    const askMatch = url.pathname.match(/^\/s\/([^/]+)\/ask\/?$/);
+    if (askMatch && (isRead || request.method === "POST")) {
+      return handleAsk(request, env, askMatch[1]);
     }
     const ownerPointsMatch = url.pathname.match(/^\/s\/([^/]+)\/points\/?$/);
     if (ownerPointsMatch && (isRead || request.method === "POST")) {

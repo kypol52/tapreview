@@ -18,6 +18,7 @@ import { reasonLabels } from "./rating.js";
 const DEFAULT_URL = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion";
 const LITE = "yandexgpt-lite";
 const PRO = "yandexgpt";
+export const AI_PRO = PRO;
 // Ориентир цены за 1000 токенов, ₽ (прайс Yandex AI Studio, синхронный режим) — только для отчёта в админке
 export const PRICE_PER_1K = { [LITE]: 0.2, [PRO]: 1.2 };
 const TOPICS = ["wait", "quality", "service", "clean", "price", "other"];
@@ -55,7 +56,7 @@ export async function monthUsage(env, now = Date.now()) {
 }
 
 // Один запрос к YandexGPT → текст ответа или null (ошибка, лимит, таймаут). Расход пишем в ai_usage.
-async function complete(env, { model, system, user, json = false, maxTokens = 400, temperature = 0.2, businessId = null, kind }) {
+export async function complete(env, { model, system, user, json = false, maxTokens = 400, temperature = 0.2, businessId = null, kind }) {
   if (!aiConfigured(env)) return null;
   // Расход за месяц проверяем не чаще раза в 5 минут
   if (!usageCache || Date.now() - usageCache.at > 5 * 60e3) {
