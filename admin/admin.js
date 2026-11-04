@@ -2800,7 +2800,7 @@ function openCardEditor(card) {
 
   $("c-label").value = card.label || "";
   $("c-active").checked = card.is_active;
-  $("c-table").checked = Boolean(card.is_table);
+  $("c-is-table").checked = Boolean(card.is_table);
 
   const stats = state.cardStats[card.id];
   const assigned = card.assigned_at
@@ -2838,7 +2838,7 @@ async function onSaveCard(event) {
       body: {
         business_id: $("c-business").value || null,
         label: $("c-label").value,
-        is_table: $("c-table").checked,
+        is_table: $("c-is-table").checked,
         is_active: $("c-active").checked
       }
     });
