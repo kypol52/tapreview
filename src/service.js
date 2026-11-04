@@ -225,6 +225,8 @@ function themed(business, { status = 200, title, body, meta = "" }) {
     design: business ? customDesign(business) : null,
     extraCss: SERVICE_CSS,
     meta,
+    // Как на странице заведения: зелёная кнопка «Работает на TapReview / Хочу такую карту»
+    footer: business ? { href: `/r/${business.slug}?s=card`, text: "Хочу такую карту" } : null,
     body
   });
   response.headers.set("Cache-Control", "no-store");
