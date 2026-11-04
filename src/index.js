@@ -54,6 +54,16 @@ export default {
       if (shared) return shared;
     }
 
+    // Cloudflare Worker без базы (после переезда в РФ): только посредник для Telegram и превью ссылок,
+    // остальные адреса — на основной сайт
+    if (!env.DB_URL && !env.SUPABASE_URL) {
+      if (url.pathname.startsWith("/tg-api/") || url.pathname === "/tg-hook") {
+        return handleTelegramRelay(request, env, url.pathname);
+      }
+      const base = String(env.PUBLIC_BASE_URL || "https://tapreview.ru").replace(/\/+$/, "");
+      return Response.redirect(`${base}${url.pathname}${url.search}`, 301);
+    }
+
     const pageMatch = url.pathname.match(/^\/b\/([^/]+)\/?$/);
     if (pageMatch && isRead) {
       return handleBusinessPage(request, env, ctx, pageMatch[1]);
