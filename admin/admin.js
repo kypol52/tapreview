@@ -84,6 +84,7 @@ function bindEvents() {
   $("f-bonus-mode").addEventListener("change", showBonusMode);
   $("ref-copy").addEventListener("click", () => copyText($("ref-url").value));
   $("staff-create").addEventListener("click", onCreateStaffLink);
+  $("team-add").addEventListener("click", onAddStaff);
   $("f-prize-add").addEventListener("click", () => {
     if ($("f-prizes").children.length < 8) $("f-prizes").append(prizeRow({ label: "", weight: 10 }));
     updatePrizeShares();
@@ -2041,14 +2042,108 @@ function fillBonus(business) {
 
 async function loadStaffLinks(business) {
   $("staff-box").hidden = !business;
+  $("team-box").hidden = !business;
   if (!business) return;
   hideError("staff-error");
+  hideError("team-error");
   $("staff-list").replaceChildren();
+  $("team-list").replaceChildren();
   try {
-    const rows = await api(`/api/admin/businesses/${business.id}/staff-links`);
-    if (state.editing === business) renderStaffLinks(business, rows);
+    // Сотрудники и карты заведения нужны и для выбора «Чья ссылка»
+    const [rows, team, cards] = await Promise.all([
+      api(`/api/admin/businesses/${business.id}/staff-links`),
+      api(`/api/admin/businesses/${business.id}/staff`),
+      api("/api/admin/cards")
+    ]);
+    if (state.editing !== business) return;
+    state.team = team;
+    renderTeam(business, team, cards.filter((c) => c.business_id === business.id && c.is_active && !c.is_table));
+    renderStaffLinks(business, rows);
   } catch (error) {
     if (state.editing === business) showError("staff-error", error.message);
+  }
+}
+
+// ---------- Сотрудники (staff.js, миграция 043) ----------
+
+function renderTeam(business, team, cards) {
+  $("team-list").replaceChildren(
+    ...team.map((s) => {
+      const li = document.createElement("li");
+      const row = el("div", "link-row");
+      const name = el("input");
+      name.type = "text";
+      name.maxLength = 40;
+      name.value = s.name;
+      name.setAttribute("aria-label", "Имя");
+      const tips = el("input");
+      tips.type = "url";
+      tips.value = s.tips_url || "";
+      tips.placeholder = "Ссылка на чаевые";
+      tips.setAttribute("aria-label", "Ссылка на чаевые");
+      const card = el("select");
+      card.setAttribute("aria-label", "Личная карта");
+      const none = el("option", "", "— без личной карты —");
+      none.value = "";
+      const mine = (s.cards[0] || {}).id;
+      card.append(
+        none,
+        ...cards
+          .filter((c) => !c.staff_id || c.staff_id === s.id)
+          .map((c) => {
+            const o = el("option", "", formatCardCode(c.code) + (c.label ? ` · ${c.label}` : ""));
+            o.value = String(c.id);
+            return o;
+          })
+      );
+      card.value = mine ? String(mine) : "";
+      row.append(name, tips, card);
+
+      const active = el("label", "check tg-manage");
+      const box = el("input");
+      box.type = "checkbox";
+      box.checked = s.is_active;
+      active.append(box, " Работает");
+      const save = el("button", "btn btn-secondary btn-small", "Сохранить");
+      save.type = "button";
+      save.addEventListener("click", async () => {
+        hideError("team-error");
+        save.disabled = true;
+        try {
+          await api(`/api/admin/staff/${s.id}`, {
+            method: "PATCH",
+            body: { name: name.value, tips_url: tips.value, is_active: box.checked, card_id: card.value || null }
+          });
+          toast("Сохранено");
+          await loadStaffLinks(business);
+        } catch (error) {
+          showError("team-error", error.message);
+          save.disabled = false;
+        }
+      });
+      li.append(row, active, save);
+      return li;
+    })
+  );
+}
+
+async function onAddStaff() {
+  const business = state.editing;
+  if (!business) return;
+  hideError("team-error");
+  $("team-add").disabled = true;
+  try {
+    await api(`/api/admin/businesses/${business.id}/staff`, {
+      method: "POST",
+      body: { name: $("team-name").value, tips_url: $("team-tips").value }
+    });
+    $("team-name").value = "";
+    $("team-tips").value = "";
+    await loadStaffLinks(business);
+  } catch (error) {
+    showError("team-error", error.message);
+  } finally {
+    $("team-add").disabled = false;
   }
 }
 
@@ -2110,7 +2205,32 @@ function renderStaffLinks(business, rows) {
           remove.disabled = false;
         }
       });
-      li.append(row, ...(callsRow ? [callsRow] : []), meta, remove);
+      // Чья ссылка: «Принял» на странице вызовов засчитывается этому сотруднику
+      const owner = el("select");
+      owner.setAttribute("aria-label", "Чья ссылка");
+      const nobody = el("option", "", "Чья ссылка: не указано");
+      nobody.value = "";
+      owner.append(
+        nobody,
+        ...(state.team || [])
+          .filter((s) => s.is_active || s.id === link.staff_id)
+          .map((s) => {
+            const o = el("option", "", `Чья ссылка: ${s.name}`);
+            o.value = String(s.id);
+            return o;
+          })
+      );
+      owner.value = link.staff_id ? String(link.staff_id) : "";
+      owner.addEventListener("change", async () => {
+        hideError("staff-error");
+        try {
+          await api(`/api/admin/staff-links/${link.token}`, { method: "PATCH", body: { staff_id: owner.value || null } });
+          toast("Сохранено");
+        } catch (error) {
+          showError("staff-error", error.message);
+        }
+      });
+      li.append(row, ...(callsRow ? [callsRow] : []), ...((state.team || []).length ? [owner] : []), meta, remove);
       return li;
     })
   );

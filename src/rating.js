@@ -54,20 +54,24 @@ export function normalizePhone(value) {
   return null;
 }
 
-// Оценка: один посетитель — одна оценка за 30 минут (передумал — обновляется)
-export async function logRating(request, env, { businessId, cardId, score, source, likes = [] }) {
+// Оценка: один посетитель — одна оценка за 30 минут (передумал — обновляется).
+// Личная карта сотрудника (staffId, staff.js): одна оценка с телефона в день — чтобы рейтинг сотрудника не накручивали.
+export async function logRating(request, env, { businessId, cardId, score, source, likes = [], staffId = null }) {
   try {
     if (isBot(request)) return;
     const visitor = await visitorHashOf(request, env);
-    const windowNumber = Math.floor(Date.now() / (DEDUPE_WINDOW_MINUTES * 60 * 1000));
+    const windowKey = staffId
+      ? `staff${staffId}|day${Math.floor((Date.now() + 3 * 3600e3) / 86400e3)}`
+      : String(Math.floor(Date.now() / (DEDUPE_WINDOW_MINUTES * 60 * 1000)));
     const body = {
       business_id: businessId,
       score,
       source,
       likes: score >= 4 ? likes : [],
-      dedupe_key: await sha256(`${businessId}|rating|${visitor}|${windowNumber}`)
+      dedupe_key: await sha256(`${businessId}|rating|${visitor}|${windowKey}`)
     };
     if (cardId) body.card_id = cardId;
+    if (staffId) body.staff_id = staffId;
     await db(env, "ratings?on_conflict=dedupe_key", {
       method: "POST",
       body,
@@ -127,10 +131,12 @@ export async function handleFeedback(request, env, ctx) {
 
     let card = null;
     if (cardCode) {
-      const cards = await db(env, `cards?code=eq.${cardCode}&business_id=eq.${business.id}&select=id,code,label&limit=1`);
+      const cards = await db(env, `cards?code=eq.${cardCode}&business_id=eq.${business.id}&select=id,code,label,staff_id&limit=1`);
       card = cards[0] || null;
     }
     const body = { business_id: business.id, card_id: card ? card.id : null, score, text: message, source, visitor_hash: visitor };
+    // Личная карта сотрудника (staff.js) — сообщение относится к нему
+    if (card && card.staff_id) body.staff_id = card.staff_id;
     if (phone) Object.assign(body, { phone, phone_consent_at: new Date().toISOString() });
     const saved = await db(env, "feedback?select=id", { method: "POST", body, prefer: "return=representation" });
     ctx.waitUntil(notifyOwner(env, business, card, score, message, saved[0].id, Boolean(phone)));

@@ -10,11 +10,13 @@ import { html, esc, notFound, TOKEN_RE } from "./stats-page.js";
 import { cleanMoment, cleanBonus, cleanExtraLinks, EXTRA_LINK_MAX } from "./admin-api.js";
 import { BONUS_COLUMNS, EXTRA_LINKS } from "./public-page.js";
 import { saveMedia } from "./media.js";
-import { has } from "./tariffs.js";
+import { has, hasModule } from "./tariffs.js";
+import { listStaff, createStaff, updateStaff, setStaffCard, STAFF_MAX } from "./staff.js";
 
 const MAX_PRIZES = 8;
 const MAX_BODY = 1200000; // фото уже сжато в браузере до ~300 КБ (≈ 400 КБ в base64)
-const SECTIONS = { moment: "«Сейчас у нас»", bonus: "Подарок для гостей", links: "Ссылки «Ещё у нас»" };
+const SECTIONS = { moment: "«Сейчас у нас»", bonus: "Подарок для гостей", links: "Ссылки «Ещё у нас»", staff: "Сотрудники" };
+const NEW_STAFF_ROWS = 2;
 
 export async function handleOwnerSettings(request, env, token) {
   try {
@@ -37,9 +39,14 @@ export async function handleOwnerSettings(request, env, token) {
       const venues = await db(env, `businesses?id=in.(${ids.join(",")})&select=id,name&order=name.asc`);
       return html(200, "Настройки", chooserBody(token, venues));
     }
-    const rows = await db(env, `businesses?id=eq.${id}&select=id,name,slug,discount_text,moment,extra_links,${BONUS_COLUMNS}`);
+    const rows = await db(env, `businesses?id=eq.${id}&select=id,name,slug,discount_text,moment,extra_links,modules,${BONUS_COLUMNS}`);
     if (!rows.length) return notFound();
     const business = rows[0];
+    // «Сервис в зале» (staff.js): сотрудники и их личные карты
+    const loadTeam = async () => (hasModule(business, "service") ? {
+      staff: await listStaff(env, id),
+      cards: await db(env, `cards?business_id=eq.${id}&is_active=is.true&is_table=is.false&select=id,code,label,staff_id&order=code.asc`)
+    } : null);
     // Тарифы (tariffs.js): «Настройки» — с «Стандарта», раздел подарков — только в «Плюсе»
     if (!has(business, "settings")) {
       return html(200, "Настройки", `${header(token, business.name, "", `/s/${token}`, "Статистика")}
@@ -52,7 +59,7 @@ export async function handleOwnerSettings(request, env, token) {
 
     if (!form) {
       const ok = SECTIONS[url.searchParams.get("ok")] ? url.searchParams.get("ok") : null;
-      return html(200, `Настройки · ${business.name}`, settingsBody(token, ids.length > 1, business, { ok }), PHOTO_SCRIPT);
+      return html(200, `Настройки · ${business.name}`, settingsBody(token, ids.length > 1, business, { ok, team: await loadTeam() }), PHOTO_SCRIPT);
     }
 
     const section = String(form.get("section") || "");
@@ -64,13 +71,18 @@ export async function handleOwnerSettings(request, env, token) {
         patch = bonusPatch(form);
       }
       else if (section === "links") patch = linksPatch(form);
+      else if (section === "staff") {
+        if (!hasModule(business, "service")) throw new Error("Сотрудники — в модуле «Сервис в зале». Чтобы подключить, напишите в TapReview");
+        await saveTeam(env, id, form);
+        patch = null;
+      }
       else throw new Error("Неизвестный раздел");
     } catch (error) {
       // Показываем ту же страницу с введёнными значениями и понятной ошибкой
       const draft = { ...business, ...draftFrom(section, form, business) };
-      return html(400, `Настройки · ${business.name}`, settingsBody(token, ids.length > 1, draft, { error: { section, text: error.message } }), PHOTO_SCRIPT);
+      return html(400, `Настройки · ${business.name}`, settingsBody(token, ids.length > 1, draft, { error: { section, text: error.message }, team: await loadTeam() }), PHOTO_SCRIPT);
     }
-    await db(env, `businesses?id=eq.${id}`, { method: "PATCH", body: patch, prefer: "return=minimal" });
+    if (patch) await db(env, `businesses?id=eq.${id}`, { method: "PATCH", body: patch, prefer: "return=minimal" });
     const back = new URLSearchParams();
     if (ids.length > 1) back.set("b", String(id));
     back.set("ok", section);
@@ -155,6 +167,27 @@ function linkFields(form) {
   return list;
 }
 
+// «Сотрудники»: строки s{i}_id (пусто — новый), s{i}_name, s{i}_tips, s{i}_card, s{i}_on.
+// Уволенного не удаляем, а снимаем «Работает» — его статистика остаётся.
+async function saveTeam(env, businessId, form) {
+  const rows = [];
+  for (let i = 0; i < STAFF_MAX + NEW_STAFF_ROWS; i++) {
+    if (!form.has(`s${i}_name`)) continue;
+    const id = Number(form.get(`s${i}_id`)) || null;
+    const name = String(form.get(`s${i}_name`) || "").trim();
+    if (!id && !name) continue;
+    rows.push({ id, name, tips_url: String(form.get(`s${i}_tips`) || ""), is_active: form.get(`s${i}_on`) === "1", card: Number(form.get(`s${i}_card`)) || null });
+  }
+  const cards = rows.map((r) => r.card).filter(Boolean);
+  if (new Set(cards).size !== cards.length) throw new Error("Одна карта — у одного сотрудника. Проверьте выбор карт");
+  for (const r of rows) {
+    const saved = r.id
+      ? await updateStaff(env, r.id, r, businessId)
+      : await createStaff(env, businessId, { ...r, is_active: true });
+    await setStaffCard(env, businessId, saved.id, saved.is_active ? r.card : null);
+  }
+}
+
 // Введённое владельцем — чтобы при ошибке ничего не пришлось набирать заново
 function draftFrom(section, form, business) {
   if (section === "moment") return { moment: { ...momentFields(form), photo: business.moment && business.moment.photo } };
@@ -196,7 +229,7 @@ function chooserBody(token, venues) {
   <main class="wrap"><section class="panel"><ul class="set-venues">${items}</ul></section></main>`;
 }
 
-function settingsBody(token, multi, b, { ok = null, error = null } = {}) {
+function settingsBody(token, multi, b, { ok = null, error = null, team = null } = {}) {
   const hidden = `<input type="hidden" name="b" value="${b.id}">`;
   const flash = (section) =>
     error && error.section === section
@@ -211,6 +244,7 @@ function settingsBody(token, multi, b, { ok = null, error = null } = {}) {
     ${has(b, "gifts") ? bonusSection(b, hidden, flash("bonus")) : `<section class="panel" id="bonus"><h2>Подарок для гостей</h2>
       <p class="set-hint">Колесо подарков, штампы, VIP-гости и «Подарите другу» — в тарифе «Плюс». Чтобы подключить, напишите в TapReview.</p></section>`}
     ${linksSection(b, hidden, flash("links"))}
+    ${team ? staffSettingsSection(team, hidden, flash("staff")) : ""}
     ${multi ? `<a class="back back-dark" href="/s/${token}">← Статистика</a>` : ""}
   </main>`;
 }
@@ -331,6 +365,41 @@ function linksSection(b, hidden, msg) {
       <form class="set-form" method="post" action="">
         ${hidden}<input type="hidden" name="section" value="links">
         ${rows}
+        <button class="set-save" type="submit">Сохранить</button>
+      </form>
+    </section>`;
+}
+
+function staffSettingsSection({ staff, cards }, hidden, msg) {
+  const pretty = (code) => (code.length === 6 ? `${code.slice(0, 3)}-${code.slice(3)}` : code);
+  const cardSelect = (i, current) => {
+    const options = cards
+      .filter((c) => !c.staff_id || c.staff_id === current.id)
+      .map((c) => `<option value="${c.id}"${c.staff_id && c.staff_id === current.id ? " selected" : ""}>${esc(pretty(c.code))}${c.label ? ` · ${esc(c.label)}` : ""}</option>`)
+      .join("");
+    return `<select name="s${i}_card" aria-label="Личная карта"><option value="">— без личной карты —</option>${options}</select>`;
+  };
+  const row = (i, s) => `<div class="set-staff">
+      <input type="hidden" name="s${i}_id" value="${s.id || ""}">
+      <input name="s${i}_name" maxlength="40" value="${esc(s.name || "")}" placeholder="${s.id ? "" : "Имя нового сотрудника"}" aria-label="Имя">
+      <input name="s${i}_tips" type="url" inputmode="url" value="${esc(s.tips_url || "")}" placeholder="Ссылка на чаевые (необязательно)" aria-label="Чаевые">
+      ${cardSelect(i, s)}
+      ${s.id ? `<label class="set-check"><input type="checkbox" name="s${i}_on" value="1"${s.is_active ? " checked" : ""}> Работает</label>` : ""}
+    </div>`;
+  const rows = staff.map((s, i) => row(i, s)).join("") +
+    Array.from({ length: NEW_STAFF_ROWS }, (_, k) => row(staff.length + k, {})).join("");
+  return `
+    <section class="panel" id="staff">
+      <h2>Сотрудники</h2>
+      <p class="set-hint">У официанта может быть своя карта: гость оценивает визит с неё — оценка засчитывается этому сотруднику,
+        кнопка «Оставить чаевые» ведёт на его ссылку, а на странице видно «Вас обслуживает: имя». Цифры по сотрудникам — в статистике, их видите только вы.
+        Ушёл сотрудник — снимите «Работает»: статистика за прошлое останется.</p>
+      ${msg}
+      <style>.set-staff{display:grid;gap:6px;padding:10px 0;border-bottom:1px solid #eef0f4}.set-staff:last-of-type{border-bottom:0}</style>
+      <form class="set-form" method="post" action="">
+        ${hidden}<input type="hidden" name="section" value="staff">
+        ${rows}
+        <p class="set-hint">Карты столов сюда не попадают — на них кнопки вызова. Личную карту выдайте сотруднику (бейдж или карта в папке со счётом).</p>
         <button class="set-save" type="submit">Сохранить</button>
       </form>
     </section>`;

@@ -8,12 +8,13 @@
 import { db } from "./supabase.js";
 import { logEvent, sourceFrom, isBot } from "./analytics.js";
 import { guestOf, vipOn } from "./guests.js";
-import { has } from "./tariffs.js";
+import { has, hasModule } from "./tariffs.js";
 import { isExpired } from "./billing.js";
 import { bonusBlock } from "./bonus.js";
 import { flowFrom, logRating, LIKES, PHONE_KEEP_DAYS } from "./rating.js";
 import { makeCardTicket } from "./app-auth.js";
 import { serviceBlock, SERVICE_CSS } from "./service.js";
+import { staffOfCard, withStaffTips } from "./staff.js";
 
 const SLUG_RE = /^[A-Za-z0-9_-]{3,64}$/;
 const COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
@@ -252,7 +253,7 @@ export async function handleCardPage(request, env, ctx, rawCode) {
   try {
     const cards = await db(
       env,
-      `cards?code=eq.${code}&select=id,code,label,is_table,business_id,is_active&limit=1`
+      `cards?code=eq.${code}&select=id,code,label,is_table,staff_id,business_id,is_active&limit=1`
     );
     if (!cards.length) return notFoundPage();
     card = cards[0];
@@ -297,6 +298,8 @@ export async function handleCardPage(request, env, ctx, rawCode) {
   const url = new URL(request.url);
   const source = sourceFrom(url);
   const flow = flowFrom(url);
+  // Личная карта сотрудника («Сервис в зале», staff.js): оценка относится к нему, чаевые — на его ссылку
+  const staff = hasModule(business, "service") ? await staffOfCard(env, { ...card, business_id: business.id }) : null;
   ctx.waitUntil(
     logEvent(request, env, {
       businessId: business.id,
@@ -306,15 +309,16 @@ export async function handleCardPage(request, env, ctx, rawCode) {
     })
   );
   if (business.rating_first && has(business, "rating") && flow.score && !flow.sent && !flow.all) {
-    ctx.waitUntil(logRating(request, env, { businessId: business.id, cardId: card.id, score: flow.score, source, likes: flow.likes }));
+    ctx.waitUntil(logRating(request, env, { businessId: business.id, cardId: card.id, score: flow.score, source, likes: flow.likes, staffId: staff ? staff.id : null }));
   }
 
   if (isExpired(business.paid_until)) return pausedResponse(business);
   const guest = isBot(request) ? null : await guestOf(request, env, business, source);
   const appLink = await appLinkFor(env, business, card.code);
-  // Карта на столе + модуль «Сервис в зале»: кнопки вызова сотрудника (service.js)
-  const service = serviceBlock(business, card, source);
-  return withGuestCookie(businessPage(business, source, card.code, flow, guest, appLink, service), guest);
+  // Карта на столе + модуль «Сервис в зале»: кнопки вызова сотрудника (service.js); личная карта — имя сотрудника
+  const service = serviceBlock(business, card, source) ||
+    (staff ? `<section class="svc"><p class="svc-place">Вас обслуживает: ${escapeHtml(staff.name)}</p></section>` : "");
+  return withGuestCookie(businessPage(withStaffTips(business, staff), source, card.code, flow, guest, appLink, service), guest);
 }
 
 // Кнопка «Отзыв в Telegram» (миграция 035): галочка в админке + заведение в каталоге + бот настроен.

@@ -13,6 +13,7 @@ import { recentScore, scoreHtml, SCORE_CSS } from "./score.js";
 import { rewardInviter } from "./friends.js";
 import { has, hasModule } from "./tariffs.js";
 import { serviceStats, serviceSection } from "./service.js";
+import { staffStats, staffSection } from "./staff.js";
 
 const TOKEN_RE = /^[A-Za-z0-9]{24}$/;
 // Куда владелец пишет, чтобы продлить подписку (личный Telegram TapReview)
@@ -163,7 +164,15 @@ async function statsPage(request, env, ctx, token) {
       })
     : null;
 
-  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn, invite, ratings, names, bonus, score, levels, service,
+  // Сотрудники (staff.js) — на странице одного заведения с модулем «Сервис в зале»
+  const staff = view.kind === "venue" && hasModule(rowOf(view.dailyIds[0]), "service")
+    ? await staffStats(env, view.dailyIds[0], venues[0].range).catch((error) => {
+        console.error(`staffStats: ${error.message}`);
+        return null;
+      })
+    : null;
+
+  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn, invite, ratings, names, bonus, score, levels, service, staff,
     canEdit: Boolean(link.can_edit) && anyHas("settings"), wrappedOn: anyHas("wrapped") };
   return html(200, `Статистика · ${view.title}`, renderBody(view, daily, page));
 }
@@ -594,6 +603,7 @@ function renderBody(view, daily, page) {
     ${empty ? "" : funnelSection(cur, page.ratings, page.bonus)}
     ${ratingsSection(page.ratings, page.names, view.kind === "all", token, `p=${period}${view.query}`)}
     ${levelsSection(page.levels)}
+    ${staffSection(page.staff)}
     ${serviceSection(page.service)}
     ${sections}
     ${page.invite || ""}

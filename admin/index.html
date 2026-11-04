@@ -730,6 +730,22 @@
           Персонал видит вызовы со звуком по своей ссылке ниже → «Вызовы», а в Telegram — чаты с галочкой «Вызовы гостей» (блок Telegram выше).
         </p>
 
+        <div id="team-box" class="staff-box" hidden>
+          <div class="link-label">Сотрудники</div>
+          <p class="muted qr-text">
+            Личная карта официанта: оценки и сообщения с неё — его, «Оставить чаевые» — на его ссылку, на странице «Вас обслуживает: имя».
+            Цифры по сотрудникам видит владелец в статистике (с 10 оценок). Ушёл — снимите «Работает», история останется.
+            Владелец может вести этот список сам: «Настройки» по его ссылке.
+          </p>
+          <ul id="team-list" class="tg-subs sl-list"></ul>
+          <div class="staff-new">
+            <input id="team-name" type="text" maxlength="40" placeholder="Имя, например «Анна»">
+            <input id="team-tips" type="url" inputmode="url" placeholder="Ссылка на чаевые (необязательно)">
+            <button id="team-add" class="btn btn-secondary" type="button">Добавить</button>
+          </div>
+          <p id="team-error" class="error" hidden></p>
+        </div>
+
         <div id="staff-box" class="staff-box" hidden>
           <div class="link-label">Ссылки для персонала</div>
           <p class="muted qr-text">

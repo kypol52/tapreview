@@ -56,6 +56,17 @@ import { saveMedia, MEDIA_ID_RE } from "./media.js";
 import { billingState, formatDay } from "./billing.js";
 import { TARIFF_KEYS, MODULE_KEYS } from "./tariffs.js";
 import { handleAppAdmin } from "./app-api.js";
+import { listStaff, createStaff, updateStaff, setStaffCard, StaffError } from "./staff.js";
+
+// Ошибки проверки сотрудников (StaffError) — понятный ответ 400
+async function staffCall(fn) {
+  try {
+    return await fn();
+  } catch (error) {
+    if (error instanceof StaffError) throw new HttpError(400, error.message);
+    throw error;
+  }
+}
 
 const CATEGORIES = ["restaurant", "beauty", "barber", "shop", "hotel", "auto", "other"];
 const MAX_PLACE_PHOTOS = 8;
@@ -76,7 +87,7 @@ const EXTRA_LINK_MAX = 6;
 const GROUP_COLUMNS = "id,slug,name,tagline,logo_url,business_ids,is_active,created_at,updated_at";
 const MAX_GROUP_SIZE = 50;
 
-const CARD_COLUMNS = "id,code,business_id,label,is_table,is_active,assigned_at,created_at";
+const CARD_COLUMNS = "id,code,business_id,label,is_table,staff_id,is_active,assigned_at,created_at";
 // Код карты печатается на карте — только заглавные буквы и цифры без похожих (0/O, 1/I/L)
 const CARD_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const CARD_CODE_LENGTH = 6;
@@ -242,7 +253,48 @@ export async function handleApi(request, env, url) {
         if (method === "GET") return await listStaffLinks(env, staffLinksMatch[1]);
         if (method === "POST") return await createStaffLink(request, env, staffLinksMatch[1]);
       }
+      // Сотрудники (staff.js, миграция 043): список, добавить, изменить (имя, чаевые, работает, личная карта)
+      const staffListMatch = path.match(/^\/api\/admin\/businesses\/(\d{1,18})\/staff$/);
+      if (staffListMatch) {
+        const businessId = Number(staffListMatch[1]);
+        if (method === "GET") return json(await listStaff(env, businessId));
+        if (method === "POST") {
+          const input = await readJson(request);
+          const saved = await staffCall(() => createStaff(env, businessId, input));
+          await staffCall(() => setStaffCard(env, businessId, saved.id, Number(input.card_id) || null));
+          return json(saved, 201);
+        }
+      }
+      const staffOneMatch = path.match(/^\/api\/admin\/staff\/(\d{1,18})$/);
+      if (staffOneMatch && method === "PATCH") {
+        const input = await readJson(request);
+        const saved = await staffCall(() => updateStaff(env, staffOneMatch[1], input));
+        if ("card_id" in input) {
+          await staffCall(() => setStaffCard(env, saved.business_id, saved.id, saved.is_active ? Number(input.card_id) || null : null));
+        }
+        return json(saved);
+      }
       const staffLinkMatch = path.match(/^\/api\/admin\/staff-links\/([A-Za-z0-9]{24})$/);
+      // Чья ссылка персонала: { staff_id } — сотрудник того же заведения или null
+      if (staffLinkMatch && method === "PATCH") {
+        const input = await readJson(request);
+        const links = await db(env, `staff_links?token=eq.${staffLinkMatch[1]}&select=business_id`);
+        if (!links.length) throw new HttpError(404, "Ссылка не найдена");
+        let staffId = null;
+        if (input.staff_id !== null && input.staff_id !== undefined && input.staff_id !== "") {
+          staffId = Number(input.staff_id);
+          const found = Number.isSafeInteger(staffId)
+            ? await db(env, `staff?id=eq.${staffId}&business_id=eq.${links[0].business_id}&select=id`)
+            : [];
+          if (!found.length) throw new HttpError(400, "Сотрудник не найден в этом заведении");
+        }
+        const rows = await db(env, `staff_links?token=eq.${staffLinkMatch[1]}&select=token,staff_id`, {
+          method: "PATCH",
+          body: { staff_id: staffId },
+          prefer: "return=representation"
+        });
+        return json(rows[0]);
+      }
       if (staffLinkMatch && method === "DELETE") {
         const rows = await db(env, `staff_links?token=eq.${staffLinkMatch[1]}&select=token`, {
           method: "DELETE",
@@ -557,6 +609,8 @@ async function updateCard(request, env, id) {
     is_table: input.is_table === true,
     is_active: input.is_active !== false
   };
+  // Карта стола не бывает личной картой сотрудника; карту отвязали от заведения — и от сотрудника тоже
+  if (data.is_table || current[0].business_id !== businessId) data.staff_id = null;
   // Время привязки меняем, только когда карту привязали к другому заведению
   if (current[0].business_id !== businessId) {
     data.assigned_at = businessId ? new Date().toISOString() : null;
@@ -1112,7 +1166,7 @@ function staffLinkUrl(env, token) {
 async function listStaffLinks(env, businessId) {
   const rows = await db(
     env,
-    `staff_links?business_id=eq.${businessId}&select=token,label,created_at,last_used_at&order=created_at.asc`
+    `staff_links?business_id=eq.${businessId}&select=token,label,staff_id,created_at,last_used_at&order=created_at.asc`
   );
   return json(rows.map((row) => ({ ...row, url: staffLinkUrl(env, row.token) })));
 }

@@ -259,7 +259,7 @@ async function notifyChats(env, business, { place, kind, split }) {
 export async function handleStaffCalls(request, env, token) {
   try {
     if (!TOKEN_RE.test(token)) return notFound();
-    const links = await db(env, `staff_links?token=eq.${token}&select=business_id,label`);
+    const links = await db(env, `staff_links?token=eq.${token}&select=business_id,label,staff_id`);
     if (!links.length) return notFound();
     const link = links[0];
     const business = (await db(env, `businesses?id=eq.${link.business_id}&select=id,name,modules,tariff,bonus_mode&limit=1`))[0];
@@ -282,8 +282,10 @@ export async function handleStaffCalls(request, env, token) {
       if (Number.isSafeInteger(id) && id > 0 && (action === "accept" || action === "done")) {
         const now = new Date().toISOString();
         const by = link.label ? link.label.slice(0, 80) : "персонал";
+        // Ссылка привязана к сотруднику (staff.js) — вызов засчитывается ему
+        const who = { accepted_at: now, accepted_by: by, accepted_staff_id: link.staff_id || null };
         const body = action === "accept"
-          ? { status: "accepted", accepted_at: now, accepted_by: by }
+          ? { status: "accepted", ...who }
           : { status: "done", done_at: now };
         // Только вызовы своего заведения; «Принял» — только у нового, у принятого время не меняем
         const filter = action === "accept" ? "&status=eq.new" : "&status=neq.done";
@@ -291,7 +293,7 @@ export async function handleStaffCalls(request, env, token) {
         // «Готово» без «Принял» — считаем принятым в тот же момент (для времени реакции)
         if (action === "done") {
           await db(env, `service_calls?id=eq.${id}&business_id=eq.${business.id}&accepted_at=is.null`, {
-            method: "PATCH", body: { accepted_at: now, accepted_by: by }, prefer: "return=minimal"
+            method: "PATCH", body: who, prefer: "return=minimal"
           });
         }
         db(env, `staff_links?token=eq.${token}`, { method: "PATCH", body: { last_used_at: now }, prefer: "return=minimal" }).catch(() => {});
