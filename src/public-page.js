@@ -13,6 +13,7 @@ import { isExpired } from "./billing.js";
 import { bonusBlock } from "./bonus.js";
 import { flowFrom, logRating, LIKES, PHONE_KEEP_DAYS } from "./rating.js";
 import { makeCardTicket } from "./app-auth.js";
+import { serviceBlock, SERVICE_CSS } from "./service.js";
 
 const SLUG_RE = /^[A-Za-z0-9_-]{3,64}$/;
 const COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
@@ -80,7 +81,7 @@ export const BONUS_COLUMNS =
 const BUSINESS_COLUMNS =
   "id,slug,name,tagline,category,logo_url,brand_color,google_url,yandex_url,twogis_url," +
   "discount_code,discount_text,paid_until,theme,design,extra_links,rating_first,moment," +
-  "catalog_visible,app_button," + BONUS_COLUMNS;
+  "catalog_visible,app_button,modules," + BONUS_COLUMNS;
 
 // Ссылки заведения под кнопками отзывов (миграция 020): меню, каталог, услуги…
 // Значки — тонкие линии в цвете текста темы, чтобы не спорить с логотипами площадок
@@ -251,7 +252,7 @@ export async function handleCardPage(request, env, ctx, rawCode) {
   try {
     const cards = await db(
       env,
-      `cards?code=eq.${code}&select=id,code,business_id,is_active&limit=1`
+      `cards?code=eq.${code}&select=id,code,label,is_table,business_id,is_active&limit=1`
     );
     if (!cards.length) return notFoundPage();
     card = cards[0];
@@ -311,7 +312,9 @@ export async function handleCardPage(request, env, ctx, rawCode) {
   if (isExpired(business.paid_until)) return pausedResponse(business);
   const guest = isBot(request) ? null : await guestOf(request, env, business, source);
   const appLink = await appLinkFor(env, business, card.code);
-  return withGuestCookie(businessPage(business, source, card.code, flow, guest, appLink), guest);
+  // Карта на столе + модуль «Сервис в зале»: кнопки вызова сотрудника (service.js)
+  const service = serviceBlock(business, card, source);
+  return withGuestCookie(businessPage(business, source, card.code, flow, guest, appLink, service), guest);
 }
 
 // Кнопка «Отзыв в Telegram» (миграция 035): галочка в админке + заведение в каталоге + бот настроен.
@@ -487,7 +490,8 @@ function redirect(location) {
   });
 }
 
-function businessPage(business, source, cardCode = null, flow = { score: null, all: false, sent: false }, guest = null, appLink = null) {
+// service — готовый блок вызова сотрудника для карты на столе (service.js) или ""
+function businessPage(business, source, cardCode = null, flow = { score: null, all: false, sent: false }, guest = null, appLink = null, service = "") {
   // Свой фирменный цвет заведения, иначе — цвет черты выбранной темы
   const accent = COLOR_RE.test(business.brand_color || "") ? business.brand_color : null;
 
@@ -550,7 +554,7 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
   const discount = !has(business, "gifts") ? "" : bonusBlock(business, source, cardCode, guest ? guest.stamps : null, guest ? guest.rewards : 0, guest ? guest.visits : 0);
 
   if (business.rating_first && has(business, "rating")) {
-    return ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, discount, design, appLink });
+    return ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, discount, design, appLink, service });
   }
 
   const actions = buttons
@@ -565,6 +569,7 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
     accent,
     theme: business.theme,
     design,
+    extraCss: service ? SERVICE_CSS : "",
     // «Карта как реклама»: гость-владелец бизнеса переходит на наш сайт, а заведение получает рекомендацию
     footer: { href: `/r/${business.slug}?s=card`, text: "Хочу такую карту" },
     body: `
@@ -572,6 +577,7 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
       <h1 class="${nameClass}">${escapeHtml(business.name)}</h1>
       ${tagline}
       <div class="divider"></div>
+      ${service}
       <h2 class="thanks">Спасибо за ваш визит!</h2>
       ${actions}
       ${appBlock(appLink)}
@@ -583,7 +589,7 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
 
 // Сначала оценка (rating.js): карточка заведения → «Как вам у нас?» → площадки (4–5) или сообщение владельцу (1–3).
 // Площадки доступны при любой оценке, подарок — после любой оценки.
-function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, discount, design, appLink }) {
+function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, discount, design, appLink, service = "" }) {
   const base = new URLSearchParams();
   if (source !== "direct") base.set("s", source);
   const link = (extra) => {
@@ -675,13 +681,14 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
     theme: business.theme,
     design,
     // Оценка 1–3: подарок появляется позже (22 с), чтобы гость сначала спокойно написал владельцу
-    extraCss: score && score <= 3 ? ".bonus { animation-delay: 22s; }" : "",
+    extraCss: (score && score <= 3 ? ".bonus { animation-delay: 22s; }" : "") + (service ? SERVICE_CSS : ""),
     footer: { href: `/r/${business.slug}?s=card`, text: "Хочу такую карту" },
     body: `
       ${logo}
       <h1 class="${nameClass}">${escapeHtml(business.name)}</h1>
       ${tagline}
       <div class="divider"></div>
+      ${service}
       ${step}
       ${appBlock(appLink)}
       ${all || sent || score >= 4 ? momentBlock(business) : ""}

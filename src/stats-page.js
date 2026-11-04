@@ -11,7 +11,8 @@ import { ratingStats, setFeedbackResolved, LIKES, PHONE_KEEP_DAYS } from "./rati
 import { refUrl, refStats } from "./referral.js";
 import { recentScore, scoreHtml, SCORE_CSS } from "./score.js";
 import { rewardInviter } from "./friends.js";
-import { has } from "./tariffs.js";
+import { has, hasModule } from "./tariffs.js";
+import { serviceStats, serviceSection } from "./service.js";
 
 const TOKEN_RE = /^[A-Za-z0-9]{24}$/;
 // Куда владелец пишет, чтобы продлить подписку (личный Telegram TapReview)
@@ -63,7 +64,7 @@ async function statsPage(request, env, ctx, token) {
   const [reports, extraRows] = await Promise.all([
     loadReports(env, linkIds, period, now),
     // slug — для ссылки-приглашения; bonus_mode — показывать ли кнопку кассы подарков
-    db(env, `businesses?id=in.(${linkIds.join(",")})&select=id,slug,bonus_mode,vip_visits,vip_gift,tariff`).catch(() => [])
+    db(env, `businesses?id=in.(${linkIds.join(",")})&select=id,slug,bonus_mode,vip_visits,vip_gift,tariff,modules`).catch(() => [])
   ]);
   const bonusRows = extraRows.filter((b) => b.bonus_mode && b.bonus_mode !== "off" && has(b, "gifts"));
   // Тарифы (tariffs.js): что показывать владельцу — по заведению на экране (сводка — если есть хоть у одного)
@@ -154,7 +155,15 @@ async function statsPage(request, env, ctx, token) {
       })
     : null;
 
-  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn, invite, ratings, names, bonus, score, levels,
+  // Вызовы персонала («Сервис в зале», service.js) — если модуль есть хоть у одного заведения на экране
+  const service = view.kind !== "card" && view.dailyIds.some((id) => hasModule(rowOf(id), "service"))
+    ? await serviceStats(env, view.dailyIds, venues[0].range).catch((error) => {
+        console.error(`serviceStats: ${error.message}`);
+        return null;
+      })
+    : null;
+
+  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn, invite, ratings, names, bonus, score, levels, service,
     canEdit: Boolean(link.can_edit) && anyHas("settings"), wrappedOn: anyHas("wrapped") };
   return html(200, `Статистика · ${view.title}`, renderBody(view, daily, page));
 }
@@ -206,9 +215,11 @@ function deskError(error) {
 }
 
 async function renderDesk(request, env, { ids, base, owner, token, by, onRedeem }) {
-    const businesses = await db(env, `businesses?id=in.(${ids.join(",")})&select=id,name`);
+    const businesses = await db(env, `businesses?id=in.(${ids.join(",")})&select=id,name,modules`);
     if (!businesses.length) return notFound();
     const names = new Map(businesses.map((b) => [b.id, b.name]));
+    // Ссылка персонала + «Сервис в зале» → переход на страницу вызовов (service.js)
+    const callsLink = !owner && hasModule(businesses[0], "service") ? `<a class="back" href="${base}/calls">🙋 Вызовы гостей</a>` : "";
 
     // Погашение — обычной ссылкой ?code=…&redeem=1 (а не формой): в РФ соединения с Cloudflare
     // иногда обрываются, и обычный переход браузер повторяет сам. Если повтор пришёл сразу после
@@ -262,7 +273,7 @@ async function renderDesk(request, env, { ids, base, owner, token, by, onRedeem 
   <header class="top">
     <div class="top-inner">
       <div class="brand">TapReview <span>· касса</span></div>
-      ${owner ? `<a class="back" href="/s/${token}">← Статистика</a>` : ""}
+      ${owner ? `<a class="back" href="/s/${token}">← Статистика</a>` : callsLink}
       <h1 class="name">Проверка подарка</h1>
       ${venueName ? `<p class="sub">${esc(venueName)}</p>` : ""}
       <p class="range">Введите код с экрана гостя: 6 цифр, например 123-456</p>
@@ -583,6 +594,7 @@ function renderBody(view, daily, page) {
     ${empty ? "" : funnelSection(cur, page.ratings, page.bonus)}
     ${ratingsSection(page.ratings, page.names, view.kind === "all", token, `p=${period}${view.query}`)}
     ${levelsSection(page.levels)}
+    ${serviceSection(page.service)}
     ${sections}
     ${page.invite || ""}
     <section class="note">
@@ -865,7 +877,8 @@ function notFound() {
 // script — необязательный маленький встроенный скрипт (только для кассы); разрешается разовым nonce
 function html(status, title, body, script = "") {
   const nonce = script ? btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16)))) : "";
-  const scriptCsp = script ? `script-src 'nonce-${nonce}'; ` : "";
+  // connect-src — страница вызовов персонала обновляет список сама (service.js)
+  const scriptCsp = script ? `script-src 'nonce-${nonce}'; connect-src 'self'; ` : "";
   const page = `<!DOCTYPE html>
 <html lang="ru">
 <head>

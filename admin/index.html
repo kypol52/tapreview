@@ -710,26 +710,39 @@
             <input id="f-bonus-conditions" type="text" maxlength="200" placeholder="При заказе от 500 ₽, один код на чек">
           </label>
           <p id="f-bonus-stats" class="billing-status"></p>
-
-          <div id="staff-box" class="staff-box" hidden>
-            <div class="link-label">Ссылка для персонала (касса)</div>
-            <p class="muted qr-text">
-              Официант или кассир по этой ссылке может только проверить и погасить код подарка этого заведения —
-              без статистики, настроек и админ-панели. Сделайте отдельную ссылку на смену или сотрудника; если человек ушёл — отключите её.
-            </p>
-            <div class="staff-new">
-              <input id="staff-label" type="text" maxlength="60" placeholder="Подпись, например «Касса» или «Анна»">
-              <button id="staff-create" class="btn btn-secondary" type="button">Создать ссылку</button>
-            </div>
-            <p id="staff-error" class="error" hidden></p>
-            <ul id="staff-list" class="tg-subs sl-list"></ul>
-          </div>
         </div>
         <p class="muted field-hint">
           Кнопка подарка появляется через несколько секунд после скана карты (NFC или QR), ниже кнопок отзывов.
           Каждый гость получает свой одноразовый код; кассир проверяет и гасит его по ссылке статистики → «Проверить код подарка».
           Подарок не должен зависеть от отзыва — так требуют правила Яндекс Карт и 2ГИС; не пишите «за отзыв».
         </p>
+      </fieldset>
+
+      <fieldset class="billing">
+        <legend>Сервис в зале и персонал</legend>
+        <label class="check">
+          <input id="f-mod-service" type="checkbox">
+          Модуль «Сервис в зале»: гость зовёт официанта со стола
+        </label>
+        <p class="muted field-hint">
+          Кнопки «Позвать официанта», «Попросить счёт» (одним или разделить на 2–6) и «Нужна помощь» видны только на картах
+          с галочкой «Карта лежит на столе» (вкладка «Карты») и только при касании или скане карты.
+          Персонал видит вызовы со звуком по своей ссылке ниже → «Вызовы», а в Telegram — чаты с галочкой «Вызовы гостей» (блок Telegram выше).
+        </p>
+
+        <div id="staff-box" class="staff-box" hidden>
+          <div class="link-label">Ссылки для персонала</div>
+          <p class="muted qr-text">
+            По ссылке официант или кассир видит только кассу подарков и вызовы гостей этого заведения —
+            без статистики, настроек и админ-панели. Сделайте отдельную ссылку на смену или сотрудника; если человек ушёл — отключите её.
+          </p>
+          <div class="staff-new">
+            <input id="staff-label" type="text" maxlength="60" placeholder="Подпись, например «Касса» или «Анна»">
+            <button id="staff-create" class="btn btn-secondary" type="button">Создать ссылку</button>
+          </div>
+          <p id="staff-error" class="error" hidden></p>
+          <ul id="staff-list" class="tg-subs sl-list"></ul>
+        </div>
       </fieldset>
 
       <fieldset class="billing">
@@ -983,6 +996,10 @@
         <label class="check">
           <input id="c-active" type="checkbox" checked>
           Карта работает (снимите, если карту потеряли или украли)
+        </label>
+        <label class="check">
+          <input id="c-table" type="checkbox">
+          Карта лежит на столе: гости могут позвать официанта (нужен модуль «Сервис в зале»; название стола — в поле выше)
         </label>
       </div>
 

@@ -54,7 +54,7 @@ import { refUrl, refStats } from "./referral.js";
 import { localAuthEnabled, verifyToken, handleLogin } from "./admin-auth.js";
 import { saveMedia, MEDIA_ID_RE } from "./media.js";
 import { billingState, formatDay } from "./billing.js";
-import { TARIFF_KEYS } from "./tariffs.js";
+import { TARIFF_KEYS, MODULE_KEYS } from "./tariffs.js";
 import { handleAppAdmin } from "./app-api.js";
 
 const CATEGORIES = ["restaurant", "beauty", "barber", "shop", "hotel", "auto", "other"];
@@ -66,7 +66,7 @@ const ADMIN_COLUMNS =
   "paid_until,monthly_price,billing_note," +
   "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions,bonus_daily_limit," +
   "stamps_goal,stamps_prize,friend_gift,friend_reward,vip_visits,vip_gift," +
-  "referred_by,ref_reward_at,theme,design,extra_links,rating_first,moment,tariff," +
+  "referred_by,ref_reward_at,theme,design,extra_links,rating_first,moment,tariff,modules," +
   "catalog_visible,catalog_since,catalog_consent_at,description,city,photos,app_button,lat,lon," +
   "created_at,updated_at";
 
@@ -76,7 +76,7 @@ const EXTRA_LINK_MAX = 6;
 const GROUP_COLUMNS = "id,slug,name,tagline,logo_url,business_ids,is_active,created_at,updated_at";
 const MAX_GROUP_SIZE = 50;
 
-const CARD_COLUMNS = "id,code,business_id,label,is_active,assigned_at,created_at";
+const CARD_COLUMNS = "id,code,business_id,label,is_table,is_active,assigned_at,created_at";
 // Код карты печатается на карте — только заглавные буквы и цифры без похожих (0/O, 1/I/L)
 const CARD_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const CARD_CODE_LENGTH = 6;
@@ -553,6 +553,8 @@ async function updateCard(request, env, id) {
   const data = {
     business_id: businessId,
     label: cleanText(input.label, 60, "Место") || null,
+    // Карта на столе: кнопки вызова сотрудника («Сервис в зале», миграция 042)
+    is_table: input.is_table === true,
     is_active: input.is_active !== false
   };
   // Время привязки меняем, только когда карту привязали к другому заведению
@@ -642,6 +644,8 @@ function validateBusiness(input) {
     extra_links: cleanExtraLinks(input.extra_links),
     rating_first: input.rating_first !== false,
     tariff: TARIFF_KEYS.includes(input.tariff) ? input.tariff : "standard",
+    // Модули сверх тарифа (миграция 042): только известные ключи, без повторов
+    modules: [...new Set((Array.isArray(input.modules) ? input.modules : []).filter((m) => MODULE_KEYS.includes(m)))],
     moment: cleanMoment(input.moment),
     // Каталог Mini App (миграция 034): показывать только с согласия заведения
     catalog_visible: input.catalog_visible === true,
@@ -1020,18 +1024,22 @@ async function createTelegramInvite(env, businessId) {
 async function listTelegramSubscribers(env, businessId) {
   const rows = await db(
     env,
-    `tg_subscribers?business_id=eq.${businessId}&select=id,chat_id,chat_title,weekly_report,can_manage,created_at&order=created_at.asc`
+    `tg_subscribers?business_id=eq.${businessId}&select=id,chat_id,chat_title,weekly_report,can_manage,service_calls,created_at&order=created_at.asc`
   );
   return json(rows);
 }
 
 // { can_manage } — может ли чат управлять заведением из бота (миграция 031)
+// { service_calls } — получает ли чат вызовы гостей «Сервис в зале» (миграция 042)
 async function updateTelegramSubscriber(request, env, id) {
   const data = await readJson(request);
-  if (typeof data.can_manage !== "boolean") throw new HttpError(400, "Нужно can_manage: true или false");
-  const rows = await db(env, `tg_subscribers?id=eq.${id}&select=id,can_manage`, {
+  const body = {};
+  if (typeof data.can_manage === "boolean") body.can_manage = data.can_manage;
+  if (typeof data.service_calls === "boolean") body.service_calls = data.service_calls;
+  if (!Object.keys(body).length) throw new HttpError(400, "Нужно can_manage или service_calls: true или false");
+  const rows = await db(env, `tg_subscribers?id=eq.${id}&select=id,can_manage,service_calls`, {
     method: "PATCH",
-    body: { can_manage: data.can_manage },
+    body,
     prefer: "return=representation"
   });
   if (!rows.length) throw new HttpError(404, "Чат не найден");

@@ -1061,6 +1061,7 @@ function openEditor(business) {
   // Новое заведение: первый месяц бесплатно (оплачено до = сегодня + 1 месяц) и базовая цена 169 ₽ (до 10 карт)
   $("f-paid-until").value = business ? business.paid_until || "" : addMonths(mskToday(), 1);
   $("f-tariff").value = (business && business.tariff) || "standard";
+  $("f-mod-service").checked = Boolean(business && Array.isArray(business.modules) && business.modules.includes("service"));
   $("f-price").value = business && business.monthly_price != null ? String(business.monthly_price) : business ? "" : "189";
   $("f-billing-note").value = business ? business.billing_note || "" : "";
   fillReferredBy(business);
@@ -1478,7 +1479,25 @@ async function loadTelegramSubscribers(business) {
         }
       });
       manage.append(box, " Может управлять из бота (подарки, «Сейчас у нас»)");
-      li.append(name, manage, remove);
+      // «Сервис в зале» (миграция 042): сюда приходят вызовы гостей со столов
+      const calls = el("label", "check tg-manage");
+      const callsBox = el("input");
+      callsBox.type = "checkbox";
+      callsBox.checked = Boolean(sub.service_calls);
+      callsBox.addEventListener("change", async () => {
+        hideError("tg-error");
+        callsBox.disabled = true;
+        try {
+          await api(`/api/admin/telegram/subscribers/${sub.id}`, { method: "PATCH", body: { service_calls: callsBox.checked } });
+        } catch (error) {
+          callsBox.checked = !callsBox.checked;
+          showError("tg-error", error.message);
+        } finally {
+          callsBox.disabled = false;
+        }
+      });
+      calls.append(callsBox, " Вызовы гостей со столов («Сервис в зале»)");
+      li.append(name, manage, calls, remove);
       return li;
     })
   );
@@ -1544,6 +1563,7 @@ function readForm() {
     extra_links: readXlinks(),
     rating_first: $("f-rating-first").checked,
     tariff: $("f-tariff").value,
+    modules: $("f-mod-service").checked ? ["service"] : [],
     moment: readMoment(),
     catalog_visible: $("f-catalog").checked,
     app_button: $("f-app-button").checked,
@@ -2052,6 +2072,25 @@ function renderStaffLinks(business, rows) {
       open.rel = "noopener noreferrer";
       row.append(input, copy, open);
 
+      // «Сервис в зале»: та же ссылка + /calls — страница вызовов со звуком
+      let callsRow = null;
+      if (Array.isArray(business.modules) && business.modules.includes("service")) {
+        const callsUrl = `${link.url.replace(/\/+$/, "")}/calls`;
+        callsRow = el("div", "link-row");
+        const callsInput = el("input");
+        callsInput.type = "text";
+        callsInput.readOnly = true;
+        callsInput.value = callsUrl;
+        const callsCopy = el("button", "btn btn-secondary", "Копировать");
+        callsCopy.type = "button";
+        callsCopy.addEventListener("click", () => copyText(callsUrl));
+        const callsOpen = el("a", "btn btn-secondary", "Вызовы");
+        callsOpen.href = callsUrl;
+        callsOpen.target = "_blank";
+        callsOpen.rel = "noopener noreferrer";
+        callsRow.append(callsInput, callsCopy, callsOpen);
+      }
+
       const meta = el(
         "span",
         "sl-meta",
@@ -2071,7 +2110,7 @@ function renderStaffLinks(business, rows) {
           remove.disabled = false;
         }
       });
-      li.append(row, meta, remove);
+      li.append(row, ...(callsRow ? [callsRow] : []), meta, remove);
       return li;
     })
   );
@@ -2689,7 +2728,7 @@ function renderCardRow(card) {
     businessCell.append(el("span", "muted", "—"));
   }
 
-  const labelCell = el("td", "cell-sub", card.label || "—");
+  const labelCell = el("td", "cell-sub", (card.label || "—") + (card.is_table ? " · стол" : ""));
 
   const status = cardStatus(card);
   const statusCell = document.createElement("td");
@@ -2761,6 +2800,7 @@ function openCardEditor(card) {
 
   $("c-label").value = card.label || "";
   $("c-active").checked = card.is_active;
+  $("c-table").checked = Boolean(card.is_table);
 
   const stats = state.cardStats[card.id];
   const assigned = card.assigned_at
@@ -2798,6 +2838,7 @@ async function onSaveCard(event) {
       body: {
         business_id: $("c-business").value || null,
         label: $("c-label").value,
+        is_table: $("c-table").checked,
         is_active: $("c-active").checked
       }
     });

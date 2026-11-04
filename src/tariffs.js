@@ -39,6 +39,17 @@ export function has(business, feature) {
   return LEVEL[tariffOf(business)] >= NEED[feature];
 }
 
+// Модули сверх тарифа (миграция 042): включаются заведению отдельно в админке, в любом тарифе.
+//   service «Сервис в зале» — вызов сотрудника со стола, страница вызовов для персонала, вызовы в Telegram
+export const MODULES = {
+  service: { label: "Сервис в зале" }
+};
+export const MODULE_KEYS = Object.keys(MODULES);
+
+export function hasModule(business, key) {
+  return Boolean(business && Array.isArray(business.modules) && business.modules.includes(key));
+}
+
 // Название тарифа, с которого доступна функция («Стандарт» / «Плюс»)
 export function tariffFor(feature) {
   return TARIFFS[TARIFF_KEYS[NEED[feature]]].label;

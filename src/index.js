@@ -14,6 +14,8 @@
 //   /s/:token/settings   — «Настройки» владельца: «Сейчас у нас», подарки, ссылки (owner-settings.js)
 //   POST /s/:token/fb    — владелец отмечает сообщение гостя «Разобрано» (stats-page.js)
 //   /k/:token            — касса для персонала: только проверить и погасить код (stats-page.js)
+//   /k/:token/calls      — вызовы гостей для персонала: «Сервис в зале» (service.js)
+//   GET /call            — гость зовёт сотрудника со стола (service.js)
 //   POST /bonus          — выдать гостю код подарка, колесо призов (bonus.js)
 //   /f/:code             — «Подарите другу»: подарок новому гостю по приглашению (friends.js)
 //   /m/:id               — картинки «Своего дизайна»: фон и логотип заведения (media.js)
@@ -37,6 +39,7 @@ import { uptimeCheck, UPTIME_CRON } from "./uptime.js";
 import { handleAppApi } from "./app-api.js";
 import { handleSharePage, handleShareProxy } from "./share-page.js";
 import { handleMeLink } from "./guest-wallet.js";
+import { handleCall, handleStaffCalls, purgeOldCalls } from "./service.js";
 import { db } from "./supabase.js";
 
 // Должно совпадать с расписанием в server/server.mjs
@@ -61,6 +64,8 @@ export default {
         return handleTelegramRelay(request, env, url.pathname);
       }
       const base = String(env.PUBLIC_BASE_URL || "https://tapreview.ru").replace(/\/+$/, "");
+      // Основной адрес совпадает с этим (ошибка настройки) — отдаём файлы, а не перенаправляем по кругу
+      if (new URL(base).host === url.host) return env.ASSETS.fetch(request);
       return Response.redirect(`${base}${url.pathname}${url.search}`, 301);
     }
 
@@ -137,6 +142,15 @@ export default {
       return handleFeedbackResolve(request, env, fbMatch[1]);
     }
 
+    // «Сервис в зале» (service.js): гость зовёт сотрудника со стола, персонал видит вызовы
+    if (url.pathname === "/call") {
+      return handleCall(request, env, ctx);
+    }
+    const callsMatch = url.pathname.match(/^\/k\/([^/]+)\/calls\/?$/);
+    if (callsMatch && (isRead || request.method === "POST")) {
+      return handleStaffCalls(request, env, callsMatch[1]);
+    }
+
     const staffMatch = url.pathname.match(/^\/k\/([^/]+)\/?$/);
     if (staffMatch) {
       return handleStaffDesk(request, env, staffMatch[1]);
@@ -188,6 +202,7 @@ export default {
       );
       ctx.waitUntil(purgeOldPhones(env).catch((error) => console.error(`Phone purge failed: ${error.message}`)));
       ctx.waitUntil(purgeOldVisits(env).catch((error) => console.error(`Visits purge failed: ${error.message}`)));
+      ctx.waitUntil(purgeOldCalls(env).catch((error) => console.error(`Calls purge failed: ${error.message}`)));
       // 1-го числа — «Итоги месяца» владельцам в Telegram (внутри проверка даты)
       ctx.waitUntil(monthlyWrapped(env).catch((error) => console.error(`Monthly wrapped failed: ${error.message}`)));
       return;
