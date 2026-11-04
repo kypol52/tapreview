@@ -33,7 +33,7 @@ import { handleFriend } from "./friends.js";
 import { handleWrapped, monthlyWrapped } from "./wrapped.js";
 import { handleRef } from "./referral.js";
 import { handleOrder, orderReminders } from "./orders.js";
-import { handleFeedback, purgeOldPhones } from "./rating.js";
+import { handleFeedback, purgeOldPhones, feedbackReminders, RECOVERY_CRON } from "./rating.js";
 import { handleMedia } from "./media.js";
 import { uptimeCheck, UPTIME_CRON } from "./uptime.js";
 import { handleAppApi } from "./app-api.js";
@@ -194,6 +194,11 @@ export default {
     // На Cloudflare (без своей базы) расписание только одно — сторож сайта (uptime.js)
     if (!env.DB_URL) {
       if (controller.cron === UPTIME_CRON) ctx.waitUntil(uptimeCheck(env).catch((e) => console.error(`Uptime: ${e.message}`)));
+      return;
+    }
+    // Каждые 10 минут — напоминания о неразобранных сообщениях недовольных гостей (rating.js)
+    if (controller.cron === RECOVERY_CRON) {
+      ctx.waitUntil(feedbackReminders(env).catch((error) => console.error(`Feedback reminders failed: ${error.message}`)));
       return;
     }
     if (controller.cron === DAILY_CRON) {

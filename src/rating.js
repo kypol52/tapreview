@@ -29,6 +29,25 @@ export const LIKES = [
 ];
 const LIKE_KEYS = new Set(LIKES.map((l) => l.key));
 
+// Причины недовольства (миграция 044) — одним касанием при оценке 1–3, можно несколько.
+// «quality» называется по виду заведения: еда и напитки / результат услуги / товар.
+const REASON_KEYS = ["wait", "quality", "service", "clean", "price", "other"];
+const QUALITY_LABELS = { restaurant: "Еда и напитки", hotel: "Еда и напитки", beauty: "Результат услуги", barber: "Результат услуги", shop: "Товар", auto: "Качество работы" };
+export function reasonLabels(category) {
+  return {
+    wait: "Долго ждали",
+    quality: QUALITY_LABELS[category] || "Качество",
+    service: "Обслуживание",
+    clean: "Чистота",
+    price: "Цена",
+    other: "Другое"
+  };
+}
+export const REASONS = REASON_KEYS;
+// Напоминание о неразобранном сообщении: через столько часов, только с 9 до 23 по МСК
+export const REMIND_AFTER_HOURS = 2;
+export const RECOVERY_CRON = "*/10 * * * *";
+
 // Шаг на странице по адресу: ?r=1..5 — оценка, ?v=all — сразу к площадкам, ?sent=1 — сообщение отправлено,
 // ?l=food,service — отмеченное «Что понравилось», ?np=1 — номер не сохранили (неверный формат)
 export function flowFrom(url) {
@@ -42,7 +61,9 @@ export function flowFrom(url) {
     likes,
     all: url.searchParams.get("v") === "all",
     sent: url.searchParams.get("sent") === "1",
-    phoneLost: url.searchParams.get("np") === "1"
+    phoneLost: url.searchParams.get("np") === "1",
+    // ?e=1 — отправили пустую форму (ни причины, ни текста)
+    empty: url.searchParams.get("e") === "1"
   };
 }
 
@@ -110,12 +131,20 @@ export async function handleFeedback(request, env, ctx) {
   if (rawPhone && !phone) back.set("np", "1");
   const location = `${cardCode ? `/c/${cardCode}` : `/b/${slug}`}?${back}`;
   const done = () => new Response(null, { status: 303, headers: { Location: location, "Cache-Control": "no-store" } });
+  // Причины (миграция 044): только известные, без повторов
+  const reasons = [...new Set(form.getAll("why").filter((k) => REASON_KEYS.includes(k)))];
 
-  // Робот (скрытое поле) или пустое сообщение — просто возвращаем на страницу
-  if (isBot(request) || String(form.get("website") || "").trim() || !message) return done();
+  // Робот (скрытое поле) — просто возвращаем на страницу
+  if (isBot(request) || String(form.get("website") || "").trim()) return done();
+  // Ни причины, ни текста — обратно к форме с подсказкой
+  if (!message && !reasons.length) {
+    back.delete("sent");
+    back.set("e", "1");
+    return new Response(null, { status: 303, headers: { Location: `${cardCode ? `/c/${cardCode}` : `/b/${slug}`}?${back}#fb`, "Cache-Control": "no-store" } });
+  }
 
   try {
-    const rows = await db(env, `businesses?slug=eq.${encodeURIComponent(slug)}&is_active=eq.true&select=id,name,tariff&limit=1`);
+    const rows = await db(env, `businesses?slug=eq.${encodeURIComponent(slug)}&is_active=eq.true&select=id,name,tariff,category&limit=1`);
     if (!rows.length || !has(rows[0], "rating")) return done();
     const business = rows[0];
     const visitor = await visitorHashOf(request, env);
@@ -134,12 +163,12 @@ export async function handleFeedback(request, env, ctx) {
       const cards = await db(env, `cards?code=eq.${cardCode}&business_id=eq.${business.id}&select=id,code,label,staff_id&limit=1`);
       card = cards[0] || null;
     }
-    const body = { business_id: business.id, card_id: card ? card.id : null, score, text: message, source, visitor_hash: visitor };
+    const body = { business_id: business.id, card_id: card ? card.id : null, score, text: message, reasons, source, visitor_hash: visitor };
     // Личная карта сотрудника (staff.js) — сообщение относится к нему
     if (card && card.staff_id) body.staff_id = card.staff_id;
     if (phone) Object.assign(body, { phone, phone_consent_at: new Date().toISOString() });
     const saved = await db(env, "feedback?select=id", { method: "POST", body, prefer: "return=representation" });
-    ctx.waitUntil(notifyOwner(env, business, card, score, message, saved[0].id, Boolean(phone)));
+    ctx.waitUntil(notifyOwner(env, business, card, score, message, saved[0].id, Boolean(phone), reasons));
   } catch (error) {
     console.error(`Feedback error: ${error.message}\n${error.stack}`);
   }
@@ -148,24 +177,22 @@ export async function handleFeedback(request, env, ctx) {
 
 // Сообщение сразу владельцу — всем, кто подключил Telegram-бота этого заведения
 // Сам номер в Telegram не отправляем (серверы Telegram за пределами РФ) — только ссылку на статистику, где он виден
-async function notifyOwner(env, business, card, score, message, id, hasPhone) {
+async function notifyOwner(env, business, card, score, message, id, hasPhone, reasons = []) {
   try {
     const chats = await db(env, `tg_subscribers?business_id=eq.${business.id}&select=chat_id`);
     if (!chats.length) return;
     const where = card ? `\n🃏 Карта ${card.label ? `«${esc(card.label)}» ` : ""}${card.code.slice(0, 3)}-${card.code.slice(3)}` : "";
     let contact = "Гость остался анонимным. Разберитесь с причиной, пока он ещё рядом, — так недовольство не уйдёт в публичный отзыв.";
     if (hasPhone) {
-      const links = await db(
-        env,
-        `stats_links?or=(business_id.eq.${business.id},business_ids.cs.{${business.id}})&select=token&limit=1`
-      ).catch(() => []);
-      const base = String(env.PUBLIC_BASE_URL || "").replace(/\/+$/, "");
-      contact = `📞 <b>Гость просит перезвонить.</b> Номер — в статистике${links.length ? `:\n${base}/s/${links[0].token}#fb` : " по вашей ссылке."}\n` +
+      const link = await statsLinkOf(env, business.id);
+      contact = `📞 <b>Гость просит перезвонить.</b> Номер — в статистике${link ? `:\n${link}#fb` : " по вашей ссылке."}\n` +
         `Позвоните, пока впечатление свежее, — так недовольство не уйдёт в публичный отзыв.`;
     }
+    const labels = reasonLabels(business.category);
+    const why = reasons.length ? `\nПричина: <b>${reasons.map((k) => esc(labels[k])).join(", ")}</b>` : "";
     const text =
-      `😟 <b>${esc(business.name)}</b>: гость поставил ${"★".repeat(score)}${"☆".repeat(5 - score)} (${score} из 5)${where}\n\n` +
-      `«${esc(message)}»\n\n` +
+      `😟 <b>${esc(business.name)}</b>: гость поставил ${"★".repeat(score)}${"☆".repeat(5 - score)} (${score} из 5)${where}${why}\n\n` +
+      (message ? `«${esc(message)}»\n\n` : "") +
       contact;
     let delivered = false;
     for (const { chat_id: chatId } of chats) {
@@ -184,15 +211,87 @@ async function notifyOwner(env, business, card, score, message, id, hasPhone) {
   }
 }
 
+// Ссылка статистики заведения (первая) — для сообщений в Telegram
+async function statsLinkOf(env, businessId) {
+  const links = await db(
+    env,
+    `stats_links?or=(business_id.eq.${businessId},business_ids.cs.{${businessId}})&select=token&limit=1`
+  ).catch(() => []);
+  const base = String(env.PUBLIC_BASE_URL || "").replace(/\/+$/, "");
+  return links.length ? `${base}/s/${links[0].token}` : null;
+}
+
+// Каждые 10 минут (server.mjs): сообщения недовольных, не отмеченные «Разобрано» за REMIND_AFTER_HOURS часа, —
+// одно напоминание владельцу. С 23:00 до 9:00 по МСК не пишем: напоминание придёт утром.
+// Берём сообщения не старше 3 дней, чтобы после долгого простоя сервера не завалить владельца старыми.
+export async function feedbackReminders(env, now = Date.now()) {
+  const hour = new Date(now + 3 * 3600e3).getUTCHours();
+  if (hour < 9 || hour >= 23) return 0;
+  const iso = (ms) => encodeURIComponent(new Date(ms).toISOString());
+  const due = await db(
+    env,
+    `feedback?resolved_at=is.null&reminded_at=is.null&created_at=lt.${iso(now - REMIND_AFTER_HOURS * 3600e3)}&created_at=gt.${iso(now - 3 * 86400e3)}` +
+      "&select=id,business_id,score,reasons,created_at,businesses(name,category)&order=created_at.asc&limit=200"
+  );
+  if (!due.length) return 0;
+  const byBusiness = new Map();
+  for (const f of due) byBusiness.set(f.business_id, [...(byBusiness.get(f.business_id) || []), f]);
+  let sent = 0;
+  for (const [businessId, list] of byBusiness) {
+    // Отмечаем сразу — даже если Telegram недоступен, второй раз не напоминаем
+    await db(env, `feedback?id=in.(${list.map((f) => f.id).join(",")})`, {
+      method: "PATCH", body: { reminded_at: new Date(now).toISOString() }, prefer: "return=minimal"
+    });
+    const chats = await db(env, `tg_subscribers?business_id=eq.${businessId}&select=chat_id`).catch(() => []);
+    if (!chats.length) continue;
+    const b = list[0].businesses || {};
+    const labels = reasonLabels(b.category);
+    const lines = list.slice(0, 5).map((f) => {
+      const time = new Date(f.created_at).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" });
+      const why = (f.reasons || []).map((k) => labels[k]).filter(Boolean).join(", ");
+      return `• ${time} — ${"★".repeat(f.score)}${why ? ` · ${esc(why)}` : ""}`;
+    });
+    const link = await statsLinkOf(env, businessId);
+    const text =
+      `⏰ <b>${esc(b.name || "Заведение")}</b>: ${list.length === 1 ? "сообщение недовольного гостя не разобрано" : `не разобрано сообщений недовольных гостей: ${list.length}`} больше ${REMIND_AFTER_HOURS} часов\n\n` +
+      `${lines.join("\n")}${list.length > 5 ? `\n…и ещё ${list.length - 5}` : ""}\n\n` +
+      `Разберитесь и отметьте «Разобрано»${link ? `:\n${link}#fb` : " в статистике по вашей ссылке."}`;
+    for (const { chat_id: chatId } of chats) {
+      try {
+        await tg(env, "sendMessage", { chat_id: chatId, text, parse_mode: "HTML", disable_web_page_preview: true });
+        sent++;
+      } catch (error) {
+        console.error(`Feedback reminder to ${chatId}: ${error.message}`);
+      }
+    }
+  }
+  return sent;
+}
+
 // Для статистики: оценки и сообщения за период
 export async function ratingStats(env, ids, { from, to, cardId = null }) {
   const iso = (ms) => encodeURIComponent(new Date(ms).toISOString());
   const card = cardId ? `&card_id=eq.${cardId}` : "";
   const range = `business_id=in.(${ids.join(",")})${card}&created_at=gte.${iso(from)}&created_at=lte.${iso(to)}`;
-  const [ratings, feedback] = await Promise.all([
+  const [ratings, feedback, all] = await Promise.all([
     db(env, `ratings?${range}&select=score,likes&limit=20000`),
-    db(env, `feedback?${range}&select=id,business_id,card_id,score,text,phone,resolved_at,created_at&order=created_at.desc&limit=30`)
+    db(env, `feedback?${range}&select=id,business_id,card_id,score,text,reasons,phone,resolved_at,created_at&order=created_at.desc&limit=30`),
+    // Все сообщения периода — для причин и скорости разбора
+    db(env, `feedback?${range}&select=reasons,resolved_at,created_at&limit=20000`)
   ]);
+  const reasons = new Map(REASON_KEYS.map((k) => [k, 0]));
+  const resolveHours = [];
+  for (const f of all) {
+    for (const k of f.reasons || []) if (reasons.has(k)) reasons.set(k, reasons.get(k) + 1);
+    if (f.resolved_at) resolveHours.push((Date.parse(f.resolved_at) - Date.parse(f.created_at)) / 3600e3);
+  }
+  resolveHours.sort((a, b) => a - b);
+  const recovery = {
+    total: all.length,
+    resolved: resolveHours.length,
+    medianHours: resolveHours.length ? resolveHours[Math.floor(resolveHours.length / 2)] : null,
+    reasons
+  };
   const dist = [0, 0, 0, 0, 0];
   const likes = new Map(LIKES.map((l) => [l.key, 0]));
   for (const r of ratings) {
@@ -204,7 +303,7 @@ export async function ratingStats(env, ids, { from, to, cardId = null }) {
   const high = dist[3] + dist[4];
   // Сколько довольных гостей (4–5) отметили хоть что-то — от них считаем проценты
   const liked = ratings.filter((r) => r.score >= 4 && r.likes && r.likes.length).length;
-  return { count, avg, dist, low: dist[0] + dist[1] + dist[2], high, liked, likes, feedback };
+  return { count, avg, dist, low: dist[0] + dist[1] + dist[2], high, liked, likes, feedback, recovery };
 }
 
 // Владелец отмечает сообщение «Разобрано» (или возвращает в работу) — только сообщения своих заведений

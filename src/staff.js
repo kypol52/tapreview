@@ -111,7 +111,7 @@ export async function staffStats(env, businessId, { from, to }) {
   if (!staff.length) return null;
   const [ratings, feedback, calls] = await Promise.all([
     db(env, `ratings?business_id=eq.${businessId}&staff_id=not.is.null&source=in.(nfc,qr)&${range}&select=staff_id,score,likes&limit=50000`),
-    db(env, `feedback?business_id=eq.${businessId}&staff_id=not.is.null&${range}&select=staff_id&limit=50000`),
+    db(env, `feedback?business_id=eq.${businessId}&staff_id=not.is.null&${range}&select=staff_id,reasons&limit=50000`),
     db(env, `service_calls?business_id=eq.${businessId}&accepted_staff_id=not.is.null&${range}&select=accepted_staff_id,created_at,accepted_at&limit=50000`)
   ]);
   const rows = staff.map((s) => {
@@ -129,6 +129,8 @@ export async function staffStats(env, businessId, { from, to }) {
       low: mine.filter((r) => r.score <= 3).length,
       service: mine.filter((r) => (r.likes || []).includes("service")).length,
       feedback: feedback.filter((f) => f.staff_id === s.id).length,
+      // Самая частая причина недовольства у этого сотрудника (миграция 044)
+      why: topReason(feedback.filter((f) => f.staff_id === s.id)),
       calls: waits.length,
       median: waits.length ? waits[Math.floor(waits.length / 2)] : null
     };
@@ -137,7 +139,14 @@ export async function staffStats(env, businessId, { from, to }) {
   return rows.filter((r) => r.active || r.count || r.calls || r.feedback);
 }
 
-export function staffSection(rows) {
+function topReason(list) {
+  const counts = new Map();
+  for (const f of list) for (const k of f.reasons || []) counts.set(k, (counts.get(k) || 0) + 1);
+  const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+  return top ? top[0] : null;
+}
+
+export function staffSection(rows, reasonNames = {}) {
   if (!rows || !rows.length) return "";
   const fmt = (v) => v.toLocaleString("ru-RU", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   const time = (s) => (s === null ? "—" : s < 60 ? `${Math.round(s)} с` : `${Math.round(s / 60)} мин`);
@@ -150,7 +159,7 @@ export function staffSection(rows) {
           : "оценок пока нет";
       const extra = [
         r.service ? `«обслуживание» понравилось ${r.service}` : "",
-        r.feedback ? `сообщений недовольных: ${r.feedback}` : "",
+        r.feedback ? `сообщений недовольных: ${r.feedback}${r.why && reasonNames[r.why] ? ` (чаще: ${reasonNames[r.why].toLowerCase()})` : ""}` : "",
         r.calls ? `вызовов принял: ${r.calls}, реакция ${time(r.median)}` : ""
       ].filter(Boolean).join(" · ");
       return `<li class="staff-row"><p class="staff-name">${esc(r.name)}${r.active ? "" : " <span>(не работает)</span>"}</p>

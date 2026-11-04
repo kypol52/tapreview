@@ -7,7 +7,7 @@ import { PERIODS, PLATFORMS, loadReports, loadDaily, sumTotals, formatDateRange,
 import { ICONS } from "./public-page.js";
 import { formatDay } from "./billing.js";
 import { normalizeCode, findCode, redeemCode, bonusCounts, bonusFunnel, validityText } from "./bonus.js";
-import { ratingStats, setFeedbackResolved, LIKES, PHONE_KEEP_DAYS } from "./rating.js";
+import { ratingStats, setFeedbackResolved, LIKES, PHONE_KEEP_DAYS, reasonLabels } from "./rating.js";
 import { refUrl, refStats } from "./referral.js";
 import { recentScore, scoreHtml, SCORE_CSS } from "./score.js";
 import { rewardInviter } from "./friends.js";
@@ -65,7 +65,7 @@ async function statsPage(request, env, ctx, token) {
   const [reports, extraRows] = await Promise.all([
     loadReports(env, linkIds, period, now),
     // slug — для ссылки-приглашения; bonus_mode — показывать ли кнопку кассы подарков
-    db(env, `businesses?id=in.(${linkIds.join(",")})&select=id,slug,bonus_mode,vip_visits,vip_gift,tariff,modules`).catch(() => [])
+    db(env, `businesses?id=in.(${linkIds.join(",")})&select=id,slug,category,bonus_mode,vip_visits,vip_gift,tariff,modules`).catch(() => [])
   ]);
   const bonusRows = extraRows.filter((b) => b.bonus_mode && b.bonus_mode !== "off" && has(b, "gifts"));
   // Тарифы (tariffs.js): что показывать владельцу — по заведению на экране (сводка — если есть хоть у одного)
@@ -172,7 +172,10 @@ async function statsPage(request, env, ctx, token) {
       })
     : null;
 
-  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn, invite, ratings, names, bonus, score, levels, service, staff,
+  // Подписи причин недовольства: «Еда и напитки» / «Результат услуги»… — по виду заведения на экране
+  const reasonNames = reasonLabels(view.kind === "all" ? null : rowOf(view.dailyIds[0]).category);
+
+  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn, invite, ratings, names, bonus, score, levels, service, staff, reasonNames,
     canEdit: Boolean(link.can_edit) && anyHas("settings"), wrappedOn: anyHas("wrapped") };
   return html(200, `Статистика · ${view.title}`, renderBody(view, daily, page));
 }
@@ -601,9 +604,9 @@ function renderBody(view, daily, page) {
     </section>
     ${page.score ? scoreHtml(page.score, { note: "За последние 30 дней. Как заведение работает с гостями: отзывы, оценки, жалобы, возвраты." }) : ""}
     ${empty ? "" : funnelSection(cur, page.ratings, page.bonus)}
-    ${ratingsSection(page.ratings, page.names, view.kind === "all", token, `p=${period}${view.query}`)}
+    ${ratingsSection(page.ratings, page.names, view.kind === "all", token, `p=${period}${view.query}`, page.reasonNames)}
     ${levelsSection(page.levels)}
-    ${staffSection(page.staff)}
+    ${staffSection(page.staff, page.reasonNames)}
     ${serviceSection(page.service)}
     ${sections}
     ${page.invite || ""}
@@ -627,7 +630,7 @@ function renderBody(view, daily, page) {
 }
 
 // Оценки 1–5, «что понравилось» (4–5) и сообщения гостей с оценкой 1–3 с отметкой «Разобрано»
-function ratingsSection(r, names, showVenue, token, back) {
+function ratingsSection(r, names, showVenue, token, back, reasonNames = reasonLabels(null)) {
   if (!r || (!r.count && !r.feedback.length)) return "";
   const avg = r.avg != null ? r.avg.toLocaleString("ru-RU", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "—";
   const bars = [5, 4, 3, 2, 1]
@@ -659,8 +662,29 @@ function ratingsSection(r, names, showVenue, token, back) {
         <input type="hidden" name="id" value="${f.id}"><input type="hidden" name="done" value="${done ? 0 : 1}"><input type="hidden" name="back" value="${esc(back)}">
         <button type="submit" class="${done ? "fb-undo" : "fb-done"}">${done ? "Вернуть" : "✓ Разобрано"}</button>
       </form>`;
-    return `<li class="fb-item${done ? " fb-closed" : ""}"><div class="fb-meta"><span class="fb-stars">${"★".repeat(f.score)}<span>${"★".repeat(5 - f.score)}</span></span> ${when}${venue}</div><p>${esc(f.text)}</p>${phone ? `<div class="fb-contact">${phone}</div>` : ""}${button}</li>`;
+    const why = (f.reasons || []).map((k) => reasonNames[k]).filter(Boolean);
+    const whyHtml = why.length ? `<p class="fb-why">${why.map((w) => `<span>${esc(w)}</span>`).join("")}</p>` : "";
+    return `<li class="fb-item${done ? " fb-closed" : ""}"><div class="fb-meta"><span class="fb-stars">${"★".repeat(f.score)}<span>${"★".repeat(5 - f.score)}</span></span> ${when}${venue}</div>${whyHtml}${f.text ? `<p>${esc(f.text)}</p>` : ""}${phone ? `<div class="fb-contact">${phone}</div>` : ""}${button}</li>`;
   };
+  // Причины недовольства и скорость разбора (миграция 044)
+  const rec = r.recovery;
+  const reasonRows = rec && rec.total
+    ? [...rec.reasons.entries()]
+        .filter(([, v]) => v)
+        .sort((a, b) => b[1] - a[1])
+        .map(([k, v]) => {
+          const pct = Math.round((v / rec.total) * 100);
+          return `<li class="rate-row like-row"><span class="rate-n">${esc(reasonNames[k])}</span><span class="track"><span class="fill bar-low" style="width:${pct}%"></span></span><span class="rate-v">${num(v)}</span></li>`;
+        })
+        .join("")
+    : "";
+  const hours = (h) => (h < 1 ? `${Math.max(1, Math.round(h * 60))} мин` : h < 48 ? `${Math.round(h)} ч` : `${Math.round(h / 24)} дн`);
+  const recovery = rec && rec.total
+    ? `<h3 class="fb-title">На что жалуются</h3>
+      ${reasonRows ? `<ul class="rows rate-rows">${reasonRows}</ul>` : `<p class="hint">Гости пока не отмечали причины — только писали текст.</p>`}
+      <p class="hint">Разобрано ${num(rec.resolved)} из ${num(rec.total)}${rec.medianHours !== null ? ` · обычно за ${hours(rec.medianHours)}` : ""}.
+        Не разобранное за 2 часа бот напомнит вам один раз (ночью не пишет — утром в 9:00).</p>`
+    : "";
   const open = r.feedback.filter((f) => !f.resolved_at);
   const closed = r.feedback.filter((f) => f.resolved_at);
   const messages = r.feedback.length
@@ -677,6 +701,7 @@ function ratingsSection(r, names, showVenue, token, back) {
     <ul class="rows rate-rows">${bars}</ul>
     ${likeRows ? `<h3 class="fb-title">Что нравится гостям</h3><ul class="rows rate-rows">${likeRows}</ul>
       <p class="hint">Из ${num(r.liked)} ${plural(r.liked, "довольного гостя", "довольных гостей", "довольных гостей")} (4–5 ★), которые отметили, что понравилось. Можно выбрать несколько пунктов.</p>` : ""}
+    ${recovery}
     ${messages}
     <p class="hint">Гости с оценкой 1–3 пишут вам напрямую — сообщение сразу приходит в Telegram-бот. Если гость просит перезвонить, его номер виден только здесь и удаляется через ${PHONE_KEEP_DAYS} дней. Кнопки Яндекса и 2ГИС доступны всем гостям.</p>
   </section>`;
@@ -992,6 +1017,8 @@ const CSS = `
   .fb-title { margin: 18px 0 8px; font-size: 15px; }
   .fb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
   .fb-item { padding: 10px 12px; border-radius: 12px; background: var(--bg); }
+  .fb-why { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 0; }
+  .fb-why span { padding: 3px 10px; border-radius: 999px; background: #fdecec; color: #9b2c2c; font-size: 12.5px; font-weight: 600; }
   .fb-item p { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
   .fb-meta { font-size: 12.5px; color: var(--muted); }
   .fb-stars { color: var(--gold); letter-spacing: 1px; }

@@ -239,6 +239,11 @@ function runCron(cron) {
     .catch((error) => console.error(`Cron ${cron} failed: ${error.stack || error}`));
 }
 
+// Каждые 10 минут — напоминания о неразобранных сообщениях недовольных гостей (src/rating.js feedbackReminders).
+// Повторов нет: в базе отмечается, о каком сообщении уже напомнили (feedback.reminded_at).
+const RECOVERY_CRON = "*/10 * * * *";
+setInterval(() => runCron(RECOVERY_CRON), 10 * 60 * 1000);
+
 let lastWeeklyRun = "";
 let lastDailyRun = "";
 setInterval(() => {

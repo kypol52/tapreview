@@ -11,7 +11,7 @@ import { guestOf, vipOn } from "./guests.js";
 import { has, hasModule } from "./tariffs.js";
 import { isExpired } from "./billing.js";
 import { bonusBlock } from "./bonus.js";
-import { flowFrom, logRating, LIKES, PHONE_KEEP_DAYS } from "./rating.js";
+import { flowFrom, logRating, LIKES, PHONE_KEEP_DAYS, reasonLabels } from "./rating.js";
 import { makeCardTicket } from "./app-auth.js";
 import { serviceBlock, SERVICE_CSS } from "./service.js";
 import { staffOfCard, withStaffTips } from "./staff.js";
@@ -657,14 +657,19 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
     step = `
       <h2 class="thanks">Нам жаль, что что-то пошло не так</h2>
       ${chosen}
-      <p class="lead">Расскажите, что случилось, — владелец получит сообщение сразу и разберётся.</p>
-      <form class="fb" method="post" action="/feedback">
+      <p class="lead">Отметьте, что не так, — владелец получит сообщение сразу и разберётся.</p>
+      ${flow.empty ? `<p class="fb-warn" role="alert">Отметьте причину или напишите пару слов.</p>` : ""}
+      <form class="fb" id="fb" method="post" action="/feedback">
+        <fieldset class="why"><legend>Что пошло не так?</legend>
+          ${Object.entries(reasonLabels(business.category)).map(([key, label]) =>
+            `<input type="checkbox" name="why" value="${key}" id="why-${key}"><label for="why-${key}">${escapeHtml(label)}</label>`).join("")}
+        </fieldset>
         <input type="hidden" name="b" value="${escapeHtml(business.slug)}">
         ${cardCode ? `<input type="hidden" name="c" value="${escapeHtml(cardCode)}">` : ""}
         ${source !== "direct" ? `<input type="hidden" name="s" value="${escapeHtml(source)}">` : ""}
         <input type="hidden" name="r" value="${score}">
         <input class="fb-trap" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
-        <textarea name="text" rows="4" maxlength="1000" required placeholder="Например: долго ждали заказ, остыл кофе…" aria-label="Ваше сообщение"></textarea>
+        <textarea name="text" rows="3" maxlength="1000" placeholder="Расскажите подробнее (необязательно)" aria-label="Ваше сообщение"></textarea>
         <input class="fb-call-box" type="checkbox" name="call" value="1" id="fb-call">
         <label class="fb-call" for="fb-call">Перезвоните мне</label>
         <div class="fb-phone">
@@ -1023,6 +1028,15 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
     .fb-consent { margin: 8px 2px 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
     .fb-consent a { color: inherit; }
     .fb-warn { margin: 0 0 8px; color: var(--muted); font-size: 13px; }
+    /* Причины недовольства одним касанием (миграция 044): флажки без скриптов */
+    .why { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 0 0 12px; padding: 0; border: 0; }
+    .why legend { width: 100%; margin: 0 0 8px; font-size: 14px; font-weight: 650; text-align: center; }
+    .why input { position: absolute; opacity: 0; pointer-events: none; }
+    .why label { padding: 8px 14px; border-radius: 999px; border: 1px solid var(--btn-border); background: var(--btn-bg);
+      color: var(--text); font-size: 14px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .why input:checked + label { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, var(--btn-bg)); }
+    .why input:checked + label::before { content: "✓ "; }
+    .why input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
     /* «С возвращением!» и штампы (guests.js) */
     .welcome { margin: 8px auto 0; padding: 5px 12px; width: fit-content; border-radius: 999px;
       background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--text); font-size: 13.5px; font-weight: 650; }

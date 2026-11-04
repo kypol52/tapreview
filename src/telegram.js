@@ -9,7 +9,7 @@
 //   TG_BOT_TOKEN      — токен бота от @BotFather
 //   TG_WEBHOOK_SECRET — любая длинная случайная строка из латинских букв и цифр
 
-import { ratingStats } from "./rating.js";
+import { ratingStats, reasonLabels } from "./rating.js";
 import { db } from "./supabase.js";
 import { PERIODS, PLATFORMS, loadReports, formatDateRange } from "./report.js";
 import { formatDay } from "./billing.js";
@@ -361,8 +361,11 @@ export async function weeklyReports(env) {
       const r = await ratingStats(env, [id], { from: now - 7 * 24 * 60 * 60 * 1000, to: now });
       if (!r.count) continue;
       const avg = r.avg.toLocaleString("ru-RU", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+      // Самая частая причина недовольства за неделю (миграция 044)
+      const top = [...r.recovery.reasons.entries()].sort((a, b) => b[1] - a[1])[0];
+      const why = top && top[1] ? `\n      Чаще всего: ${reasonLabels(null)[top[0]].toLowerCase()} (${top[1]})` : "";
       reports.set(id, `${text}\n\n🌟 Оценки гостей: <b>${avg}</b> из 5 (${r.count})` +
-        (r.low ? `\n      Недовольных (1–3 ★): ${r.low}, сообщений вам: ${r.feedback.length}` : "\n      Недовольных не было 👏"));
+        (r.low ? `\n      Недовольных (1–3 ★): ${r.low}, сообщений вам: ${r.recovery.total}${why}` : "\n      Недовольных не было 👏"));
     } catch (error) {
       console.error(`Weekly ratings ${id}: ${error.message}`);
     }
