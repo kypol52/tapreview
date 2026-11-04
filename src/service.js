@@ -47,8 +47,12 @@ export function callsOn(business, card, source) {
 
 // ---------- Блок на странице стола ----------
 
-export function serviceBlock(business, card, source) {
+// menu — у заведения есть меню (menu.js): под кнопками вызова — «Меню и заказ»
+export function serviceBlock(business, card, source, { menu = false } = {}) {
   if (!callsOn(business, card, source)) return "";
+  const menuLink = menu
+    ? `<a class="svc-menu" href="${escapeHtml(`/menu/${business.slug}?c=${card.code}&s=${source}`)}">📖 Меню и заказ</a>`
+    : "";
   const href = (kind, n) => {
     const p = new URLSearchParams({ c: card.code, t: kind, s: source });
     if (n) p.set("n", String(n));
@@ -70,6 +74,7 @@ export function serviceBlock(business, card, source) {
         </details>
         <a class="svc-btn" href="${href("help")}" rel="nofollow"><span class="svc-icon" aria-hidden="true">${CALL_KINDS.help.icon}</span>${CALL_KINDS.help.label}</a>
       </div>
+      ${menuLink}
     </section>`;
 }
 
@@ -94,6 +99,8 @@ export const SERVICE_CSS = `
     color: var(--btn-text); font-size: 13px; font-weight: 600; text-decoration: none; }
   .svc-split-one { display: block; padding: 11px 12px; }
   .svc-split:hover { border-color: var(--accent); }
+  .svc-menu { display: block; margin-top: 8px; padding: 13px 16px; border-radius: 16px; background: var(--text); color: var(--card);
+    font-weight: 700; text-decoration: none; }
   .svc-status { margin: 6px 0 18px; }
   .svc-big { font-size: 46px; line-height: 1; margin: 6px 0 10px; }
   .svc-state { display: inline-block; margin-top: 4px; padding: 6px 14px; border-radius: 999px; font-size: 14px; font-weight: 600;
@@ -279,6 +286,8 @@ export async function handleStaffCalls(request, env, token) {
       const form = new URLSearchParams((await request.text()).slice(0, 500));
       const id = Number(form.get("id"));
       const action = form.get("do");
+      // t=order — заказ со стола (menu.js), иначе вызов
+      const table = form.get("t") === "order" ? "table_orders" : "service_calls";
       if (Number.isSafeInteger(id) && id > 0 && (action === "accept" || action === "done")) {
         const now = new Date().toISOString();
         const by = link.label ? link.label.slice(0, 80) : "персонал";
@@ -289,10 +298,10 @@ export async function handleStaffCalls(request, env, token) {
           : { status: "done", done_at: now };
         // Только вызовы своего заведения; «Принял» — только у нового, у принятого время не меняем
         const filter = action === "accept" ? "&status=eq.new" : "&status=neq.done";
-        await db(env, `service_calls?id=eq.${id}&business_id=eq.${business.id}${filter}`, { method: "PATCH", body, prefer: "return=minimal" });
+        await db(env, `${table}?id=eq.${id}&business_id=eq.${business.id}${filter}`, { method: "PATCH", body, prefer: "return=minimal" });
         // «Готово» без «Принял» — считаем принятым в тот же момент (для времени реакции)
         if (action === "done") {
-          await db(env, `service_calls?id=eq.${id}&business_id=eq.${business.id}&accepted_at=is.null`, {
+          await db(env, `${table}?id=eq.${id}&business_id=eq.${business.id}&accepted_at=is.null`, {
             method: "PATCH", body: who, prefer: "return=minimal"
           });
         }
@@ -331,14 +340,22 @@ export async function handleStaffCalls(request, env, token) {
   }
 }
 
+// Вызовы (за час) и заказы со стола (за 3 часа, menu.js) — один список по времени; uid: c123 / o45
 async function activeCalls(env, businessId) {
-  const since = encodeURIComponent(new Date(Date.now() - ACTIVE_MINUTES * 60e3).toISOString());
-  return db(env, `service_calls?business_id=eq.${businessId}&status=neq.done&created_at=gt.${since}&select=id,place,kind,split,status,accepted_by,created_at,accepted_at&order=created_at.asc&limit=100`);
+  const since = (min) => encodeURIComponent(new Date(Date.now() - min * 60e3).toISOString());
+  const [calls, orders] = await Promise.all([
+    db(env, `service_calls?business_id=eq.${businessId}&status=neq.done&created_at=gt.${since(ACTIVE_MINUTES)}&select=id,place,kind,split,status,accepted_by,created_at,accepted_at&order=created_at.asc&limit=100`),
+    db(env, `table_orders?business_id=eq.${businessId}&status=neq.done&created_at=gt.${since(ACTIVE_MINUTES * 3)}&select=id,place,items,total,comment,status,accepted_by,created_at,accepted_at&order=created_at.asc&limit=100`).catch(() => [])
+  ]);
+  return [
+    ...calls.map((c) => ({ ...c, type: "call", uid: `c${c.id}` })),
+    ...orders.map((o) => ({ ...o, type: "order", uid: `o${o.id}` }))
+  ].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
 }
 
 async function callsJson(env, business) {
   const calls = await activeCalls(env, business.id);
-  return new Response(JSON.stringify({ ids: calls.filter((c) => c.status === "new").map((c) => c.id), count: calls.length, html: callsList(calls, null) }), {
+  return new Response(JSON.stringify({ ids: calls.filter((c) => c.status === "new").map((c) => c.uid), count: calls.length, html: callsList(calls, null) }), {
     headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" }
   });
 }
@@ -354,15 +371,22 @@ function callsList(calls, base) {
   const action = base ? ` action="${esc(base)}"` : "";
   return `<ul class="calls">${calls
     .map((c) => {
-      const k = CALL_KINDS[c.kind] || CALL_KINDS.help;
-      const split = c.kind === "bill" && c.split ? ` · ${splitText(c.split)}` : "";
       const accepted = c.status === "accepted";
       const button = (todo, text, cls) =>
-        `<form method="post"${action}><input type="hidden" name="id" value="${c.id}"><input type="hidden" name="do" value="${todo}"><button class="${cls}" type="submit">${text}</button></form>`;
-      return `<li class="call${accepted ? " call-taken" : " call-new"}" data-id="${c.id}">
+        `<form method="post"${action}><input type="hidden" name="t" value="${c.type}"><input type="hidden" name="id" value="${c.id}"><input type="hidden" name="do" value="${todo}"><button class="${cls}" type="submit">${text}</button></form>`;
+      let what;
+      if (c.type === "order") {
+        const lines = (c.items || []).map((l) => `<li>${esc(l.name)} × ${l.qty}</li>`).join("");
+        what = `<p class="call-what">🧾 Заказ · ${Number(c.total).toLocaleString("ru-RU")} ₽</p><ul class="call-lines">${lines}</ul>${c.comment ? `<p class="call-meta">«${esc(c.comment)}»</p>` : ""}`;
+      } else {
+        const k = CALL_KINDS[c.kind] || CALL_KINDS.help;
+        const split = c.kind === "bill" && c.split ? ` · ${splitText(c.split)}` : "";
+        what = `<p class="call-what">${k.icon} ${esc(k.staff)}${esc(split)}</p>`;
+      }
+      return `<li class="call${accepted ? " call-taken" : " call-new"}" data-id="${c.uid}">
         <div class="call-main">
           <p class="call-place">${esc(c.place)}</p>
-          <p class="call-what">${k.icon} ${esc(k.staff)}${esc(split)}</p>
+          ${what}
           <p class="call-meta">${esc(ago(c.created_at))}${accepted ? ` · принял${c.accepted_by ? `: ${esc(c.accepted_by)}` : ""}` : ""}</p>
         </div>
         <div class="call-actions">
@@ -380,6 +404,7 @@ const STAFF_CSS = `
   .call-new { border-color: #e5aa0c; background: #fff8e6; box-shadow: 0 0 0 3px rgba(229, 170, 12, 0.18); }
   .call-place { margin: 0; font-size: 20px; font-weight: 800; color: #0a2a5c; }
   .call-what { margin: 2px 0 0; font-size: 15px; font-weight: 600; color: #141a2b; }
+  .call-lines { margin: 4px 0 0; padding-left: 18px; font-size: 14px; color: #141a2b; }
   .call-meta { margin: 4px 0 0; font-size: 12px; color: #6b7280; }
   .call-actions { display: flex; flex-direction: column; gap: 6px; flex: none; }
   .call-actions form { margin: 0; }

@@ -16,6 +16,7 @@ import { serviceStats, serviceSection } from "./service.js";
 import { staffStats, staffSection } from "./staff.js";
 import { pointsOn, pointsStats, pointsSection } from "./points.js";
 import { aiStats } from "./ai.js";
+import { orderStats, orderSection } from "./menu.js";
 
 const TOKEN_RE = /^[A-Za-z0-9]{24}$/;
 // Куда владелец пишет, чтобы продлить подписку (личный Telegram TapReview)
@@ -184,6 +185,14 @@ async function statsPage(request, env, ctx, token) {
     : null;
   const pointsDesk = extraRows.some(pointsOn);
 
+  // Заказы со столов (menu.js) — рядом с вызовами, если модуль «Сервис в зале»
+  const orders = view.kind !== "card" && view.dailyIds.some((id) => hasModule(rowOf(id), "service"))
+    ? await orderStats(env, view.dailyIds, venues[0].range).catch((error) => {
+        console.error(`orderStats: ${error.message}`);
+        return null;
+      })
+    : null;
+
   // Модуль AI (ai.js) — на странице одного заведения
   const ai = view.kind === "venue" && hasModule(rowOf(view.dailyIds[0]), "ai")
     ? await aiStats(env, view.dailyIds[0], venues[0].range).catch((error) => {
@@ -195,7 +204,7 @@ async function statsPage(request, env, ctx, token) {
   // Подписи причин недовольства: «Еда и напитки» / «Результат услуги»… — по виду заведения на экране
   const reasonNames = reasonLabels(view.kind === "all" ? null : rowOf(view.dailyIds[0]).category);
 
-  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn, invite, ratings, names, bonus, score, levels, service, staff, reasonNames, points, pointsDesk, ai,
+  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn, invite, ratings, names, bonus, score, levels, service, staff, reasonNames, points, pointsDesk, ai, orders,
     canEdit: Boolean(link.can_edit) && anyHas("settings"), wrappedOn: anyHas("wrapped") };
   return html(200, `Статистика · ${view.title}`, renderBody(view, daily, page));
 }
@@ -632,6 +641,7 @@ function renderBody(view, daily, page) {
     ${pointsSection(page.points, token)}
     ${staffSection(page.staff, page.reasonNames)}
     ${serviceSection(page.service)}
+    ${orderSection(page.orders, esc)}
     ${sections}
     ${page.invite || ""}
     <section class="note">

@@ -16,6 +16,7 @@ import { makeCardTicket } from "./app-auth.js";
 import { serviceBlock, SERVICE_CSS } from "./service.js";
 import { staffOfCard, withStaffTips } from "./staff.js";
 import { pointsBlock, POINTS_CSS } from "./points.js";
+import { hasMenu } from "./menu.js";
 
 const SLUG_RE = /^[A-Za-z0-9_-]{3,64}$/;
 const COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
@@ -130,14 +131,18 @@ function momentBlock(business, now = Date.now()) {
 }
 
 function extraLinksBlock(business, top = false) {
-  if (!has(business, "links")) return "";
-  const links = (Array.isArray(business.extra_links) ? business.extra_links : []).filter((l) => l && isHttpsUrl(l.url));
+  // Своё меню (menu.js, business.menuUrl) — первой кнопкой и вместо внешней ссылки «Меню»
+  const own = business.menuUrl ? [{ type: "menu", url: business.menuUrl, own: true }] : [];
+  const external = has(business, "links")
+    ? (Array.isArray(business.extra_links) ? business.extra_links : []).filter((l) => l && isHttpsUrl(l.url) && !(own.length && l.type === "menu"))
+    : [];
+  const links = [...own, ...external];
   if (!links.length) return "";
   const items = links
     .map((l) => {
       const kind = EXTRA_LINKS[l.type] || EXTRA_LINKS.custom;
       return `
-        <a class="xlink" href="${escapeHtml(l.url)}" target="_blank" rel="noopener nofollow">
+        <a class="xlink" href="${escapeHtml(l.url)}"${l.own ? "" : ` target="_blank" rel="noopener nofollow"`}>
           <span class="xlink-icon">${kind.icon}</span>
           <span class="xlink-label">${escapeHtml(l.label || kind.label)}</span>
         </a>`;
@@ -170,7 +175,11 @@ export async function handleBusinessPage(request, env, ctx, slug) {
 
   if (isExpired(business.paid_until)) return pausedResponse(business);
   const guest = isBot(request) ? null : await guestOf(request, env, business, source);
-  return withGuestCookie(businessPage(business, source, null, flow, guest), guest);
+  // Своё меню (menu.js) — кнопка «Меню» вместо внешней ссылки
+  const withMenu = has(business, "menu") && (await hasMenu(env, business.id))
+    ? { ...business, menuUrl: `/menu/${business.slug}${source !== "direct" ? `?s=${source}` : ""}` }
+    : business;
+  return withGuestCookie(businessPage(withMenu, source, null, flow, guest), guest);
 }
 
 // Cookie устройства ставим при первом касании карты (guests.js): «С возвращением!» и штампы
@@ -319,7 +328,10 @@ export async function handleCardPage(request, env, ctx, rawCode) {
   const guest = isBot(request) ? null : await guestOf(request, env, business, source);
   const appLink = await appLinkFor(env, business, card.code);
   // Карта на столе + модуль «Сервис в зале»: кнопки вызова сотрудника (service.js); личная карта — имя сотрудника
-  const service = serviceBlock(business, card, source) ||
+  // Своё меню (menu.js): кнопка «Меню» на странице и «Меню и заказ» у стола
+  const menu = has(business, "menu") && (await hasMenu(env, business.id));
+  if (menu) business = { ...business, menuUrl: `/menu/${business.slug}?c=${card.code}${source !== "direct" ? `&s=${source}` : ""}` };
+  const service = serviceBlock(business, card, source, { menu }) ||
     (staff ? `<section class="svc"><p class="svc-place">Вас обслуживает: ${escapeHtml(staff.name)}</p></section>` : "");
   return withGuestCookie(businessPage(withStaffTips(business, staff), source, card.code, flow, guest, appLink, service), guest);
 }
@@ -801,8 +813,9 @@ function designCss(d) {
 //   потому что общий noindex отключает и превью ссылки в Telegram.
 const ROBOTS_ALL = `<meta name="robots" content="noindex">`;
 export const ROBOTS_SEARCH_ONLY = `<meta name="yandex" content="noindex, nofollow">\n  <meta name="googlebot" content="noindex, nofollow">\n  <meta name="bingbot" content="noindex, nofollow">`;
-export function renderPage({ status, title, accent, body, extraCss = "", footer = null, theme = "classic", design = null, meta = "", robots = ROBOTS_ALL }) {
+export function renderPage({ status, title, accent, body, extraCss = "", footer = null, theme = "classic", design = null, meta = "", robots = ROBOTS_ALL, script = "" }) {
   const t = THEMES[theme] || THEMES.classic;
+  const nonce = script ? btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16)))) : "";
   if (design) extraCss = designCss(design) + extraCss;
   const footerHtml = footer
     ? `<a class="footer footer-cta-btn" href="${escapeHtml(footer.href)}" rel="nofollow">
@@ -1275,6 +1288,7 @@ ${extraCss}
     ${body}
   </main>
   ${footerHtml}
+${script ? `<script nonce="${nonce}">${script}</script>` : ""}
 </body>
 </html>`;
 
@@ -1285,8 +1299,9 @@ ${extraCss}
       "Cache-Control": "no-store",
       "X-Content-Type-Options": "nosniff",
       "Referrer-Policy": "strict-origin-when-cross-origin",
+      // script — только у страниц, которым он нужен (корзина меню, menu.js): разовый nonce
       "Content-Security-Policy":
-        "default-src 'none'; img-src 'self' https:; font-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+        `default-src 'none'; ${script ? `script-src 'nonce-${nonce}'; ` : ""}img-src 'self' https:; font-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`
     }
   });
 }

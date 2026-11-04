@@ -60,6 +60,7 @@ import { listStaff, createStaff, updateStaff, setStaffCard, StaffError } from ".
 
 import { cleanPoints, PointsError } from "./points.js";
 import { aiConfigured, monthUsage, aiPing } from "./ai.js";
+import { loadMenu, saveMenuText, menuToText, MenuError } from "./menu.js";
 
 // Баллы: ошибка проверки — понятный ответ 400
 function pointsFields(input) {
@@ -267,6 +268,25 @@ export async function handleApi(request, env, url) {
         if (method === "GET") return await listStaffLinks(env, staffLinksMatch[1]);
         if (method === "POST") return await createStaffLink(request, env, staffLinksMatch[1]);
       }
+      // Меню (menu.js): GET — текстом, PUT { text } — сохранить
+      const menuMatch = path.match(/^\/api\/admin\/businesses\/(\d{1,18})\/menu$/);
+      if (menuMatch) {
+        const businessId = Number(menuMatch[1]);
+        if (method === "GET") {
+          const items = await loadMenu(env, businessId);
+          return json({ text: menuToText(items), count: items.length, photos: items.filter((it) => it.photo).length });
+        }
+        if (method === "PUT") {
+          const input = await readJson(request, 60000);
+          try {
+            return json(await saveMenuText(env, businessId, String(input.text || "")));
+          } catch (error) {
+            if (error instanceof MenuError) throw new HttpError(400, error.message);
+            throw error;
+          }
+        }
+      }
+
       // AI-разбор отзывов (ai.js): подключён ли ключ и расход за месяц
       if (path === "/api/admin/ai/status" && method === "GET") {
         const configured = aiConfigured(env);

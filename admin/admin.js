@@ -1066,6 +1066,7 @@ function openEditor(business) {
   $("f-mod-service").checked = Boolean(business && Array.isArray(business.modules) && business.modules.includes("service"));
   $("f-mod-ai").checked = Boolean(business && Array.isArray(business.modules) && business.modules.includes("ai"));
   loadAiStatus();
+  loadMenuText(business);
   // Баллы лояльности (миграция 045)
   $("f-points-on").checked = Boolean(business && business.points_on);
   $("f-points-percent").value = business ? String(business.points_percent ?? 5) : "5";
@@ -2094,6 +2095,26 @@ async function loadAiStatus() {
   }
 }
 
+// ---------- Меню (menu.js, миграция 047): списком текста, сохраняется кнопкой «Сохранить» заведения ----------
+
+async function loadMenuText(business) {
+  state.menuText = "";
+  $("f-menu").value = "";
+  $("f-menu-info").textContent = "";
+  if (!business) return;
+  try {
+    const data = await api(`/api/admin/businesses/${business.id}/menu`);
+    if (state.editing !== business) return;
+    state.menuText = data.text;
+    $("f-menu").value = data.text;
+    $("f-menu-info").textContent = data.count
+      ? `Позиций: ${data.count}${data.photos ? `, с фото: ${data.photos}` : ""}. Фото, описания и «в наличии» владелец меняет в «Настройках».`
+      : "Меню пустое — кнопка «Меню» ведёт на внешнюю ссылку из «Меню, каталог, услуги», если она есть.";
+  } catch (error) {
+    $("f-menu-info").textContent = error.message;
+  }
+}
+
 async function onAiTest() {
   const out = $("ai-test-result");
   $("ai-test").disabled = true;
@@ -2500,6 +2521,12 @@ async function onSave(event) {
           method: "PATCH",
           body: readForm()
         });
+
+    // Меню (menu.js) сохраняется этой же кнопкой — если его меняли
+    if ($("f-menu").value !== state.menuText) {
+      await api(`/api/admin/businesses/${saved.id}/menu`, { method: "PUT", body: { text: $("f-menu").value } });
+      state.menuText = $("f-menu").value;
+    }
 
     upsertBusiness(saved);
     renderList();

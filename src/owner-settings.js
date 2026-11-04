@@ -13,10 +13,11 @@ import { saveMedia } from "./media.js";
 import { has, hasModule } from "./tariffs.js";
 import { listStaff, createStaff, updateStaff, setStaffCard, STAFF_MAX } from "./staff.js";
 import { cleanPoints } from "./points.js";
+import { loadMenu, saveMenuText, setAvailability, updateMenuItem, menuToText } from "./menu.js";
 
 const MAX_PRIZES = 8;
 const MAX_BODY = 1200000; // фото уже сжато в браузере до ~300 КБ (≈ 400 КБ в base64)
-const SECTIONS = { moment: "«Сейчас у нас»", bonus: "Подарок для гостей", points: "Баллы", links: "Ссылки «Ещё у нас»", staff: "Сотрудники" };
+const SECTIONS = { moment: "«Сейчас у нас»", bonus: "Подарок для гостей", points: "Баллы", links: "Ссылки «Ещё у нас»", menu: "Меню", staff: "Сотрудники" };
 const NEW_STAFF_ROWS = 2;
 
 export async function handleOwnerSettings(request, env, token) {
@@ -59,9 +60,19 @@ export async function handleOwnerSettings(request, env, token) {
   </section></main>`);
     }
 
+    // Меню (menu.js): со «Стандарта»
+    const loadMenuItems = async () => (has(business, "menu") ? loadMenu(env, id) : null);
+
     if (!form) {
+      // Одно блюдо: фото, описание, «рекомендуем»
+      const itemId = Number(url.searchParams.get("item"));
+      if (itemId && has(business, "menu")) {
+        const item = (await loadMenu(env, id)).find((it) => it.id === itemId);
+        if (!item) return notFound();
+        return html(200, `Блюдо · ${business.name}`, menuItemBody(token, ids.length > 1, business, item), PHOTO_SCRIPT);
+      }
       const ok = SECTIONS[url.searchParams.get("ok")] ? url.searchParams.get("ok") : null;
-      return html(200, `Настройки · ${business.name}`, settingsBody(token, ids.length > 1, business, { ok, team: await loadTeam() }), PHOTO_SCRIPT);
+      return html(200, `Настройки · ${business.name}`, settingsBody(token, ids.length > 1, business, { ok, team: await loadTeam(), menu: await loadMenuItems() }), PHOTO_SCRIPT);
     }
 
     const section = String(form.get("section") || "");
@@ -82,19 +93,35 @@ export async function handleOwnerSettings(request, env, token) {
         await saveTeam(env, id, form);
         patch = null;
       }
+      else if (section === "menu" || section === "menu_stock" || section === "menu_item") {
+        if (!has(business, "menu")) throw new Error("Меню — с тарифа «Стандарт». Чтобы подключить, напишите в TapReview");
+        if (section === "menu") await saveMenuText(env, id, String(form.get("menu") || ""));
+        else if (section === "menu_stock") await setAvailability(env, id, form.getAll("on"));
+        else {
+          const itemId = Number(form.get("item"));
+          const patchItem = { description: form.get("description"), recommended: form.get("recommended") === "1" };
+          const data = String(form.get("photo_data") || "");
+          if (data) patchItem.photo = await saveMedia(env, "place", data);
+          else if (form.get("photo_remove") === "1") patchItem.photo = null;
+          await updateMenuItem(env, id, itemId, patchItem);
+        }
+        patch = null;
+      }
       else throw new Error("Неизвестный раздел");
     } catch (error) {
       // Показываем ту же страницу с введёнными значениями и понятной ошибкой
       const draft = { ...business, ...draftFrom(section, form, business) };
-      return html(400, `Настройки · ${business.name}`, settingsBody(token, ids.length > 1, draft, { error: { section, text: error.message }, team: await loadTeam() }), PHOTO_SCRIPT);
+      return html(400, `Настройки · ${business.name}`, settingsBody(token, ids.length > 1, draft, { error: { section: section.startsWith("menu") ? "menu" : section, text: error.message }, team: await loadTeam(), menu: await loadMenuItems(), menuDraft: section === "menu" ? String(form.get("menu") || "") : null }), PHOTO_SCRIPT);
     }
     if (patch) await db(env, `businesses?id=eq.${id}`, { method: "PATCH", body: patch, prefer: "return=minimal" });
     const back = new URLSearchParams();
     if (ids.length > 1) back.set("b", String(id));
-    back.set("ok", section);
+    const shown = section.startsWith("menu") ? "menu" : section;
+    back.set("ok", shown);
+    if (ids.length <= 1 && section === "menu_item") back.set("b", String(id));
     return new Response(null, {
       status: 303,
-      headers: { Location: `/s/${token}/settings?${back}#${section}`, "Cache-Control": "no-store" }
+      headers: { Location: `/s/${token}/settings?${back}#${shown}`, "Cache-Control": "no-store" }
     });
   } catch (error) {
     console.error(`Owner settings error: ${error.message}\n${error.stack}`);
@@ -235,7 +262,7 @@ function chooserBody(token, venues) {
   <main class="wrap"><section class="panel"><ul class="set-venues">${items}</ul></section></main>`;
 }
 
-function settingsBody(token, multi, b, { ok = null, error = null, team = null } = {}) {
+function settingsBody(token, multi, b, { ok = null, error = null, team = null, menu = null, menuDraft = null } = {}) {
   const hidden = `<input type="hidden" name="b" value="${b.id}">`;
   const flash = (section) =>
     error && error.section === section
@@ -251,6 +278,7 @@ function settingsBody(token, multi, b, { ok = null, error = null, team = null } 
       <p class="set-hint">Колесо подарков, штампы, VIP-гости и «Подарите другу» — в тарифе «Плюс». Чтобы подключить, напишите в TapReview.</p></section>`}
     ${has(b, "gifts") ? pointsSettingsSection(b, hidden, flash("points")) : ""}
     ${linksSection(b, hidden, flash("links"))}
+    ${menu ? menuSection(token, b, menu, hidden, flash("menu"), menuDraft) : ""}
     ${team ? staffSettingsSection(team, hidden, flash("staff")) : ""}
     ${multi ? `<a class="back back-dark" href="/s/${token}">← Статистика</a>` : ""}
   </main>`;
@@ -375,6 +403,61 @@ function linksSection(b, hidden, msg) {
         <button class="set-save" type="submit">Сохранить</button>
       </form>
     </section>`;
+}
+
+function menuSection(token, b, items, hidden, msg, draft) {
+  const text = draft !== null ? draft : menuToText(items);
+  const stock = items.length
+    ? `<form class="set-form" method="post" action="">
+        ${hidden}<input type="hidden" name="section" value="menu_stock">
+        <p class="set-hint"><b>В наличии.</b> Снимите галочку — блюдо останется в меню серым с пометкой «нет в наличии», заказать его нельзя.</p>
+        <ul class="set-stock">${items.map((it) => `<li><label class="set-check"><input type="checkbox" name="on" value="${it.id}"${it.available ? " checked" : ""}> ${esc(it.name)}</label>
+          <a href="/s/${token}/settings?b=${b.id}&amp;item=${it.id}">${it.photo ? "📷 фото" : "+ фото"}${it.description ? " · описание" : ""}</a></li>`).join("")}</ul>
+        <button class="set-save" type="submit">Сохранить наличие</button>
+      </form>`
+    : "";
+  return `
+    <section class="panel" id="menu">
+      <h2>Меню</h2>
+      <p class="set-hint">Вставьте меню списком: строка с <b>#</b> — раздел, дальше блюда «Название — цена». Звёздочка в начале — «рекомендуем»
+        (такие блюда гость увидит в «К этому часто берут»), после <b>|</b> — короткое описание. Фото и описание можно добавить у каждого блюда ниже.</p>
+      <pre class="set-example"># Кофе
+Капучино — 250
+* Раф лавандовый — 320 | На сливках, с сиропом лаванды
+# Десерты
+Чизкейк — 290</pre>
+      ${msg}
+      <style>.set-example{margin:0 0 10px;padding:10px 12px;border-radius:12px;background:#f4f6fa;font-size:13px;white-space:pre-wrap}
+        .set-stock{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:6px}.set-stock li{display:flex;justify-content:space-between;gap:10px;align-items:center}
+        .set-stock a{font-size:13px;white-space:nowrap}</style>
+      <form class="set-form" method="post" action="">
+        ${hidden}<input type="hidden" name="section" value="menu">
+        <textarea name="menu" rows="12" maxlength="40000" placeholder="# Кофе&#10;Капучино — 250">${esc(text)}</textarea>
+        <p class="set-hint">Если убрать строку — блюдо исчезнет из меню вместе с фото. Переименованное блюдо считается новым.</p>
+        <button class="set-save" type="submit">Сохранить меню</button>
+      </form>
+      ${stock}
+      <a class="set-preview" href="/menu/${esc(b.slug)}" target="_blank" rel="noopener">Посмотреть меню, как видит гость ↗</a>
+    </section>`;
+}
+
+function menuItemBody(token, multi, b, it) {
+  const back = `/s/${token}/settings?b=${b.id}#menu`;
+  return `${header(token, it.name, esc(b.name), back, "Меню")}
+  <main class="wrap">
+    <section class="panel" id="item">
+      <form class="set-form" method="post" action="/s/${token}/settings">
+        <input type="hidden" name="b" value="${b.id}"><input type="hidden" name="section" value="menu_item"><input type="hidden" name="item" value="${it.id}">
+        ${it.photo ? `<div class="set-photo"><img src="/m/${esc(it.photo)}" alt="Фото блюда"><label class="set-check"><input type="checkbox" name="photo_remove" value="1"> Убрать фото</label></div>` : ""}
+        <label>${it.photo ? "Заменить фото" : "Фото (необязательно)"}<input type="file" accept="image/*" data-photo></label>
+        <input type="hidden" name="photo_data" value="">
+        <p class="set-hint" data-photo-status></p>
+        <label>Описание<textarea name="description" rows="3" maxlength="200" placeholder="Состав, вес, особенности">${esc(it.description || "")}</textarea></label>
+        <label class="set-check"><input type="checkbox" name="recommended" value="1"${it.recommended ? " checked" : ""}> Рекомендуем — предлагать в «К этому часто берут»</label>
+        <button class="set-save" type="submit">Сохранить</button>
+      </form>
+    </section>
+  </main>`;
 }
 
 function pointsSettingsSection(b, hidden, msg) {

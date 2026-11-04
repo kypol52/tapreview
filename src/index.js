@@ -16,6 +16,8 @@
 //   /k/:token            — касса для персонала: только проверить и погасить код (stats-page.js)
 //   /k/:token/calls      — вызовы гостей для персонала: «Сервис в зале» (service.js)
 //   GET /call            — гость зовёт сотрудника со стола (service.js)
+//   GET /menu/:slug      — меню заведения; с карты стола — корзина (menu.js)
+//   GET|POST /table-order — заказ со стола и его статус (menu.js); /order/ и /api/order — заявки с сайта, не путать
 //   GET /points          — одноразовый код гостя для кассы баллов (points.js)
 //   /k/:token/points, /s/:token/points — касса баллов: персонал и владелец (points.js)
 //   POST /bonus          — выдать гостю код подарка, колесо призов (bonus.js)
@@ -43,6 +45,7 @@ import { handleSharePage, handleShareProxy } from "./share-page.js";
 import { handleMeLink } from "./guest-wallet.js";
 import { handleCall, handleStaffCalls, purgeOldCalls } from "./service.js";
 import { handlePointsCode, handleStaffPoints, handleOwnerPoints, pointsDaily } from "./points.js";
+import { handleMenuPage, handleOrder as handleTableOrder, purgeOldOrders } from "./menu.js";
 import { db } from "./supabase.js";
 
 // Должно совпадать с расписанием в server/server.mjs
@@ -149,6 +152,15 @@ export default {
     if (url.pathname === "/call") {
       return handleCall(request, env, ctx);
     }
+    // Меню и заказ со стола (menu.js)
+    const menuMatch = url.pathname.match(/^\/menu\/([^/]+)\/?$/);
+    if (menuMatch && isRead) {
+      return handleMenuPage(request, env, menuMatch[1]);
+    }
+    if (url.pathname === "/table-order" && (isRead || request.method === "POST")) {
+      return handleTableOrder(request, env, ctx);
+    }
+
     // Баллы лояльности (points.js): код гостя для кассы и касса баллов персонала / владельца
     if (url.pathname === "/points") {
       return handlePointsCode(request, env);
@@ -225,6 +237,7 @@ export default {
       ctx.waitUntil(purgeOldVisits(env).catch((error) => console.error(`Visits purge failed: ${error.message}`)));
       ctx.waitUntil(purgeOldCalls(env).catch((error) => console.error(`Calls purge failed: ${error.message}`)));
       ctx.waitUntil(pointsDaily(env).catch((error) => console.error(`Points daily failed: ${error.message}`)));
+      ctx.waitUntil(purgeOldOrders(env).catch((error) => console.error(`Orders purge failed: ${error.message}`)));
       // 1-го числа — «Итоги месяца» владельцам в Telegram (внутри проверка даты)
       ctx.waitUntil(monthlyWrapped(env).catch((error) => console.error(`Monthly wrapped failed: ${error.message}`)));
       return;
