@@ -938,7 +938,7 @@ function renderRow(business) {
   }
 
   // Категория
-  const categoryCell = el("td", "cell-sub", CATEGORY_LABELS[business.category] || "—");
+  const categoryCell = el("td", CATEGORY_LABELS[business.category] ? "cell-sub" : "cell-sub cell-empty", CATEGORY_LABELS[business.category] || "—");
 
   // Статус
   const statusCell = document.createElement("td");
@@ -957,7 +957,7 @@ function renderRow(business) {
   const stats = state.summary[business.id];
   const statsCell = el(
     "td",
-    "cell-stats",
+    stats ? "cell-stats" : "cell-stats cell-empty",
     stats ? statsText(stats) : "—"
   );
 
@@ -1090,9 +1090,38 @@ function openEditor(business) {
   loadStatsLinks(business);
   loadTelegram(business);
 
-  if (!$("editor").open) $("editor").showModal();
+  // У нового заведения ещё нет ссылок, QR и статистики
+  document.querySelector('.ed-tab[data-panel="links"]').hidden = !business;
+  if (!$("editor").open) {
+    showEditorPanel("main");
+    $("editor").showModal();
+  }
   $("f-name").focus();
 }
+
+// Разделы формы заведения: прячем блоки других разделов, поля остаются в форме
+function showEditorPanel(name) {
+  for (const block of document.querySelectorAll("#editor-form > [data-panel]")) {
+    block.classList.toggle("off-panel", block.dataset.panel !== name);
+  }
+  for (const tab of document.querySelectorAll(".ed-tab")) {
+    const on = tab.dataset.panel === name;
+    tab.classList.toggle("active", on);
+    tab.setAttribute("aria-current", on ? "true" : "false");
+    if (on) tab.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+  $("editor").scrollTop = 0;
+}
+
+$("ed-tabs").addEventListener("click", (event) => {
+  const tab = event.target.closest(".ed-tab");
+  if (tab) showEditorPanel(tab.dataset.panel);
+});
+// Незаполненное обязательное поле в другом разделе — открываем этот раздел, чтобы браузер показал подсказку
+$("editor-form").addEventListener("invalid", (event) => {
+  const block = event.target.closest("#editor-form > [data-panel]");
+  if (block && block.classList.contains("off-panel")) showEditorPanel(block.dataset.panel);
+}, true);
 
 function showLinkBox(business) {
   $("link-box").hidden = !business;
@@ -2947,7 +2976,7 @@ function renderCardRow(card) {
   const stats = state.cardStats[card.id];
   const statsCell = el(
     "td",
-    "cell-stats",
+    stats ? "cell-stats" : "cell-stats cell-empty",
     stats ? statsText(stats) : "—"
   );
 

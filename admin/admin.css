@@ -227,6 +227,54 @@ input[type="color"]:disabled { opacity: 0.4; }
 .editor-actions { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 .spacer { flex: 1; }
 
+/* Форма заведения: шапка с разделами сверху и кнопки снизу всегда на виду */
+#editor { width: min(840px, calc(100% - 32px)); }
+#editor form { padding-top: 0; padding-bottom: 0; }
+#editor .editor-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin: 0 -24px;
+  padding: 16px 24px 8px;
+  background: var(--surface);
+}
+.ed-tabs {
+  position: sticky;
+  top: 58px;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 -24px 18px;
+  padding: 4px 24px 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.ed-tab {
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ed-tab:hover { color: var(--text); }
+.ed-tab.active { background: var(--text); border-color: var(--text); color: var(--surface); }
+.ed-tab[hidden] { display: none; }
+.off-panel { display: none !important; }
+#editor .editor-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  margin: 8px -24px 0;
+  padding: 12px 24px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
 .link-box {
   margin-bottom: 18px;
   padding: 12px;
@@ -516,6 +564,13 @@ input[type="color"]:disabled { opacity: 0.4; }
 .theme-opt input:checked ~ .theme-name { color: var(--text); }
 .theme-opt input:focus-visible + .theme-prev { outline: 2px solid var(--primary); outline-offset: 2px; }
 @media (max-width: 480px) { .themes { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* Цвета превью тем — здесь, а не в style="": CSP админки запрещает встроенные стили */
+.theme-prev-classic { --bg:#f4f6fa; --card:#fff; --line:#c9a27e; }
+.theme-prev-dark { --bg:#0e131d; --card:#171e2c; --line:#e5aa0c; }
+.theme-prev-coffee { --bg:#f3ebe1; --card:#fffaf4; --line:#a9744a; }
+.theme-prev-fresh { --bg:#edf6f0; --card:#fff; --line:#2f9e5b; }
+.theme-prev-rose { --bg:#f8eef1; --card:#fff; --line:#c2577a; }
+.theme-prev-custom { --bg:#1a120c; --card:rgba(20,14,10,.75); --line:#f0a43a; }
 .theme-prev-custom { background-image: radial-gradient(circle at 30% 20%, #6b4524, transparent 60%), radial-gradient(circle at 80% 80%, #3a2414, transparent 60%); }
 .theme-prev-custom i { border: 1px solid #f0a43a; }
 
@@ -626,8 +681,35 @@ input[type="number"] {
   .container { padding: 20px 16px 40px; }
   .page-head { align-items: center; flex-wrap: wrap; }
   .toolbar .search { flex-basis: 100%; }
-  .tabs { overflow-x: auto; }
-  .tab { white-space: nowrap; }
+  /* Разделы — плитками в несколько строк, без прокрутки вбок */
+  .tabs { flex-wrap: wrap; gap: 6px; padding-bottom: 12px; }
+  .tab {
+    white-space: nowrap;
+    margin-bottom: 0;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 14px;
+  }
+  .tab.active { background: var(--text); border-color: var(--text); color: var(--surface); }
+  /* Форма заведения — на весь экран; разделы листаются вбок одной строкой */
+  #editor { width: 100%; max-width: 100%; height: 100%; max-height: 100%; margin: 0; border: none; border-radius: 0; }
+  #editor form { padding: 0 16px; min-height: 100%; display: flex; flex-direction: column; }
+  #editor form > * { flex: none; }
+  #editor .editor-actions { margin-top: auto !important; }
+  #editor .editor-head { margin: 0 -16px; padding: 10px 16px 6px; }
+  .ed-tabs {
+    top: 52px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    scroll-padding-inline: 16px;
+    margin: 0 -16px 16px;
+    padding: 4px 16px 10px;
+  }
+  .ed-tabs::-webkit-scrollbar { display: none; }
+  .ed-tab { white-space: nowrap; flex: none; }
+  #editor .editor-actions { margin: 8px -16px 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); }
   .search { max-width: none; }
   .grid-2 { grid-template-columns: 1fr; }
   .editor form { padding: 16px; }
@@ -656,6 +738,7 @@ input[type="number"] {
     border-radius: var(--radius);
   }
   .table td { padding: 4px 0; border: none; }
+  .table td.cell-empty { display: none; }
   .cell-actions { text-align: left; padding-top: 10px !important; }
 }
 

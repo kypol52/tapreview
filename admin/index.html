@@ -340,7 +340,18 @@
         <button id="editor-close" class="btn btn-ghost" type="button" aria-label="Закрыть">✕</button>
       </div>
 
-      <div id="link-box" class="link-box" hidden>
+      <!-- Разделы формы: все поля остаются в одной форме и сохраняются одной кнопкой -->
+      <nav id="ed-tabs" class="ed-tabs" aria-label="Разделы заведения">
+        <button class="ed-tab active" type="button" data-panel="main">Основное</button>
+        <button class="ed-tab" type="button" data-panel="links">Ссылки и владелец</button>
+        <button class="ed-tab" type="button" data-panel="page">Страница</button>
+        <button class="ed-tab" type="button" data-panel="gifts">Подарки</button>
+        <button class="ed-tab" type="button" data-panel="service">Сервис и AI</button>
+        <button class="ed-tab" type="button" data-panel="design">Оформление</button>
+        <button class="ed-tab" type="button" data-panel="billing">Подписка</button>
+      </nav>
+
+      <div data-panel="links" id="link-box" class="link-box" hidden>
         <div class="link-label">Ссылка для записи в NFC-карту</div>
         <div class="link-row">
           <input id="link-url" type="text" readonly>
@@ -369,7 +380,7 @@
         </div>
       </div>
 
-      <div id="stats-box" class="stats-box" hidden>
+      <div data-panel="links" id="stats-box" class="stats-box" hidden>
         <div class="link-label">Статистика за 30 дней</div>
         <p id="stats-loading" class="muted">Загрузка…</p>
         <p id="stats-error" class="error" hidden></p>
@@ -416,7 +427,7 @@
         </div>
       </div>
 
-      <div id="ref-box" class="stats-box" hidden>
+      <div data-panel="links" id="ref-box" class="stats-box" hidden>
         <div class="link-label">Рекомендации: «месяц бесплатно обоим»</div>
         <p class="muted qr-text">
           Ссылка-приглашение этого заведения (владелец видит её в своей статистике с кнопками «Отправить»).
@@ -431,7 +442,7 @@
         <ul id="ref-list" class="tg-subs sl-list"></ul>
       </div>
 
-      <div id="sl-box" class="stats-box" hidden>
+      <div data-panel="links" id="sl-box" class="stats-box" hidden>
         <div class="link-label">Статистика владельцу по ссылке</div>
         <p class="muted qr-text">
           Страница со статистикой заведения: открывается в любом браузере, без Telegram, VPN и входа.
@@ -445,7 +456,7 @@
         <ul id="sl-list" class="tg-subs sl-list"></ul>
       </div>
 
-      <div id="tg-box" class="stats-box" hidden>
+      <div data-panel="links" id="tg-box" class="stats-box" hidden>
         <div class="link-label">Статистика владельцу в Telegram</div>
         <p id="tg-status" class="muted">Загрузка…</p>
         <p id="tg-error" class="error" hidden></p>
@@ -476,17 +487,17 @@
         </div>
       </div>
 
-      <label class="field">
+      <label data-panel="main" class="field">
         <span>Название *</span>
         <input id="f-name" type="text" maxlength="200" required>
       </label>
 
-      <label class="field">
+      <label data-panel="main" class="field">
         <span>Подпись под названием</span>
         <input id="f-tagline" type="text" maxlength="80" placeholder="Ресторан • Москва">
       </label>
 
-      <div class="grid-2">
+      <div data-panel="main" class="grid-2">
         <label class="field">
           <span>Категория</span>
           <select id="f-category">
@@ -507,7 +518,15 @@
         </label>
       </div>
 
-      <fieldset class="billing">
+      <div data-panel="main" class="field">
+        <span>Статус</span>
+        <label class="check">
+          <input id="f-active" type="checkbox" checked>
+          Активен (страница открывается)
+        </label>
+      </div>
+
+      <fieldset data-panel="main" class="billing">
         <legend>Каталог в Telegram Mini App</legend>
         <p class="muted field-hint">В каталоге гости видят заведение, рейтинг и публичные отзывы (после вашей проверки во вкладке «Отзывы»).
           Включайте только с согласия заведения.</p>
@@ -546,43 +565,43 @@
         </div>
       </fieldset>
 
-      <label class="field">
+      <label data-panel="main" class="field">
         <span>Ссылка на отзывы Google</span>
         <input id="f-google" type="url" placeholder="https://…">
       </label>
 
-      <label class="field">
+      <label data-panel="main" class="field">
         <span>Ссылка на отзывы Яндекс Карт</span>
         <input id="f-yandex" type="url" placeholder="https://…">
       </label>
 
-      <label class="field">
+      <label data-panel="main" class="field">
         <span>Ссылка на отзывы 2ГИС</span>
         <input id="f-twogis" type="url" placeholder="https://…">
       </label>
 
-      <label class="field">
+      <label data-panel="main" class="field">
         <span>Ссылка на логотип (необязательно)</span>
         <input id="f-logo" type="url" placeholder="https://…/logo.png">
       </label>
 
-      <div class="field">
+      <div data-panel="main" class="field">
         <span>Порядок на странице</span>
         <label class="check">
           <input id="f-rating-first" type="checkbox" checked>
           Сначала оценка 1–5 (4–5 → кнопки Яндекс / 2ГИС, 1–3 → сообщение владельцу в Telegram)
         </label>
       </div>
-      <p class="muted field-hint">Кнопки площадок доступны при любой оценке маленькой ссылкой, подарок — после любой оценки. Так отзывы не фильтруются — это требование Яндекса и Google.</p>
+      <p data-panel="main" class="muted field-hint">Кнопки площадок доступны при любой оценке маленькой ссылкой, подарок — после любой оценки. Так отзывы не фильтруются — это требование Яндекса и Google.</p>
 
-      <fieldset class="billing xlinks-box">
+      <fieldset data-panel="page" class="billing xlinks-box">
         <legend>Меню, каталог, услуги</legend>
         <p class="muted field-hint">Кнопки под оценкой и отзывами на странице заведения — блок «Ещё у нас». Ссылка на PDF, сайт, Яндекс Еду, онлайн-запись, чаевые (CloudTips, Нетмонет…) или оплату по СБП от банка заведения. Деньги идут напрямую заведению. До 6 штук.</p>
         <div id="f-xlinks" class="prizes"></div>
         <button id="f-xlink-add" class="btn btn-secondary btn-small" type="button">+ Добавить ссылку</button>
       </fieldset>
 
-      <fieldset class="billing">
+      <fieldset data-panel="page" class="billing">
         <legend>Меню на странице (тариф Plus и Pro)</legend>
         <p class="muted field-hint">Строка с # — раздел, дальше «Название — цена». * в начале — «рекомендуем», после | — описание.
           С карты стола и модулем «Сервис в зале» гость может заказать из меню — заказ увидит персонал рядом с вызовами.</p>
@@ -590,7 +609,7 @@
         <p id="f-menu-info" class="billing-status"></p>
       </fieldset>
 
-      <fieldset class="billing">
+      <fieldset data-panel="page" class="billing">
         <legend>Сейчас у нас — новость, событие, акция</legend>
         <p class="muted field-hint">Карточка видна гостю после оценки (4–5, после сообщения владельцу и «сразу на картах»), под кнопками отзывов.
           Например: «Живая музыка в пятницу», «Новое сезонное меню». Пустые заголовок и текст — блока нет.</p>
@@ -634,7 +653,7 @@
         <p class="muted field-hint">Без дат — показывается всегда. После окончания блок пропадает сам. После изменения нажмите «Сохранить».</p>
       </fieldset>
 
-      <fieldset class="billing bonus-box">
+      <fieldset data-panel="gifts" class="billing bonus-box">
         <legend>Подарок для гостей</legend>
         <label class="field">
           <span>Режим</span>
@@ -741,7 +760,7 @@
         </div>
       </fieldset>
 
-      <fieldset class="billing">
+      <fieldset data-panel="service" class="billing">
         <legend>Сервис в зале и персонал</legend>
         <label class="check">
           <input id="f-mod-service" type="checkbox">
@@ -784,7 +803,7 @@
         </div>
       </fieldset>
 
-      <fieldset class="billing">
+      <fieldset data-panel="service" class="billing">
         <legend>AI-разбор отзывов</legend>
         <label class="check">
           <input id="f-mod-ai" type="checkbox">
@@ -799,7 +818,7 @@
         <p id="ai-test-result" class="billing-status"></p>
       </fieldset>
 
-      <fieldset class="billing">
+      <fieldset data-panel="billing" class="billing">
         <legend>Подписка</legend>
         <label class="field">
           <span>Тариф</span>
@@ -848,26 +867,26 @@
         </p>
       </fieldset>
 
-      <div class="field">
+      <div data-panel="design" class="field">
         <span>Оформление страницы отзывов</span>
         <div class="themes" role="radiogroup" aria-label="Оформление страницы">
           <label class="theme-opt"><input type="radio" name="f-theme" value="classic" checked>
-            <span class="theme-prev" style="--bg:#f4f6fa;--card:#fff;--line:#c9a27e"><i></i><b></b></span><span class="theme-name">Классика</span></label>
+            <span class="theme-prev theme-prev-classic"><i></i><b></b></span><span class="theme-name">Классика</span></label>
           <label class="theme-opt"><input type="radio" name="f-theme" value="dark">
-            <span class="theme-prev" style="--bg:#0e131d;--card:#171e2c;--line:#e5aa0c"><i></i><b></b></span><span class="theme-name">Тёмная</span></label>
+            <span class="theme-prev theme-prev-dark"><i></i><b></b></span><span class="theme-name">Тёмная</span></label>
           <label class="theme-opt"><input type="radio" name="f-theme" value="coffee">
-            <span class="theme-prev" style="--bg:#f3ebe1;--card:#fffaf4;--line:#a9744a"><i></i><b></b></span><span class="theme-name">Кофейня</span></label>
+            <span class="theme-prev theme-prev-coffee"><i></i><b></b></span><span class="theme-name">Кофейня</span></label>
           <label class="theme-opt"><input type="radio" name="f-theme" value="fresh">
-            <span class="theme-prev" style="--bg:#edf6f0;--card:#fff;--line:#2f9e5b"><i></i><b></b></span><span class="theme-name">Свежая</span></label>
+            <span class="theme-prev theme-prev-fresh"><i></i><b></b></span><span class="theme-name">Свежая</span></label>
           <label class="theme-opt"><input type="radio" name="f-theme" value="rose">
-            <span class="theme-prev" style="--bg:#f8eef1;--card:#fff;--line:#c2577a"><i></i><b></b></span><span class="theme-name">Бьюти</span></label>
+            <span class="theme-prev theme-prev-rose"><i></i><b></b></span><span class="theme-name">Бьюти</span></label>
           <label class="theme-opt"><input type="radio" name="f-theme" value="custom">
-            <span class="theme-prev theme-prev-custom" style="--bg:#1a120c;--card:rgba(20,14,10,.75);--line:#f0a43a"><i></i><b></b></span><span class="theme-name">Свой дизайн</span></label>
+            <span class="theme-prev theme-prev-custom"><i></i><b></b></span><span class="theme-name">Свой дизайн</span></label>
         </div>
         <p class="muted field-hint">Фон, карточка и цвет черты под названием. Свой фирменный цвет ниже заменяет цвет черты в любой теме.</p>
       </div>
 
-      <fieldset id="f-design" class="design-box" hidden>
+      <fieldset data-panel="design" id="f-design" class="design-box" hidden>
         <legend>Свой дизайн</legend>
         <div class="design-grid">
           <div class="design-slot">
@@ -896,24 +915,14 @@
         <p id="d-status" class="muted field-hint">Фото сжимается до ~200 КБ прямо в браузере. Лучше реальный зал в тёплом свете, без людей крупным планом.</p>
       </fieldset>
 
-      <div class="grid-2">
-        <div class="field">
-          <span>Фирменный цвет (черта под названием)</span>
-          <div class="color-row">
-            <label class="check">
-              <input id="f-color-on" type="checkbox">
-              Свой цвет
-            </label>
-            <input id="f-color" type="color" value="#2563eb" disabled>
-          </div>
-        </div>
-
-        <div class="field">
-          <span>Статус</span>
+      <div data-panel="design" class="field">
+        <span>Фирменный цвет (черта под названием)</span>
+        <div class="color-row">
           <label class="check">
-            <input id="f-active" type="checkbox" checked>
-            Активен (страница открывается)
+            <input id="f-color-on" type="checkbox">
+            Свой цвет
           </label>
+          <input id="f-color" type="color" value="#2563eb" disabled>
         </div>
       </div>
 
