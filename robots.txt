@@ -1,0 +1,9 @@
+User-agent: *
+Disallow: /admin/
+Disallow: /app/
+Disallow: /api/
+Disallow: /s/
+Disallow: /k/
+Disallow: /consent/
+
+Sitemap: https://tapreview.ru/sitemap.xml
