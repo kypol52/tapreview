@@ -12,6 +12,7 @@ import { db } from "./supabase.js";
 import { tg } from "./telegram.js";
 import { isBot, sha256, visitorHashOf } from "./analytics.js";
 import { has } from "./tariffs.js";
+import { classifyFeedback } from "./ai.js";
 
 const DEDUPE_WINDOW_MINUTES = 30;
 const SLUG_RE = /^[A-Za-z0-9_-]{3,64}$/;
@@ -144,7 +145,7 @@ export async function handleFeedback(request, env, ctx) {
   }
 
   try {
-    const rows = await db(env, `businesses?slug=eq.${encodeURIComponent(slug)}&is_active=eq.true&select=id,name,tariff,category&limit=1`);
+    const rows = await db(env, `businesses?slug=eq.${encodeURIComponent(slug)}&is_active=eq.true&select=id,name,tariff,category,modules&limit=1`);
     if (!rows.length || !has(rows[0], "rating")) return done();
     const business = rows[0];
     const visitor = await visitorHashOf(request, env);
@@ -168,7 +169,12 @@ export async function handleFeedback(request, env, ctx) {
     if (card && card.staff_id) body.staff_id = card.staff_id;
     if (phone) Object.assign(body, { phone, phone_consent_at: new Date().toISOString() });
     const saved = await db(env, "feedback?select=id", { method: "POST", body, prefer: "return=representation" });
-    ctx.waitUntil(notifyOwner(env, business, card, score, message, saved[0].id, Boolean(phone), reasons));
+    // Модуль AI (ai.js): сначала разметка (до 15 с), потом сообщение владельцу — с пометкой «Срочно», если нужно.
+    // AI не ответил — сообщение уходит как обычно.
+    ctx.waitUntil((async () => {
+      const ai = await classifyFeedback(env, business, saved[0].id, { text: message, score, reasons }).catch(() => null);
+      await notifyOwner(env, business, card, score, message, saved[0].id, Boolean(phone), reasons, ai);
+    })());
   } catch (error) {
     console.error(`Feedback error: ${error.message}\n${error.stack}`);
   }
@@ -177,7 +183,7 @@ export async function handleFeedback(request, env, ctx) {
 
 // Сообщение сразу владельцу — всем, кто подключил Telegram-бота этого заведения
 // Сам номер в Telegram не отправляем (серверы Telegram за пределами РФ) — только ссылку на статистику, где он виден
-async function notifyOwner(env, business, card, score, message, id, hasPhone, reasons = []) {
+async function notifyOwner(env, business, card, score, message, id, hasPhone, reasons = [], ai = null) {
   try {
     const chats = await db(env, `tg_subscribers?business_id=eq.${business.id}&select=chat_id`);
     if (!chats.length) return;
@@ -190,8 +196,11 @@ async function notifyOwner(env, business, card, score, message, id, hasPhone, re
     }
     const labels = reasonLabels(business.category);
     const why = reasons.length ? `\nПричина: <b>${reasons.map((k) => esc(labels[k])).join(", ")}</b>` : "";
+    // Модуль AI: «Срочно» сверху и суть одной фразой
+    const urgent = ai && ai.urgent ? `🔥 <b>СРОЧНО</b>${ai.urgentReason ? `: ${esc(ai.urgentReason)}` : ""}\n` : "";
+    const gist = ai && ai.note && !ai.urgent ? `\n💡 ${esc(ai.note)}` : "";
     const text =
-      `😟 <b>${esc(business.name)}</b>: гость поставил ${"★".repeat(score)}${"☆".repeat(5 - score)} (${score} из 5)${where}${why}\n\n` +
+      `${urgent}😟 <b>${esc(business.name)}</b>: гость поставил ${"★".repeat(score)}${"☆".repeat(5 - score)} (${score} из 5)${where}${why}${gist}\n\n` +
       (message ? `«${esc(message)}»\n\n` : "") +
       contact;
     let delivered = false;

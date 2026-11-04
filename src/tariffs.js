@@ -41,8 +41,10 @@ export function has(business, feature) {
 
 // Модули сверх тарифа (миграция 042): включаются заведению отдельно в админке, в любом тарифе.
 //   service «Сервис в зале» — вызов сотрудника со стола, страница вызовов для персонала, вызовы в Telegram
+//   ai      «AI-разбор отзывов» — темы, тон и «срочно» у жалоб и отзывов, сводка недели (ai.js, миграция 046)
 export const MODULES = {
-  service: { label: "Сервис в зале" }
+  service: { label: "Сервис в зале" },
+  ai: { label: "AI-разбор отзывов" }
 };
 export const MODULE_KEYS = Object.keys(MODULES);
 

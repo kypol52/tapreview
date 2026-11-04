@@ -59,6 +59,7 @@ import { handleAppAdmin } from "./app-api.js";
 import { listStaff, createStaff, updateStaff, setStaffCard, StaffError } from "./staff.js";
 
 import { cleanPoints, PointsError } from "./points.js";
+import { aiConfigured, monthUsage, aiPing } from "./ai.js";
 
 // Баллы: ошибка проверки — понятный ответ 400
 function pointsFields(input) {
@@ -266,6 +267,16 @@ export async function handleApi(request, env, url) {
         if (method === "GET") return await listStaffLinks(env, staffLinksMatch[1]);
         if (method === "POST") return await createStaffLink(request, env, staffLinksMatch[1]);
       }
+      // AI-разбор отзывов (ai.js): подключён ли ключ и расход за месяц
+      if (path === "/api/admin/ai/status" && method === "GET") {
+        const configured = aiConfigured(env);
+        const usage = configured ? await monthUsage(env) : { tokens: 0, rub: 0, requests: 0, failed: 0, limit: Number(env.AI_MONTHLY_TOKENS) || 3000000 };
+        return json({ configured, ...usage });
+      }
+      if (path === "/api/admin/ai/test" && method === "POST") {
+        return json(await aiPing(env));
+      }
+
       // Сотрудники (staff.js, миграция 043): список, добавить, изменить (имя, чаевые, работает, личная карта)
       const staffListMatch = path.match(/^\/api\/admin\/businesses\/(\d{1,18})\/staff$/);
       if (staffListMatch) {

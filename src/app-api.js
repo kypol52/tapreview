@@ -40,6 +40,7 @@ import { loadReports, loadDaily } from "./report.js";
 import { tg, tgAs } from "./telegram.js";
 import { escapeHtml } from "./public-page.js";
 import { walletSummary, linkDevice, unlinkDevices } from "./guest-wallet.js";
+import { classifyReview } from "./ai.js";
 
 export const APP_CATEGORIES = [
   { key: "restaurant", label: "Кафе и рестораны" },
@@ -564,6 +565,8 @@ async function saveReview(request, env) {
   }
   // Не ждём: сообщение модератору уходит в фоне (сервер работает постоянно)
   notifyModerators(env, existing ? "Отзыв изменён — снова на проверке" : "Новый отзыв на проверке");
+  // Модуль AI у заведения (ai.js): темы, тон, «срочно» — в фоне
+  classifyReview(env, b.id, row.id, { text, score }).catch(() => {});
   // notify — включены ли сообщения о отзывах: если нет, приложение один раз предложит их включить
   const settings = await db(env, `app_users?id=eq.${user.id}&select=notify`);
   return json({ review: myReview(row), notify: Boolean(settings[0] && settings[0].notify) }, existing ? 200 : 201);

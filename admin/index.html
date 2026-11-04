@@ -777,6 +777,21 @@
       </fieldset>
 
       <fieldset class="billing">
+        <legend>AI-разбор отзывов</legend>
+        <label class="check">
+          <input id="f-mod-ai" type="checkbox">
+          Модуль «AI-разбор отзывов»: темы, тон и «🔥 Срочно» у жалоб и отзывов, разбор недели в понедельник
+        </label>
+        <p class="muted field-hint">
+          Тексты размечает YandexGPT в Yandex Cloud (Россия); телефоны, почту и ссылки код вырезает до отправки.
+          Цифры в разборе недели считает наш код, AI только формулирует. Если AI недоступен — всё работает как раньше.
+        </p>
+        <p id="ai-status" class="billing-status"></p>
+        <button id="ai-test" class="btn btn-secondary btn-small" type="button">Проверить ключ</button>
+        <p id="ai-test-result" class="billing-status"></p>
+      </fieldset>
+
+      <fieldset class="billing">
         <legend>Подписка</legend>
         <label class="field">
           <span>Тариф</span>

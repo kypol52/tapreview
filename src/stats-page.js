@@ -15,6 +15,7 @@ import { has, hasModule } from "./tariffs.js";
 import { serviceStats, serviceSection } from "./service.js";
 import { staffStats, staffSection } from "./staff.js";
 import { pointsOn, pointsStats, pointsSection } from "./points.js";
+import { aiStats } from "./ai.js";
 
 const TOKEN_RE = /^[A-Za-z0-9]{24}$/;
 // Куда владелец пишет, чтобы продлить подписку (личный Telegram TapReview)
@@ -183,10 +184,18 @@ async function statsPage(request, env, ctx, token) {
     : null;
   const pointsDesk = extraRows.some(pointsOn);
 
+  // Модуль AI (ai.js) — на странице одного заведения
+  const ai = view.kind === "venue" && hasModule(rowOf(view.dailyIds[0]), "ai")
+    ? await aiStats(env, view.dailyIds[0], venues[0].range).catch((error) => {
+        console.error(`aiStats: ${error.message}`);
+        return null;
+      })
+    : null;
+
   // Подписи причин недовольства: «Еда и напитки» / «Результат услуги»… — по виду заведения на экране
   const reasonNames = reasonLabels(view.kind === "all" ? null : rowOf(view.dailyIds[0]).category);
 
-  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn, invite, ratings, names, bonus, score, levels, service, staff, reasonNames, points, pointsDesk,
+  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn, invite, ratings, names, bonus, score, levels, service, staff, reasonNames, points, pointsDesk, ai,
     canEdit: Boolean(link.can_edit) && anyHas("settings"), wrappedOn: anyHas("wrapped") };
   return html(200, `Статистика · ${view.title}`, renderBody(view, daily, page));
 }
@@ -617,6 +626,7 @@ function renderBody(view, daily, page) {
     </section>
     ${page.score ? scoreHtml(page.score, { note: "За последние 30 дней. Как заведение работает с гостями: отзывы, оценки, жалобы, возвраты." }) : ""}
     ${empty ? "" : funnelSection(cur, page.ratings, page.bonus)}
+    ${aiSection(page.ai, page.reasonNames)}
     ${ratingsSection(page.ratings, page.names, view.kind === "all", token, `p=${period}${view.query}`, page.reasonNames)}
     ${levelsSection(page.levels)}
     ${pointsSection(page.points, token)}
@@ -641,6 +651,29 @@ function renderBody(view, daily, page) {
     <p>Обновлено ${esc(updated)} по московскому времени. Чтобы увидеть свежие цифры, обновите страницу.</p>
     <p>Сохраните ссылку в закладки или на главный экран телефона. Не пересылайте её посторонним — по ней видна статистика ${multi ? "ваших заведений" : "вашего заведения"}.</p>
   </footer>`;
+}
+
+// AI-разбор (ai.js): сводка недели, срочное, темы и тон по размеченным текстам за период
+function aiSection(a, reasonNames) {
+  if (!a || (!a.total && !a.digest)) return "";
+  const when = (iso) => new Date(iso).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" });
+  const topics = [...a.topics.entries()].sort((x, y) => y[1] - x[1])
+    .map(([k, v]) => `<li class="rate-row like-row"><span class="rate-n">${esc(reasonNames[k] || k)}</span><span class="track"><span class="fill bar-low" style="width:${Math.round((v / a.total) * 100)}%"></span></span><span class="rate-v">${num(v)}</span></li>`)
+    .join("");
+  const urgent = a.urgent.map((u) => `<li class="fb-item"><div class="fb-meta">🔥 ${esc(when(u.created_at))}</div>${u.ai_note ? `<p>${esc(u.ai_note)}</p>` : ""}</li>`).join("");
+  const digest = a.digest
+    ? `<h3 class="fb-title">Разбор недели</h3><p class="ai-digest">${esc(a.digest.text).replace(/\n/g, "<br>")}</p>
+       <p class="hint">Неделя с ${esc(new Date(`${a.digest.week_start}T12:00:00Z`).toLocaleDateString("ru-RU", { day: "numeric", month: "long" }))}. Цифры посчитаны по вашим данным, текст написал AI.</p>`
+    : "";
+  return `<section class="panel">
+    <h2>AI-разбор отзывов</h2>
+    <style>.ai-digest{margin:0;line-height:1.5;white-space:normal}</style>
+    ${digest}
+    ${urgent ? `<h3 class="fb-title">Срочное</h3><ul class="fb-list">${urgent}</ul>` : ""}
+    ${a.total ? `<h3 class="fb-title">О чём пишут гости</h3>${topics ? `<ul class="rows rate-rows">${topics}</ul>` : ""}
+      <p class="hint">Размечено текстов: ${num(a.total)} — недовольных ${num(a.tones.negative)}, нейтральных ${num(a.tones.neutral)}, довольных ${num(a.tones.positive)}.
+        Это сообщения вам и отзывы в каталоге TapReview; телефоны и почту из них AI не получает.</p>` : ""}
+  </section>`;
 }
 
 // Оценки 1–5, «что понравилось» (4–5) и сообщения гостей с оценкой 1–3 с отметкой «Разобрано»

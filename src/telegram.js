@@ -10,6 +10,9 @@
 //   TG_WEBHOOK_SECRET — любая длинная случайная строка из латинских букв и цифр
 
 import { ratingStats, reasonLabels } from "./rating.js";
+import { aiConfigured, aiOn, weeklyDigest } from "./ai.js";
+
+const escapeTg = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 import { db } from "./supabase.js";
 import { PERIODS, PLATFORMS, loadReports, formatDateRange } from "./report.js";
 import { formatDay } from "./billing.js";
@@ -368,6 +371,20 @@ export async function weeklyReports(env) {
         (r.low ? `\n      Недовольных (1–3 ★): ${r.low}, сообщений вам: ${r.recovery.total}${why}` : "\n      Недовольных не было 👏"));
     } catch (error) {
       console.error(`Weekly ratings ${id}: ${error.message}`);
+    }
+  }
+
+  // Модуль AI (ai.js): разбор недели — цифры считает код, модель только формулирует
+  if (aiConfigured(env)) {
+    const venues = await db(env, `businesses?id=in.(${ids.join(",")})&select=id,name,category,modules`).catch(() => []);
+    for (const b of venues) {
+      const text = reports.get(b.id);
+      if (!text || text.startsWith("⏸") || !aiOn(env, b)) continue;
+      const digest = await weeklyDigest(env, b, now).catch((error) => {
+        console.error(`Weekly digest ${b.id}: ${error.message}`);
+        return null;
+      });
+      if (digest) reports.set(b.id, `${text}\n\n🤖 <b>Разбор недели</b> (AI по вашим отзывам):\n${escapeTg(digest)}`);
     }
   }
 

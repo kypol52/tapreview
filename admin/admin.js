@@ -85,6 +85,7 @@ function bindEvents() {
   $("ref-copy").addEventListener("click", () => copyText($("ref-url").value));
   $("staff-create").addEventListener("click", onCreateStaffLink);
   $("team-add").addEventListener("click", onAddStaff);
+  $("ai-test").addEventListener("click", onAiTest);
   $("f-prize-add").addEventListener("click", () => {
     if ($("f-prizes").children.length < 8) $("f-prizes").append(prizeRow({ label: "", weight: 10 }));
     updatePrizeShares();
@@ -1063,6 +1064,8 @@ function openEditor(business) {
   $("f-paid-until").value = business ? business.paid_until || "" : addMonths(mskToday(), 1);
   $("f-tariff").value = (business && business.tariff) || "standard";
   $("f-mod-service").checked = Boolean(business && Array.isArray(business.modules) && business.modules.includes("service"));
+  $("f-mod-ai").checked = Boolean(business && Array.isArray(business.modules) && business.modules.includes("ai"));
+  loadAiStatus();
   // Баллы лояльности (миграция 045)
   $("f-points-on").checked = Boolean(business && business.points_on);
   $("f-points-percent").value = business ? String(business.points_percent ?? 5) : "5";
@@ -1570,7 +1573,7 @@ function readForm() {
     extra_links: readXlinks(),
     rating_first: $("f-rating-first").checked,
     tariff: $("f-tariff").value,
-    modules: $("f-mod-service").checked ? ["service"] : [],
+    modules: [...($("f-mod-service").checked ? ["service"] : []), ...($("f-mod-ai").checked ? ["ai"] : [])],
     points_on: $("f-points-on").checked,
     points_percent: $("f-points-percent").value,
     points_max_share: $("f-points-share").value,
@@ -2072,6 +2075,37 @@ async function loadStaffLinks(business) {
     renderStaffLinks(business, rows);
   } catch (error) {
     if (state.editing === business) showError("staff-error", error.message);
+  }
+}
+
+// ---------- AI-разбор отзывов (ai.js, миграция 046): настроен ли ключ и расход за месяц ----------
+
+async function loadAiStatus() {
+  const box = $("ai-status");
+  box.textContent = "";
+  try {
+    const s = await api("/api/admin/ai/status");
+    box.textContent = s.configured
+      ? `Ключ Yandex Cloud подключён. В этом месяце: ${s.requests} запросов, ${s.tokens.toLocaleString("ru-RU")} токенов ≈ ${s.rub.toFixed(2)} ₽ ` +
+        `(лимит ${s.limit.toLocaleString("ru-RU")} токенов)${s.failed ? `, ошибок: ${s.failed}` : ""}.`
+      : "Ключ Yandex Cloud на сервере не задан — галочку можно поставить, но разметка начнётся, когда ключ появится.";
+  } catch (error) {
+    box.textContent = error.message;
+  }
+}
+
+async function onAiTest() {
+  const out = $("ai-test-result");
+  $("ai-test").disabled = true;
+  out.textContent = "Спрашиваем YandexGPT…";
+  try {
+    const r = await api("/api/admin/ai/test", { method: "POST", body: {} });
+    out.textContent = r.ok ? `✓ Ключ работает. YandexGPT ответил: «${r.answer}»` : `✗ ${r.error}`;
+    loadAiStatus();
+  } catch (error) {
+    out.textContent = `✗ ${error.message}`;
+  } finally {
+    $("ai-test").disabled = false;
   }
 }
 
