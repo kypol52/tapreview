@@ -48,6 +48,10 @@ export async function handleManage(env, chat, text) {
   if (!list.length) {
     return "⚙ Управление из Telegram доступно с тарифа Plus. Чтобы подключить, напишите в TapReview.";
   }
+  // В группе команду может отправить любой участник — управляем только из личного чата
+  if (chat.type !== "private") {
+    return "⚙ Управлять заведением можно только в личном чате с ботом. Напишите ему напрямую.";
+  }
   if (name === "manage") return overview(env, list);
 
   // Номер заведения — если их несколько

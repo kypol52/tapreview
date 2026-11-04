@@ -210,6 +210,8 @@ const server = http.createServer(async (req, res) => {
     });
     const cookies = response.headers.getSetCookie ? response.headers.getSetCookie() : [];
     if (cookies.length) out["set-cookie"] = cookies;
+    // HSTS: браузер открывает сайт только по https (год; поддомены не трогаем)
+    if (proto === "https") out["strict-transport-security"] = "max-age=31536000";
     res.writeHead(response.status, out);
 
     if (response.body && req.method !== "HEAD") {

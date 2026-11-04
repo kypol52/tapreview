@@ -1490,7 +1490,12 @@ async function loadTelegramSubscribers(business) {
           box.disabled = false;
         }
       });
-      manage.append(box, " Может управлять из бота (подарки, «Сейчас у нас»)");
+      // Группе управление не даём: команду там может отправить любой участник. Старую галочку можно только снять
+      const group = Number(sub.chat_id) < 0;
+      if (group && !box.checked) box.disabled = true;
+      manage.append(box, group
+        ? " Может управлять из бота — только для личного чата владельца, не для группы"
+        : " Может управлять из бота (подарки, «Сейчас у нас»)");
       // «Сервис в зале» (миграция 042): сюда приходят вызовы гостей со столов
       const calls = el("label", "check tg-manage");
       const callsBox = el("input");

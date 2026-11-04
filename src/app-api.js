@@ -59,6 +59,7 @@ const MAX_REPLY = 1000;
 const MAX_BODY = 600000; // фото отзыва в base64 (браузер сжимает до ~300 КБ)
 const NEW_REVIEWS_PER_DAY = 5;
 const REPORTS_TO_RECHECK = 3; // столько жалоб — опубликованный отзыв снова уходит на проверку
+const REPORTER_MIN_AGE = 7 * 24 * 3600e3; // жалобы от аккаунтов моложе недели в этот счёт не идут
 
 const PLACE_COLUMNS =
   "id,slug,name,tagline,category,city,address,description,logo_url,design,photos,extra_links," +
@@ -606,8 +607,13 @@ async function report(request, env, id) {
     body: { review_id: Number(id), user_id: user.id, reason, comment },
     prefer: "resolution=ignore-duplicates,return=minimal"
   });
-  const open = await db(env, `review_reports?review_id=eq.${id}&resolved_at=is.null&select=id`);
-  if (open.length >= REPORTS_TO_RECHECK) {
+  // Снимают с публикации только жалобы от аккаунтов старше REPORTER_MIN_AGE и без бана —
+  // чтобы нельзя было спрятать отзыв через свежие аккаунты. Остальные жалобы модератор всё равно видит.
+  const open = await db(env, `review_reports?review_id=eq.${id}&resolved_at=is.null&select=user_id`);
+  const trusted = open.length >= REPORTS_TO_RECHECK
+    ? await db(env, `app_users?id=in.(${open.map((r) => r.user_id).join(",")})&banned_at=is.null&created_at=lt.${new Date(Date.now() - REPORTER_MIN_AGE).toISOString()}&select=id`)
+    : [];
+  if (trusted.length >= REPORTS_TO_RECHECK) {
     const moved = await db(env, `reviews?id=eq.${id}&status=eq.published&select=id`, { method: "PATCH", body: { status: "pending" }, prefer: "return=representation" });
     if (moved.length) notifyModerators(env, "Отзыв снят с публикации после жалоб", { force: true });
   }

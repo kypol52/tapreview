@@ -1137,6 +1137,12 @@ async function updateTelegramSubscriber(request, env, id) {
   if (typeof data.can_manage === "boolean") body.can_manage = data.can_manage;
   if (typeof data.service_calls === "boolean") body.service_calls = data.service_calls;
   if (!Object.keys(body).length) throw new HttpError(400, "Нужно can_manage или service_calls: true или false");
+  // Управление — только личному чату: в группе команды может отправить любой участник (id групп в Telegram < 0)
+  if (body.can_manage) {
+    const chat = await db(env, `tg_subscribers?id=eq.${id}&select=chat_id`);
+    if (!chat.length) throw new HttpError(404, "Чат не найден");
+    if (Number(chat[0].chat_id) < 0) throw new HttpError(400, "Управлять можно только из личного чата владельца, не из группы");
+  }
   const rows = await db(env, `tg_subscribers?id=eq.${id}&select=id,can_manage,service_calls`, {
     method: "PATCH",
     body,
