@@ -1137,6 +1137,8 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
     .button-main { padding-top: 16px; padding-bottom: 16px; background: var(--card); border: 1.5px solid var(--accent); box-shadow: 0 10px 26px var(--card-shadow); }
     /* Все кнопки площадок — одним жирным шрифтом; главная отличается рамкой и тенью */
     .buttons .label, .button-main .label { font-weight: 700; }
+    /* …и одним фоном, как у главной */
+    .buttons .button { background: var(--card); }
     .button-main .arrow { color: var(--accent); }
     .button:active { transform: scale(0.98); }
     .button:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
