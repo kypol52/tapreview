@@ -1941,13 +1941,15 @@ function xlinkRow(link = {}) {
   const label = el("input", "xlink-label");
   label.type = "text";
   label.maxLength = 30;
-  label.placeholder = "Подпись кнопки";
   label.value = link.label || "";
   const url = el("input", "xlink-url");
   url.type = "url";
   url.placeholder = "https://…";
   url.value = link.url || "";
-  const showLabel = () => (label.hidden = type.value !== "custom");
+  // Подпись можно задать любой кнопке («Меню» → «Услуги», «Меню бар»); пусто — стандартное название типа
+  const showLabel = () => {
+    label.placeholder = type.value === "custom" ? "Подпись кнопки" : `Подпись: ${XLINK_TYPES[type.value]}`;
+  };
   type.addEventListener("change", showLabel);
   showLabel();
   const remove = el("button", "sl-chip-x", "✕");
@@ -1970,7 +1972,8 @@ function readXlinks() {
     .map((row) => {
       const type = row.querySelector(".xlink-type").value;
       const link = { type, url: row.querySelector(".xlink-url").value.trim() };
-      if (type === "custom") link.label = row.querySelector(".xlink-label").value.trim();
+      const label = row.querySelector(".xlink-label").value.trim();
+      if (label || type === "custom") link.label = label;
       return link;
     })
     .filter((link) => link.url || link.label);

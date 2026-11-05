@@ -61,18 +61,21 @@ export function pointsBlock(business, source, cardCode, balance) {
   if (!pointsOn(business) || (source !== "nfc" && source !== "qr") || balance === null || balance === undefined) return "";
   const params = new URLSearchParams({ b: business.slug, s: source });
   if (cardCode) params.set("c", cardCode);
+  // Компактная строка: баланс слева, «Код для кассы» справа. Правила — на странице с кодом
   return `
     <section class="pts">
-      <p class="pts-balance">💰 ${balance ? `У вас <b>${balance}</b> ${plural(balance, "балл", "балла", "баллов")}` : "Копите баллы с каждого чека"}</p>
-      <a class="pts-btn" href="/points?${escapeHtml(params.toString())}" rel="nofollow">Код для кассы — начислить или списать</a>
-      <p class="pts-rules">${escapeHtml(rulesText(business))}</p>
+      <p class="pts-balance">💰 ${balance ? `У вас <b>${balance}</b> ${plural(balance, "балл", "балла", "баллов")}` : "Баллы с каждого чека"}</p>
+      <a class="pts-btn" href="/points?${escapeHtml(params.toString())}" rel="nofollow">Код для кассы</a>
     </section>`;
 }
 
 export const POINTS_CSS = `
   .pts { margin: 18px 0 6px; padding: 14px; border-radius: 18px; border: 1px solid var(--btn-border); background: var(--btn-bg); text-align: center; }
+  section.pts { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 10px 10px 16px; text-align: left; }
   .pts-balance { margin: 0 0 10px; font-size: 16px; font-weight: 650; }
+  section.pts .pts-balance { margin: 0; font-size: 14.5px; }
   .pts-btn { display: block; padding: 13px 16px; border-radius: 999px; background: var(--text); color: var(--card); font-weight: 700; text-decoration: none; }
+  section.pts .pts-btn { flex: none; padding: 9px 14px; font-size: 14px; }
   .pts-rules { margin: 10px 0 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
   .pts-code { margin: 6px 0 4px; font-size: 44px; font-weight: 800; letter-spacing: 0.08em; font-variant-numeric: tabular-nums; }
   .pts-sub { margin: 0 0 14px; color: var(--muted); font-size: 14px; }

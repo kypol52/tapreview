@@ -148,11 +148,87 @@ function extraLinksBlock(business, top = false) {
         </a>`;
     })
     .join("");
+  const grid = `<div class="xlinks-grid${links.length === 1 ? " xlinks-one" : ""}">${items}</div>`;
+  if (top) return `<div class="xlinks xlinks-top">${grid}</div>`;
+  // Три ссылки и больше — один раскрывающийся блок, чтобы кнопки не спорили с главным действием.
+  // В заголовке — что внутри, чтобы гость сразу видел «Меню»
+  if (links.length >= 3) {
+    const names = links.map((l) => escapeHtml(l.label || (EXTRA_LINKS[l.type] || EXTRA_LINKS.custom).label));
+    return `
+    <details class="xlinks xlinks-fold">
+      <summary class="xlinks-sum"><span class="xlinks-sum-title">Ещё у нас</span><span class="xlinks-sum-list">${names.join(" · ")}</span></summary>
+      ${grid}
+    </details>`;
+  }
   return `
-    <div class="xlinks${top ? " xlinks-top" : ""}">
-      ${top ? "" : `<p class="xlinks-title">Ещё у нас</p>`}
-      <div class="xlinks-grid${links.length === 1 ? " xlinks-one" : ""}">${items}</div>
+    <div class="xlinks">
+      <p class="xlinks-title">Ещё у нас</p>
+      ${grid}
     </div>`;
+}
+
+// «Бонусы и подарки» (сценарий «сначала оценка»): подарок со штампами, баллы и «Мои штампы и подарки» — одной карточкой.
+// Подарок по-прежнему появляется с задержкой; если кроме него в карточке ничего нет — с задержкой появляется вся карточка
+function perksCard({ gift = "", points = "", wallet = "" }) {
+  if (!gift && !points && !wallet) return "";
+  const late = gift && !points && !wallet;
+  return `
+    <section class="perks${late ? " perks-late" : ""}" aria-label="Бонусы и подарки">
+      <p class="perks-title">🎁 Бонусы и подарки</p>
+      ${gift}
+      ${points}
+      ${wallet}
+    </section>`;
+}
+
+// Главный экран карты — «переходник»: звёзды над ним главные, а здесь всё остальное спокойно и по группам.
+//   Плитки: «Оплатить счёт» и «Оставить чаевые» (ссылки заведения pay / tips).
+//   Строка «Вызов официанта» (карта стола) — раскрывается тремя кнопками serviceBlock.
+//   Ниже разделитель и список: меню (их может быть несколько: «Меню кухня», «Меню бар»), услуги, запись, сайт…
+//   Подпись любой ссылки задаётся в админке (label), иначе — название типа.
+//   «Меню» ведёт на ссылку заведения (PDF); своё меню menu.js — только если такой ссылки нет.
+const HUB_GO = `<svg class="hub-go" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const HUB_OUT = `<svg class="hub-go" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M9.5 14.5 15 9M10.5 9H15v4.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const HUB_HAND = LINK_ICON("M8 12.5V6a1.5 1.5 0 0 1 3 0v5M11 10.5V4.5a1.5 1.5 0 0 1 3 0v6M14 10.5V6a1.5 1.5 0 0 1 3 0v7.5c0 4-2.6 6.5-6.2 6.5-2.7 0-4.4-1.4-5.5-3.6L4 14a1.5 1.5 0 0 1 2.6-1.4L8 14.5");
+
+function hubBlock(business, { service = "", points = "" } = {}) {
+  const links = has(business, "links")
+    ? (Array.isArray(business.extra_links) ? business.extra_links : []).filter((l) => l && isHttpsUrl(l.url))
+    : [];
+  const tiles = [...links.filter((l) => l.type === "pay"), ...links.filter((l) => l.type === "tips")];
+  const rows = links.filter((l) => l.type !== "pay" && l.type !== "tips");
+  if (business.menuUrl && !rows.some((l) => l.type === "menu")) rows.unshift({ type: "menu", url: business.menuUrl, own: true });
+  if (!tiles.length && !rows.length && !service && !points) return "";
+
+  const label = (l) => escapeHtml(l.label || (EXTRA_LINKS[l.type] || EXTRA_LINKS.custom).label);
+  const target = (l) => (l.own ? "" : ` target="_blank" rel="noopener nofollow"`);
+  const tilesHtml = tiles.length
+    ? `<div class="hub-tiles${tiles.length === 1 ? " hub-tiles-one" : ""}">${tiles.map((l) => `
+        <a class="hub-tile" href="${escapeHtml(l.url)}"${target(l)}>
+          <span class="hub-ico">${(EXTRA_LINKS[l.type] || EXTRA_LINKS.custom).icon}</span>
+          <span class="hub-label">${label(l)}</span>${HUB_GO}
+        </a>`).join("")}</div>`
+    : "";
+  const callHtml = service
+    ? `<details class="hub-call">
+        <summary class="hub-row"><span class="hub-ico">${HUB_HAND}</span><span class="hub-label">Вызов официанта</span>${HUB_GO}</summary>
+        <div class="hub-call-body">${service}</div>
+      </details>`
+    : "";
+  const rowsHtml = rows.map((l) => `
+      <a class="hub-row" href="${escapeHtml(l.url)}"${target(l)}>
+        <span class="hub-ico">${(EXTRA_LINKS[l.type] || EXTRA_LINKS.custom).icon}</span>
+        <span class="hub-label">${label(l)}</span>${l.own ? HUB_GO : HUB_OUT}
+      </a>`).join("");
+  const split = (tilesHtml || callHtml) && (rowsHtml || points) ? `<div class="hub-split"></div>` : "";
+  return `
+    <nav class="hub" aria-label="Ещё в заведении">
+      ${tilesHtml}
+      ${callHtml}
+      ${split}
+      ${rowsHtml}
+      ${points}
+    </nav>`;
 }
 
 export const TELEGRAM_URL ="https://t.me/tapreviewru";
@@ -349,14 +425,35 @@ async function appLinkFor(env, business, cardCode) {
   }
 }
 
-// Одинаково при любой оценке и на любом шаге — чтобы рейтинг в каталоге оставался честным
+// Одинаково при любой оценке — чтобы рейтинг в каталоге оставался честным.
+// Маленькой ссылкой, чтобы не спорить с главной кнопкой отзыва на картах
 function appBlock(appLink) {
   if (!appLink) return "";
   return `
-      <a class="app-btn" href="${escapeHtml(appLink)}" rel="nofollow">
+      <a class="app-link" href="${escapeHtml(appLink)}" rel="nofollow">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 4.5 2.9 11.4c-1 .4-1 1.7 0 2l4.5 1.5 1.7 5.3c.2.7 1.1.9 1.6.3l2.5-2.6 4.6 3.4c.6.4 1.4.1 1.6-.6L22.4 5.9c.2-.9-.6-1.7-1.4-1.4zM9.6 14.4l8.3-6.6-6.6 7.7-.3 3.2z" fill="currentColor"/></svg>
-        <span class="app-btn-copy"><span class="app-btn-big">Отзыв в Telegram</span><span class="app-btn-small">Его увидят другие гости в каталоге TapReview</span></span>
+        Отзыв в Telegram — его увидят другие гости
       </a>`;
+}
+
+// Telegram после оценки — одной кнопкой: «Мои штампы и подарки» (/me-link) и «Отзыв в каталоге» (appLink).
+// Если есть только одно из двух — обычная кнопка, если оба — по нажатию два коротких пункта.
+// Отзыв в каталоге — при любой оценке, как и раньше, чтобы рейтинг в каталоге оставался честным
+const TG_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 4.5 2.9 11.4c-1 .4-1 1.7 0 2l4.5 1.5 1.7 5.3c.2.7 1.1.9 1.6.3l2.5-2.6 4.6 3.4c.6.4 1.4.1 1.6-.6L22.4 5.9c.2-.9-.6-1.7-1.4-1.4zM9.6 14.4l8.3-6.6-6.6 7.7-.3 3.2z" fill="currentColor"/></svg>`;
+function telegramBlock(walletHref, appLink) {
+  const items = [
+    walletHref ? { href: walletHref, icon: "🎁", text: "Мои штампы и подарки" } : null,
+    appLink ? { href: appLink, icon: "⭐", text: "Отзыв в каталоге" } : null
+  ].filter(Boolean);
+  if (!items.length) return "";
+  if (items.length === 1) {
+    return `<a class="tg-btn" href="${escapeHtml(items[0].href)}" rel="nofollow">${TG_ICON}${items[0].text} в Telegram</a>`;
+  }
+  return `
+      <details class="tg-more">
+        <summary class="tg-btn">${TG_ICON}Открыть в Telegram</summary>
+        <div class="tg-items">${items.map((i) => `<a class="tg-item" href="${escapeHtml(i.href)}" rel="nofollow">${i.icon} ${i.text}</a>`).join("")}</div>
+      </details>`;
 }
 
 // Код карты: только латинские буквы и цифры, регистр и дефисы не важны (K7P-3QX = k7p3qx)
@@ -525,8 +622,9 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
   const buttons = PLATFORMS
     .filter((p) => isHttpsUrl(business[p.field]))
     .map(
-      (p) => `
-        <a class="button button-${p.key}" href="/go/${escapeHtml(business.slug)}/${p.key}${sourceQuery}" rel="nofollow">
+      // Первая площадка — главная кнопка экрана, остальные — обычные
+      (p, i) => `
+        <a class="button button-${p.key}${i === 0 ? " button-main" : ""}" href="/go/${escapeHtml(business.slug)}/${p.key}${sourceQuery}" rel="nofollow">
           <span class="icon">${ICONS[p.key]}</span>
           <span class="label">Оставить отзыв<br>${p.label}</span>
           ${ARROW}
@@ -559,7 +657,9 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
   const wallet = guest && guest.walletLink
     ? `<a class="wallet-link" href="/me-link" rel="nofollow">🎁 Мои штампы и подарки — в Telegram</a>`
     : "";
-  const tagline = (taglineText ? `<p class="tagline">${escapeHtml(taglineText)}</p>` : "") + welcome + wallet;
+  const taglineBase = (taglineText ? `<p class="tagline">${escapeHtml(taglineText)}</p>` : "") + welcome;
+  // В сценарии «сначала оценка» кошелёк — внизу и только после оценки, чтобы до неё на виду были звёзды
+  const tagline = taglineBase + wallet;
 
   // Длинные названия делаем мельче, чтобы помещались на экран телефона.
   // Логотип «Своего дизайна» заменяет название — тогда название остаётся только для экранного диктора.
@@ -576,7 +676,7 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
   const pointsHtml = pointsBox ? `${pointsBox}<style>${POINTS_CSS}</style>` : "";
 
   if (business.rating_first && has(business, "rating")) {
-    return ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, discount, design, appLink, service, pointsHtml });
+    return ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline: taglineBase, wallet, discount, design, appLink, service, pointsHtml });
   }
 
   const actions = buttons
@@ -612,7 +712,7 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
 
 // Сначала оценка (rating.js): карточка заведения → «Как вам у нас?» → площадки (4–5) или сообщение владельцу (1–3).
 // Площадки доступны при любой оценке, подарок — после любой оценки.
-function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, discount, design, appLink, service = "", pointsHtml = "" }) {
+function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, wallet = "", discount, design, appLink, service = "", pointsHtml = "" }) {
   const base = new URLSearchParams();
   if (source !== "direct") base.set("s", source);
   const link = (extra) => {
@@ -702,6 +802,18 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
       ${publicLink("Оставить отзыв на картах")}`;
   }
 
+  // До оценки в карточке «Бонусы и подарки» только баллы (они про чек, а не про оценку) — внизу страницы.
+  // После любой оценки — подарок со штампами, баллы и «Мои штампы и подарки» сразу под главным действием
+  const rated = Boolean(score || all);
+  // Переходник (плитки, вызов, меню) — только на главном экране. После оценки вместо повтора — одна кнопка назад,
+  // чтобы гость не путался в двух наборах кнопок. Тот же адрес без оценки, с меткой источника (NFC/QR)
+  const hub = hubBlock(business, { service, points: rated ? "" : pointsHtml });
+  const backHome = hub
+    ? `<a class="hub-back" href="${link({})}" aria-label="Вернуться на главную" title="На главную"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>`
+    : "";
+  const perks = perksCard({ gift: rated ? discount : "", points: pointsHtml });
+  const tg = rated ? telegramBlock(wallet ? "/me-link" : "", appLink) : "";
+
   return renderPage({
     status: 200,
     title: `Отзыв — ${business.name}`,
@@ -709,20 +821,19 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
     theme: business.theme,
     design,
     // Оценка 1–3: подарок появляется позже (22 с), чтобы гость сначала спокойно написал владельцу
-    extraCss: (score && score <= 3 ? ".bonus { animation-delay: 22s; }" : "") + (service ? SERVICE_CSS : ""),
+    extraCss: (score && score <= 3 ? ".bonus, .perks-late { animation-delay: 22s; }" : "") + (service ? SERVICE_CSS : ""),
     footer: { href: `/r/${business.slug}?s=card`, text: "Хочу такую карту" },
     body: `
+      ${rated ? backHome : ""}
       ${logo}
       <h1 class="${nameClass}">${escapeHtml(business.name)}</h1>
       ${tagline}
       <div class="divider"></div>
-      ${service}
       ${step}
-      ${appBlock(appLink)}
+      ${rated ? perks : ""}
+      ${tg}
       ${all || sent || score >= 4 ? momentBlock(business) : ""}
-      ${extraLinksBlock(business)}
-      ${pointsHtml}
-      ${score || all ? discount : ""}`
+      ${rated ? "" : hub}`
   });
 }
 
@@ -983,6 +1094,10 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
       -webkit-tap-highlight-color: transparent;
     }
     .button:hover { box-shadow: 0 6px 18px var(--card-shadow); border-color: var(--accent); }
+    /* Главное действие экрана: отзыв на первой площадке — плотнее, с золотой рамкой и тенью */
+    .button-main { padding-top: 16px; padding-bottom: 16px; background: var(--card); border: 1.5px solid var(--accent); box-shadow: 0 10px 26px var(--card-shadow); }
+    .button-main .label { font-weight: 700; }
+    .button-main .arrow { color: var(--accent); }
     .button:active { transform: scale(0.98); }
     .button:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
     .icon { flex: none; width: 40px; height: 40px; }
@@ -1008,16 +1123,13 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
       font-size: 13px; font-weight: 600; text-decoration: none;
     }
     .wallet-link:hover, .wallet-link:focus-visible { border-color: var(--accent); }
-    .app-btn {
-      display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 18px; padding: 12px 16px;
-      border: 1px solid var(--btn-border); border-radius: 16px; background: var(--btn-bg);
-      color: var(--btn-text); text-decoration: none; text-align: left;
+    .app-link {
+      display: inline-block; margin-top: 16px;
+      color: var(--muted); font-size: 14px; text-underline-offset: 3px;
     }
-    .app-btn svg { flex: none; width: 24px; height: 24px; color: #2aabee; }
-    .app-btn-copy { display: flex; flex-direction: column; line-height: 1.25; }
-    .app-btn-big { font-size: 15px; font-weight: 700; }
-    .app-btn-small { font-size: 12px; color: var(--muted); }
-    .app-btn:hover, .app-btn:focus-visible { border-color: var(--accent); }
+    .app-link svg { width: 16px; height: 16px; margin-right: 5px; vertical-align: -3px; color: #2aabee; }
+    .app-link:hover, .app-link:focus-visible { color: var(--text); }
+    .wallet-row { margin-top: 14px; }
     .stars-chosen { margin: 6px 0 14px; }
     .stars-chosen svg { width: 24px; height: 24px; }
     .stars-off svg { fill: var(--btn-border); }
@@ -1135,6 +1247,92 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
     .xlink-label { min-width: 0; overflow-wrap: anywhere; }
     /* нечётное число ссылок — последняя на всю ширину */
     .xlinks-grid .xlink:last-child:nth-child(odd) { grid-column: 1 / -1; }
+    /* «Ещё у нас» одним раскрывающимся блоком: в заголовке — что внутри */
+    .xlinks-fold { border-radius: 16px; border: 1px solid var(--btn-border); background: var(--btn-bg); text-align: left; }
+    .xlinks-sum {
+      display: flex; align-items: center; gap: 10px; padding: 13px 16px; list-style: none; cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .xlinks-sum::-webkit-details-marker { display: none; }
+    .xlinks-sum::after {
+      content: ""; flex: none; width: 8px; height: 8px; margin-left: auto;
+      border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
+      transform: rotate(45deg) translateY(-2px); transition: transform 0.2s ease;
+    }
+    .xlinks-fold[open] .xlinks-sum::after { transform: rotate(-135deg) translateY(-2px); }
+    .xlinks-sum:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; border-radius: 16px; }
+    .xlinks-sum-title { flex: none; color: var(--text); font-size: 14.5px; font-weight: 700; }
+    .xlinks-sum-list { min-width: 0; overflow: hidden; color: var(--muted); font-size: 13px; white-space: nowrap; text-overflow: ellipsis; }
+    .xlinks-fold .xlinks-grid { padding: 0 12px 12px; }
+    .xlinks-fold .xlink { background: var(--card); }
+
+    /* Переходник под звёздами: плитки оплаты и чаевых, строка вызова, список ссылок — всё второстепенное, спокойного цвета */
+    .hub { display: grid; gap: 10px; margin-top: 26px; text-align: left; }
+    .hub-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .hub-tiles-one { grid-template-columns: 1fr; }
+    .hub-tile, .hub-row {
+      display: flex; align-items: center; gap: 12px; border-radius: 16px; border: 1px solid var(--btn-border);
+      background: var(--btn-bg); color: var(--btn-text); text-decoration: none; cursor: pointer;
+      -webkit-tap-highlight-color: transparent; transition: border-color 0.15s ease, transform 0.15s ease;
+    }
+    .hub-tile { position: relative; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 18px; min-height: 104px; padding: 14px 14px 12px; }
+    .hub-tile .hub-label { padding-right: 18px; font-size: 15px; font-weight: 650; line-height: 1.25; }
+    .hub-tile .hub-go { position: absolute; right: 12px; bottom: 14px; }
+    .hub-row { min-height: 52px; padding: 10px 14px; list-style: none; }
+    .hub-row .hub-label { flex: 1; min-width: 0; font-size: 15px; font-weight: 550; line-height: 1.25; }
+    .hub-tile:hover, .hub-row:hover, .hub-tile:focus-visible, .hub-row:focus-visible { border-color: var(--accent); }
+    .hub-tile:active, .hub-row:active { transform: scale(0.98); }
+    .hub-ico { flex: none; width: 22px; height: 22px; color: var(--accent); }
+    .hub-ico svg { display: block; width: 100%; height: 100%; }
+    .hub-go { flex: none; width: 20px; height: 20px; color: var(--muted); }
+    .hub-call > summary::-webkit-details-marker { display: none; }
+    .hub-call > summary .hub-go { transition: transform 0.2s ease; }
+    .hub-call[open] > summary .hub-go { transform: rotate(90deg); }
+    .hub-call[open] > summary { border-color: var(--accent); }
+    .hub-call-body .svc { margin: 10px 0 2px; }
+    .hub-split { height: 1px; margin: 6px 4px; background: var(--btn-border); }
+    .hub section.pts { margin: 0; }
+    /* Назад на главный экран — стрелка в левом верхнем углу карточки */
+    .hub-back {
+      position: absolute; top: 14px; left: 14px; z-index: 2; display: grid; place-items: center; width: 38px; height: 38px;
+      border-radius: 50%; border: 1px solid var(--btn-border); background: var(--btn-bg); color: var(--btn-text);
+      text-decoration: none; -webkit-tap-highlight-color: transparent;
+    }
+    .hub-back svg { width: 20px; height: 20px; }
+    .hub-back:hover, .hub-back:focus-visible { border-color: var(--accent); }
+    .hub-back:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+    /* Чтобы стрелка не наезжала на длинное название */
+    .hub-back + .logo, .hub-back + .name { margin-top: 26px; }
+    /* Telegram после оценки — одна спокойная кнопка, по нажатию два пункта */
+    .tg-more { margin-top: 14px; }
+    .tg-btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; padding: 9px 16px;
+      border-radius: 999px; border: 1px solid var(--btn-border); background: transparent; color: var(--btn-text);
+      font-size: 14px; font-weight: 600; text-decoration: none; list-style: none; cursor: pointer; -webkit-tap-highlight-color: transparent;
+    }
+    .tg-more .tg-btn { margin-top: 0; }
+    .tg-btn::-webkit-details-marker { display: none; }
+    .tg-btn svg { flex: none; width: 17px; height: 17px; color: #2aabee; }
+    .tg-btn:hover, .tg-btn:focus-visible, .tg-more[open] > .tg-btn { border-color: var(--accent); }
+    .tg-items { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 10px; }
+    .tg-item {
+      padding: 9px 14px; border-radius: 999px; border: 1px solid var(--btn-border); background: var(--btn-bg);
+      color: var(--btn-text); font-size: 14px; font-weight: 600; text-decoration: none;
+    }
+    .tg-item:hover, .tg-item:focus-visible { border-color: var(--accent); }
+
+    /* «Бонусы и подарки»: подарок со штампами, баллы и Telegram — одной карточкой */
+    .perks { margin-top: 22px; padding: 14px 14px 12px; border-radius: 18px; border: 1px solid var(--gift-border); background: var(--gift-bg); }
+    .perks-title { margin: 0 0 10px; color: var(--text); font-size: 14.5px; font-weight: 700; }
+    .perks .bonus { margin: 0 0 12px; }
+    .perks .bonus-button { padding-top: 11px; padding-bottom: 11px; background: var(--card); }
+    .perks .bonus-button .icon { width: 28px; height: 28px; }
+    .perks section.pts { margin: 0; padding: 8px 6px 8px 12px; border-radius: 14px; background: var(--card); }
+    .perks .bonus + section.pts { margin-top: 0; }
+    .perks-wallet { display: inline-block; margin-top: 10px; color: var(--muted); font-size: 13.5px; text-underline-offset: 3px; }
+    .perks-wallet:hover, .perks-wallet:focus-visible { color: var(--text); }
+    .perks-late { animation: bonus-in 0.5s ease 10s both; }
+    .perks-late .bonus { animation: none; }
     @media (max-width: 380px) {
       .xlink { gap: 6px; padding: 10px 8px; font-size: 13px; }
       .xlink-icon { width: 18px; height: 18px; }
@@ -1172,9 +1370,11 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
 
     /* Подарок для гостей: появляется через несколько секунд, место под него занято сразу (без скачков) */
     .bonus { margin: 20px 0 0; animation: bonus-in 0.5s ease 10s both; }
+    /* Пока подарок не появился, он не занимает места — без пустой дыры под кнопкой отзыва */
     @keyframes bonus-in {
-      from { opacity: 0; transform: translateY(8px); visibility: hidden; }
-      to { opacity: 1; transform: none; visibility: visible; }
+      0% { opacity: 0; transform: translateY(8px); visibility: hidden; max-height: 0; margin-top: 0; overflow: hidden; }
+      99% { max-height: 900px; overflow: hidden; }
+      100% { opacity: 1; transform: none; visibility: visible; max-height: none; overflow: visible; }
     }
     .bonus-note { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
     .bonus-button {
@@ -1278,7 +1478,7 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
       .footer { transition: none; }
       /* Без движения, но с той же паузой */
       .bonus { animation-name: bonus-show; animation-duration: 0.01s; }
-      @keyframes bonus-show { from { visibility: hidden; opacity: 0; } to { visibility: visible; opacity: 1; } }
+      @keyframes bonus-show { from { visibility: hidden; opacity: 0; max-height: 0; margin-top: 0; overflow: hidden; } to { visibility: visible; opacity: 1; } }
     }
 ${extraCss}
   </style>

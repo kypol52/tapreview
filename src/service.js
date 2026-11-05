@@ -83,12 +83,16 @@ export const SERVICE_CSS = `
   .svc-place { display: inline-block; margin: 0 0 10px; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 600;
     color: var(--text); background: var(--btn-bg); border: 1px solid var(--btn-border); }
   .svc-row { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; align-items: start; }
-  .svc-btn { display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 76px; justify-content: center;
-    padding: 10px 6px; border-radius: 16px; border: 1px solid var(--btn-border); background: var(--btn-bg); color: var(--btn-text);
-    font-size: 13px; font-weight: 600; line-height: 1.2; text-decoration: none; cursor: pointer; list-style: none; }
+  .svc-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 52px; justify-content: center;
+    padding: 6px 4px; border-radius: 12px; border: 1px solid var(--btn-border); background: transparent; color: var(--btn-text);
+    font-size: 12.5px; font-weight: 600; line-height: 1.15; text-align: center; text-decoration: none; cursor: pointer; list-style: none; }
   .svc-btn::-webkit-details-marker { display: none; }
   .svc-btn:hover, .svc-btn:focus-visible { border-color: var(--accent); }
-  .svc-icon { font-size: 22px; line-height: 1; }
+  .svc-icon { flex: none; font-size: 16px; line-height: 1; }
+  /* Три кнопки всегда в ширину карточки: текст переносится, а не выталкивает соседей */
+  .svc-row > * { min-width: 0; }
+  .svc-btn { min-width: 0; }
+  @media (max-width: 360px) { .svc-btn { font-size: 11.5px; } }
   .svc-bill[open] > .svc-btn { border-color: var(--accent); }
   /* Меню счёта — во всю ширину ряда кнопок, поверх содержимого ниже */
   .svc-bill-menu { position: absolute; left: 0; right: 0; top: calc(100% + 8px); z-index: 5; padding: 12px; border-radius: 16px;
