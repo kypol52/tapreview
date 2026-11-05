@@ -583,6 +583,27 @@
     .faq details[open] summary::after { transform: rotate(-135deg) translateY(-3px); }
     .faq details p { margin: -4px 22px 20px; color: var(--muted); font-size: 15.5px; max-width: 680px; }
 
+    /* Плитки возможностей: подробности по нажатию */
+    .feat .plan-tag { align-self: flex-start; margin-top: 14px; }
+    .feat-more { margin-top: 12px; }
+    .feat-more summary {
+      display: inline-flex; align-items: center; gap: 6px; list-style: none; cursor: pointer;
+      color: var(--navy); font-size: 14.5px; font-weight: 700;
+    }
+    .feat-more summary::-webkit-details-marker { display: none; }
+    .feat-more summary::after {
+      content: ""; width: 7px; height: 7px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+      transform: rotate(45deg) translateY(-2px); transition: transform 0.2s var(--ease);
+    }
+    .feat-more[open] summary::after { transform: rotate(-135deg) translateY(-2px); }
+    .feat-more ul { display: grid; gap: 6px; margin: 10px 0 0; padding: 0 0 0 18px; color: var(--muted); font-size: 14.5px; }
+    .price-line { max-width: 900px; margin: 22px 0 0; font-size: 14px; color: var(--muted); }
+    .price-line a { color: var(--navy); font-weight: 650; }
+    /* «Все вопросы»: вложенный список без лишней рамки */
+    .faq .faq-all { background: transparent; box-shadow: none; }
+    .faq .faq-all > summary { justify-content: center; color: var(--navy); }
+    .faq .faq-all > .faq { padding: 0 0 4px; }
+
     /* Призыв */
     .cta { position: relative; overflow: hidden; padding: 56px 24px; border-radius: var(--r-lg); background: var(--navy-900); color: #fff; text-align: center; isolation: isolate; }
     .cta::before {
@@ -703,10 +724,7 @@
       </a>
       <nav class="nav" aria-label="Разделы">
         <a href="#how">Как работает</a>
-        <a href="#guests">Гостям</a>
-        <a href="#owner">Владельцу</a>
-        <a href="#service">Сервис в зале</a>
-        <a href="#ai">AI</a>
+        <a href="#features">Возможности</a>
         <a href="#pricing">Цены</a>
         <a href="#faq">Вопросы</a>
       </nav>
@@ -726,9 +744,8 @@
           <p class="eyebrow reveal"><span class="dot" aria-hidden="true"></span>Карты с NFC и QR-кодом для отзывов</p>
           <h1 class="reveal" style="--d:.05s">Отзывы <span class="accent">в одно</span> касание</h1>
           <p class="lead reveal" style="--d:.1s">
-            Гость прикладывает телефон к карте на столе и ставит оценку. Довольные сразу попадают в форму отзыва на
-            <b>Яндекс Картах, 2ГИС или Google Maps</b>, а недовольные пишут <b>вам</b> — пока они ещё в зале.
-            Плюс подарки, штампы и VIP-гости, чтобы возвращались.
+            Гость прикладывает телефон к карте и ставит оценку. Довольные сразу попадают в форму отзыва на
+            <b>Яндекс Картах, 2ГИС или Google</b>, а недовольные пишут <b>вам</b> — пока они ещё в зале.
           </p>
           <div class="actions reveal" style="--d:.15s">
             <a class="btn btn-primary" href="/order/">
@@ -833,300 +850,125 @@
       </div>
     </section>
 
-    <!-- ---------- два формата карты ---------- -->
-    <section class="formats-section" id="formats">
+    <!-- ---------- возможности: 6 плиток, подробности по нажатию ---------- -->
+    <section class="section-soft" id="features">
       <div class="wrap">
         <div class="section-head reveal">
-          <p class="kicker">Карта</p>
-          <h2>Два формата — выбирайте под своё место</h2>
-          <p>Обе карты работают одинаково: NFC-метка внутри и QR-код на лицевой стороне. Размер — как у банковской карты.</p>
-        </div>
-        <div class="formats">
-          <figure class="format reveal">
-            <div class="format-img format-img-v"><img src="/assets/card-front.png" width="640" height="1015" alt="Вертикальная карта TapReview" loading="lazy"></div>
-            <figcaption>
-              <h3>Вертикальная</h3>
-              <p class="format-size">54 × 85,6 мм</p>
-              <p>Хорошо смотрится в подставке на столе и у кассы — QR сразу на уровне глаз.</p>
-            </figcaption>
-          </figure>
-          <figure class="format reveal" style="--d:.08s">
-            <div class="format-img format-img-h"><img src="/assets/card-front-h.png" width="1000" height="631" alt="Горизонтальная карта TapReview" loading="lazy"></div>
-            <figcaption>
-              <h3>Горизонтальная</h3>
-              <p class="format-size">85,6 × 54 мм</p>
-              <p>Удобна на стойке, ресепшене или в папке со счётом — текст слева, крупный QR справа.</p>
-            </figcaption>
-          </figure>
-        </div>
-      </div>
-    </section>
-
-    <!-- ---------- для гостей: чтобы возвращались ---------- -->
-    <section class="section-soft" id="guests">
-      <div class="wrap">
-        <div class="section-head reveal">
-          <p class="kicker">Для гостей</p>
-          <h2>Чтобы гости возвращались — и приводили друзей</h2>
-          <p>Всё включается в настройках заведения. Гостю не нужно ничего скачивать и регистрироваться: мы узнаём телефон по обезличенной метке, без имён и номеров.
-            Подарки, штампы, VIP-гости, баллы, меню и «Сейчас у нас» — с тарифа Plus.</p>
-        </div>
-
-        <div class="feats">
-          <article class="feat reveal">
-            <div class="mini mini-wheel" aria-hidden="true"><span class="wheel-pin"></span><span class="wheel-disc"></span><span class="wheel-hub">TR</span></div>
-            <h3>Колесо подарков</h3>
-            <p>После оценки гость крутит колесо и получает одноразовый код на следующий визит. Кассир проверяет код по ссылке — без программ и обучения.</p>
-          </article>
-          <article class="feat reveal" style="--d:.06s">
-            <div class="mini mini-stamps" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><b>🎁</b><small>Ещё 1 штамп — и пицца в подарок</small></div>
-            <h3>Штампы</h3>
-            <p>Каждый подарок, погашенный на кассе, — штамп. Собрал все — особый приз. Подделать нельзя: штамп ставит только кассир.</p>
-          </article>
-          <article class="feat reveal" style="--d:.12s">
-            <div class="mini mini-vip" aria-hidden="true"><span class="vip-pill">⭐ VIP-гость · 12-й визит</span><span class="welcome-pill">С возвращением! Вы у нас 3-й раз 👋</span></div>
-            <h3>VIP-гости и «С возвращением!»</h3>
-            <p>Страница узнаёт постоянного гостя и здоровается. С нужного визита он становится VIP: свой подарок и значок, который видит кассир.</p>
-          </article>
-          <article class="feat reveal">
-            <div class="mini mini-friend" aria-hidden="true"><span class="friend-title">💛 Подарите другу</span><span class="friend-btns"><i class="tg">Telegram</i><i class="wa">WhatsApp</i></span></div>
-            <h3>«Подарите другу»</h3>
-            <p>Гость отправляет другу ссылку с подарком на первый визит. Когда друг придёт, пригласивший тоже получит подарок. Накрутить из дома нельзя.</p>
-          </article>
-          <article class="feat reveal" style="--d:.06s">
-            <div class="mini mini-moment" aria-hidden="true"><small>Сейчас у нас</small><b>Живая музыка в пятницу</b><span>С 20:00 — кавер-группа →</span></div>
-            <h3>«Сейчас у нас»</h3>
-            <p>Новость, событие или акция — карточка с фото и кнопкой на странице заведения. Можно поставить даты показа или опубликовать прямо из Telegram.</p>
-          </article>
-          <article class="feat reveal" style="--d:.12s">
-            <div class="mini mini-links" aria-hidden="true"><i>🍴 Меню</i><i>📅 Запись</i><i>💳 Чаевые</i><i>🛵 Доставка</i></div>
-            <h3>Запись, чаевые, доставка</h3>
-            <p>До шести кнопок «Ещё у нас»: онлайн-запись, доставка, чаевые или оплата по СБП. Деньги идут напрямую заведению.</p>
-          </article>
-          <article class="feat reveal">
-            <div class="mini mini-menu" aria-hidden="true"><span>Капучино <b>250 ₽</b></span><span>Чизкейк <em>РЕКОМЕНДУЕМ</em> <b>290 ₽</b></span></div>
-            <h3>Своё меню на странице</h3>
-            <p>Меню с фото, ценами и пометкой «рекомендуем» — в оформлении вашего заведения. Вставили список текстом — и оно готово. «Нет в наличии» — одной галочкой.</p>
-          </article>
-          <article class="feat reveal" style="--d:.06s">
-            <div class="mini mini-points" aria-hidden="true"><b>💰 У вас 105 баллов</b><span class="pts-code">482 913</span><small>код для кассы · 10 минут</small></div>
-            <h3>Баллы с каждого чека</h3>
-            <p>Часть чека возвращается гостю баллами: 1 балл = 1 ₽ скидки в следующий раз. Гость показывает одноразовый код, кассир вводит его и сумму чека. Баллы сгорают, если долго не приходить.</p>
-          </article>
-          <article class="feat reveal" style="--d:.12s">
-            <div class="mini mini-wallet" aria-hidden="true"><span>Кофейня «Утро» <i>3 из 5 штампов</i></span><span>Барбершоп <i>VIP · 105 баллов</i></span></div>
-            <h3>Все подарки — в Telegram</h3>
-            <p>Гость связывает телефон со своим Telegram и видит штампы, баллы и коды подарков во всех заведениях с картами TapReview. Без приложений и регистрации.</p>
-          </article>
-        </div>
-
-        <div class="design-strip reveal">
-          <div class="mini mini-catalog" aria-hidden="true" style="height:auto;margin:0"><b>★ 4,8 · Кофейня «Утро»</b><span>Отзыв в Telegram →</span></div>
-          <div>
-            <h3>Каталог и отзывы в Telegram</h3>
-            <p>По желанию заведение появляется в каталоге TapReview в Telegram: гости находят места рядом, читают отзывы и пишут свои — с проверкой модератором. Вы отвечаете на отзывы и видите рейтинг в кабинете.</p>
-          </div>
-        </div>
-
-        <div class="design-strip reveal">
-          <div class="design-demo" aria-hidden="true"><span class="dd-name">Бар «Огни»</span><span class="dd-line"></span><span class="dd-btn">Яндекс Карты</span><span class="dd-btn dd-2">2ГИС</span></div>
-          <div>
-            <h3>Страница в стиле вашего заведения</h3>
-            <p>Пять готовых тем или «Свой дизайн»: фото зала на фоне, ваш логотип со свечением, фирменный цвет кнопок. Гость с первой секунды видит, что это вы.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ---------- сервис в зале (модуль) ---------- -->
-    <section id="service">
-      <div class="wrap">
-        <div class="section-head reveal">
-          <p class="kicker">Сервис в зале</p>
-          <h2>Гость зовёт официанта и заказывает прямо со стола</h2>
-          <p>Карта на столе — это ещё и кнопка вызова. Без приложений, без касс и без оплаты через нас: гость платит официанту, как обычно.</p>
-          <p class="plan-tag">Входит в Pro · к Plus — 490&nbsp;₽ в месяц</p>
-        </div>
-
-        <div class="feats">
-          <article class="feat reveal">
-            <div class="mini mini-call" aria-hidden="true"><i class="on"><b>🙋</b>Позвать официанта</i><i><b>🧾</b>Попросить счёт</i><i><b>💬</b>Нужна помощь</i></div>
-            <h3>Вызов официанта</h3>
-            <p>Три кнопки на странице стола. Гость видит «Передали персоналу», а когда официант принял вызов — «Сотрудник идёт». Повторные и шуточные нажатия отсекаются.</p>
-          </article>
-          <article class="feat reveal" style="--d:.06s">
-            <div class="mini mini-links" aria-hidden="true"><i>Одним счётом</i><i>на 2</i><i>на 3</i><i>на 4</i></div>
-            <h3>Счёт — одним или пополам</h3>
-            <p>«Попросить счёт» сразу с выбором: одним счётом или разделить на 2–6 человек. Официант приходит уже готовым.</p>
-          </article>
-          <article class="feat reveal" style="--d:.12s">
-            <div class="mini mini-cart" aria-hidden="true"><span>Капучино × 2 <b>500 ₽</b></span><span>Чизкейк × 1 <b>290 ₽</b></span><span class="bar-total">3 шт. · 790 ₽ <em>Отправить →</em></span></div>
-            <h3>Заказ из меню со стола</h3>
-            <p>Гость выбирает блюда в вашем меню, пишет комментарий и отправляет заказ официанту. А «К этому часто берут» предлагает десерт к кофе — средний чек растёт.</p>
-          </article>
-          <article class="feat reveal">
-            <div class="mini mini-staffcall" aria-hidden="true"><span><b>Стол 5 · Зовут официанта</b><i>Принял</i></span><span><b>Стол 2 · Заказ 790 ₽</b><i>Принял</i></span></div>
-            <h3>Страница вызовов для персонала</h3>
-            <p>Вызовы и заказы появляются сами, со звуком, на телефоне или планшете официанта. Дублируются в Telegram-чат смены. «Принял» и «Готово» — одним касанием.</p>
-          </article>
-          <article class="feat reveal" style="--d:.06s">
-            <div class="mini mini-staff" aria-hidden="true"><span>Анна <b>4,9 ★ · 38 оценок</b></span><span>Олег <b>4,6 ★ · 21 оценка</b></span></div>
-            <h3>Сотрудники и их оценки</h3>
-            <p>У официанта своя карта: оценка гостя засчитывается ему, на странице — «Вас обслуживает: Анна». Вы видите средние оценки, жалобы и скорость реакции по каждому.</p>
-          </article>
-          <article class="feat reveal" style="--d:.12s">
-            <div class="mini mini-links" aria-hidden="true"><i>💳 Чаевые — Анна</i></div>
-            <h3>Чаевые конкретному официанту</h3>
-            <p>На личной карте кнопка «Оставить чаевые» ведёт на сервис чаевых этого сотрудника. Деньги идут напрямую ему, мы их не касаемся.</p>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <!-- ---------- для владельца ---------- -->
-    <section class="section-soft" id="owner">
-      <div class="wrap">
-        <div class="section-head reveal">
-          <p class="kicker">Для владельца</p>
-          <h2>Вы знаете, что происходит, — и управляете с телефона</h2>
-          <p>Личная ссылка на статистику открывается в любом браузере, без входа и паролей. Важное приходит в Telegram.</p>
+          <p class="kicker">Возможности</p>
+          <h2>Всё, что получает заведение</h2>
+          <p>Для кафе, ресторанов, барбершопов, салонов, магазинов, автосервисов и отелей. Гостю не нужно ничего скачивать и регистрироваться.</p>
         </div>
 
         <div class="feats">
           <article class="feat reveal">
             <div class="mini mini-tg" aria-hidden="true"><b>😟 Гость поставил ★★</b><span>«Долго ждали заказ»</span><em>📞 Просит перезвонить</em></div>
-            <h3>Недовольные пишут вам</h3>
-            <p>Гость отмечает причину одним касанием — «Долго ждали», «Обслуживание», «Чистота» — и сообщение сразу приходит в Telegram. Не разобрали за 2 часа — бот напомнит. В статистике видно, на что жалуются чаще.</p>
+            <h3>Жалобы — вам, а не на карты</h3>
+            <p>Недовольный гость пишет вам в Telegram, пока он ещё в зале.</p>
+            <details class="feat-more">
+              <summary>Подробнее</summary>
+              <ul>
+                <li>Причина одним касанием: «Долго ждали», «Обслуживание», «Чистота»</li>
+                <li>Гость может попросить перезвонить</li>
+                <li>Не разобрали за 2 часа — бот напомнит</li>
+                <li>В статистике видно, на что жалуются чаще</li>
+              </ul>
+            </details>
           </article>
           <article class="feat reveal" style="--d:.06s">
-            <div class="mini mini-funnel" aria-hidden="true"><i style="width:100%"></i><i style="width:46%"></i><i style="width:36%"></i><i style="width:26%" class="g"></i><i style="width:10%" class="g"></i></div>
-            <h3>Путь гостя</h3>
-            <p>Открыли страницу → оценили → перешли к отзыву → получили подарок → пришли за ним. Видно, где теряются гости.</p>
+            <div class="mini mini-stamps" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><b>🎁</b><small>Ещё 1 штамп — и пицца в подарок</small></div>
+            <h3>Подарки, чтобы возвращались</h3>
+            <p>Колесо подарков, штампы, баллы и VIP-гости — без приложений.</p>
+            <details class="feat-more">
+              <summary>Подробнее</summary>
+              <ul>
+                <li>Колесо подарков: одноразовый код на следующий визит, кассир гасит его по ссылке</li>
+                <li>Штампы: собрал все — особый приз</li>
+                <li>Баллы с чека: 1 балл = 1 ₽ скидки</li>
+                <li>«С возвращением!» и VIP-гости со своим подарком</li>
+                <li>«Подарите другу»: подарок другу и пригласившему</li>
+                <li>Все подарки гостя — в Telegram, во всех заведениях</li>
+              </ul>
+            </details>
           </article>
           <article class="feat reveal" style="--d:.12s">
             <div class="mini mini-score" aria-hidden="true"><span class="ring"><b>87</b></span><span><b>Отлично</b><small>TapReview Score</small></span></div>
-            <h3>TapReview Score</h3>
-            <p>Одна цифра от 0 до 100: отзывы, оценки, ответы на жалобы, постоянные гости. И подсказки, что улучшить в первую очередь.</p>
+            <h3>Статистика и Telegram</h3>
+            <p>Видно, кто открыл, оценил и дошёл до отзыва. Отчёт — по понедельникам.</p>
+            <details class="feat-more">
+              <summary>Подробнее</summary>
+              <ul>
+                <li>Путь гостя: открыли → оценили → перешли к отзыву → пришли за подарком</li>
+                <li>По каждой карте и точке, несколько заведений в одной ссылке</li>
+                <li>TapReview Score 0–100 и подсказки, что улучшить</li>
+                <li>Итоги месяца 1-го числа</li>
+                <li>Команды в боте: подарки вкл/выкл, новость на странице</li>
+                <li>Отдельная ссылка-касса для персонала</li>
+              </ul>
+            </details>
           </article>
           <article class="feat reveal">
-            <div class="mini mini-wrapped" aria-hidden="true"><small>Итоги месяца</small><b>Октябрь</b><span>412 открытий · ▲ 25%</span></div>
-            <h3>Итоги месяца</h3>
-            <p>1-го числа — красивая сводка: лучший день недели, час пик, что хвалят, сколько гостей вернулось. Удобно показать команде.</p>
+            <div class="mini mini-menu" aria-hidden="true"><span>Капучино <b>250 ₽</b></span><span>Чизкейк <em>РЕКОМЕНДУЕМ</em> <b>290 ₽</b></span></div>
+            <h3>Меню и страница заведения</h3>
+            <p>Меню, новости и кнопки записи — в оформлении вашего заведения.</p>
+            <details class="feat-more">
+              <summary>Подробнее</summary>
+              <ul>
+                <li>Меню с фото и ценами: вставили список текстом — готово</li>
+                <li>«Сейчас у нас»: новость, событие или акция с фото</li>
+                <li>Кнопки записи, доставки, чаевых и оплаты по СБП</li>
+                <li>Пять тем или «Свой дизайн» с фото зала и логотипом</li>
+                <li>По желанию — каталог и отзывы в Telegram</li>
+              </ul>
+            </details>
           </article>
           <article class="feat reveal" style="--d:.06s">
-            <div class="mini mini-bot" aria-hidden="true"><span class="me">/gifts_off</span><span class="bot">🎁 Подарки выключены</span><span class="me">/news Живая музыка в пятницу</span></div>
-            <h3>Управление из Telegram</h3>
-            <p>Отчёт по понедельникам, а ещё команды: включить или выключить подарки, опубликовать новость — без звонков нам.</p>
+            <div class="mini mini-call" aria-hidden="true"><i class="on"><b>🙋</b>Позвать официанта</i><i><b>🧾</b>Попросить счёт</i><i><b>💬</b>Нужна помощь</i></div>
+            <h3>Вызов официанта и заказ со стола</h3>
+            <p>Карта на столе — ещё и кнопка вызова. Оплата официанту, как обычно.</p>
+            <details class="feat-more">
+              <summary>Подробнее</summary>
+              <ul>
+                <li>«Позвать официанта», «Попросить счёт» (можно на 2–6 человек), «Нужна помощь»</li>
+                <li>Заказ из меню со стола и «К этому часто берут»</li>
+                <li>Вызовы со звуком на телефоне официанта и в чате смены</li>
+                <li>Личные карты официантов, их оценки и чаевые напрямую</li>
+              </ul>
+            </details>
+            <p class="plan-tag">Входит в Pro · к Plus — 490&nbsp;₽/мес</p>
           </article>
           <article class="feat reveal" style="--d:.12s">
-            <div class="mini mini-desk" aria-hidden="true"><span class="code">482-913</span><span class="ok">✓ Код погашен</span></div>
-            <h3>Касса для персонала</h3>
-            <p>Отдельная ссылка для кассира: только проверить и погасить код. Без статистики и настроек — и её легко отключить.</p>
-          </article>
-        </div>
-
-        <div class="stats-block">
-          <div class="stats-copy reveal">
-            <h3>Статистика по каждой карте и точке</h3>
-            <p>Видно, какая карта работает лучше, а «Настройки» по той же ссылке позволяют самому менять подарки, новости и кнопки.</p>
-            <ul class="checks">
-              <li><span class="col-mark col-navy" aria-hidden="true"></span>Сколько раз открыли страницу отзывов</li>
-              <li><span class="col-mark col-gold" aria-hidden="true"></span>Сколько человек перешли к отзыву и куда</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Оценки гостей и что им нравится</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Новые, постоянные и VIP-гости</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Несколько заведений — в одной ссылке</li>
-            </ul>
-          </div>
-          <div class="dash reveal" style="--d:.08s" role="img" aria-label="Пример страницы статистики: открытия и переходы к отзыву по дням и по картам">
-            <div class="dash-top"><span class="dash-title">Кофейня «Утро» · 7 дней</span><span class="dash-label">Пример</span></div>
-            <div class="dash-kpis">
-              <div class="kpi"><small>Открыли страницу</small><strong class="c-navy">184</strong><em>▲ +23</em></div>
-              <div class="kpi"><small>Перешли к отзыву</small><strong class="c-gold">71</strong><em>▲ +12</em></div>
-            </div>
-            <div class="bars" aria-hidden="true">
-              <div class="bar" style="--i:0;height:52%"><i style="height:38%"></i></div>
-              <div class="bar" style="--i:1;height:64%"><i style="height:40%"></i></div>
-              <div class="bar" style="--i:2;height:48%"><i style="height:36%"></i></div>
-              <div class="bar" style="--i:3;height:72%"><i style="height:42%"></i></div>
-              <div class="bar" style="--i:4;height:88%"><i style="height:39%"></i></div>
-              <div class="bar" style="--i:5;height:100%"><i style="height:41%"></i></div>
-              <div class="bar" style="--i:6;height:80%"><i style="height:37%"></i></div>
-            </div>
-            <div class="bar-days" aria-hidden="true"><span>пн</span><span>вт</span><span>ср</span><span>чт</span><span>пт</span><span>сб</span><span>вс</span></div>
-            <ul class="dash-cards" aria-hidden="true">
-              <li><span>Стойка у кассы</span><b><i class="c-navy">96</i> · <i class="c-gold">41</i></b></li>
-              <li><span>Столик у окна</span><b><i class="c-navy">58</i> · <i class="c-gold">19</i></b></li>
-              <li><span>Терраса</span><b><i class="c-navy">30</i> · <i class="c-gold">11</i></b></li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ---------- AI (модуль) ---------- -->
-    <section id="ai">
-      <div class="wrap">
-        <div class="section-head reveal">
-          <p class="kicker">AI-разбор отзывов</p>
-          <h2>AI читает отзывы за вас — и отвечает только по вашим цифрам</h2>
-          <p>Работает на YandexGPT, данные остаются в России. Телефоны и почту гостей мы вырезаем ещё до отправки. Все числа считает наш код, AI их только объясняет — придумать показатель он не может.</p>
-          <p class="plan-tag">Входит в Pro · к Plus — 490&nbsp;₽ в месяц</p>
-        </div>
-
-        <div class="feats">
-          <article class="feat reveal">
             <div class="mini mini-urgent" aria-hidden="true"><b>🔥 СРОЧНО: возможное отравление</b><span>😟 Гость поставил ★★ · стол 5</span></div>
-            <h3>«Срочно» — первым делом</h3>
-            <p>Каждое сообщение недовольного гостя AI размечает по теме и тону. Отравление, грубость, опасная ситуация — придут с пометкой «🔥 Срочно», чтобы вы не пропустили.</p>
-          </article>
-          <article class="feat reveal" style="--d:.06s">
-            <div class="mini mini-digest" aria-hidden="true"><small>Разбор недели</small><span>Хорошо: хвалят десерты</span><span>Мешает: ожидание в пятницу вечером</span><span>Сделать: усилить смену</span></div>
-            <h3>Разбор недели</h3>
-            <p>По понедельникам — что хорошо, что мешает и что сделать на этой неделе. Коротко, по делу, с цифрами из вашей статистики.</p>
-          </article>
-          <article class="feat reveal" style="--d:.12s">
-            <div class="mini mini-ask" aria-hidden="true"><span class="q">Почему упала оценка?</span><span class="a">Жалобы на ожидание выросли по пятницам вечером…</span></div>
-            <h3>AI-ассистент</h3>
-            <p>Спросите обычными словами: «на что чаще жалуются?», «кто из сотрудников лучше?», «в какие дни больше недовольных?». Ответ — по вашим данным за 8 недель, на сайте или в Telegram.</p>
+            <h3>AI-разбор отзывов</h3>
+            <p>AI отмечает срочное и раз в неделю говорит, что исправить.</p>
+            <details class="feat-more">
+              <summary>Подробнее</summary>
+              <ul>
+                <li>«🔥 Срочно»: отравление, грубость, опасная ситуация</li>
+                <li>Разбор недели по понедельникам: что хорошо, что мешает, что сделать</li>
+                <li>Ассистент отвечает на вопросы по вашим цифрам за 8 недель</li>
+                <li>YandexGPT, данные в России, телефоны гостей AI не получает</li>
+              </ul>
+            </details>
+            <p class="plan-tag">Входит в Pro · к Plus — 490&nbsp;₽/мес</p>
           </article>
         </div>
-      </div>
-    </section>
-
-    <!-- ---------- для кого ---------- -->
-    <section id="who">
-      <div class="wrap">
-        <div class="section-head reveal">
-          <p class="kicker">Для кого</p>
-          <h2>Для бизнеса, которого выбирают по отзывам на картах</h2>
-        </div>
-        <ul class="who reveal">
-          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 11h12v3a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5zM17 12h1.5a2.5 2.5 0 0 1 0 5H16M8 4c0 1.5 1 1.5 1 3M12 4c0 1.5 1 1.5 1 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Кафе и кофейни</li>
-          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v8M5 3v4a2 2 0 0 0 4 0V3M7 11v10M17 21V3c-2 0-3.5 2-3.5 6v4H17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Рестораны</li>
-          <li><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="7" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="6" cy="17" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8.5 8.5 20 18M8.5 15.5 20 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Барбершопы</li>
-          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c2 3 5 5 5 9a5 5 0 0 1-10 0c0-4 3-6 5-9zM12 21v-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Салоны красоты</li>
-          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14l-1 12H6zM9 8V6a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Магазины</li>
-          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 16V12l2-5h10l2 5v4M3 16h18v3H3zM7 19v1.5M17 19v1.5M5 12h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Автосервисы</li>
-          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20V8M3 14h18v6M21 14v-2a3 3 0 0 0-3-3h-7v5M7 11.5a1.5 1.5 0 1 0 0-.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Отели</li>
-          <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Клиники и другие</li>
-        </ul>
       </div>
     </section>
 
     <!-- ---------- цены ---------- -->
     <!-- ЦЕНЫ: если меняете — поменяйте и строку «Подключение …» в первом экране -->
-    <section class="section-soft" id="pricing">
+    <section id="pricing">
       <div class="wrap">
         <div class="section-head reveal">
           <p class="kicker">Цены</p>
           <h2>Подписка за заведение, карты — пакетом</h2>
-          <p>Вы платите за заведение, а не за каждую карту: в подключение уже входит пакет карт на столы, кассу и ресепшен. Первый месяц подписки бесплатно.</p>
+          <p>Платите за заведение, а не за каждую карту. Первый месяц подписки бесплатно.</p>
         </div>
 
         <div class="price-extra price-early reveal">
           <div>
             <h3>Early Partner — первые 20 заведений</h3>
-            <p>Подключение <b>1&nbsp;990&nbsp;₽</b>: 10 карт NFC + QR, настройка и «Свой дизайн» страницы в подарок. Подписка <b>490&nbsp;₽ в месяц первые полгода</b> со всеми функциями Plus, дальше — обычный тариф. Первый месяц — бесплатно.</p>
+            <p>Подключение <b>1&nbsp;990&nbsp;₽</b> с 10 картами и «Своим дизайном», подписка <b>490&nbsp;₽ в месяц первые полгода</b> со всеми функциями Plus.</p>
           </div>
           <a class="btn btn-gold" href="/order/?early=1">Стать Early Partner</a>
         </div>
@@ -1138,11 +980,9 @@
             <p class="price"><strong>490&nbsp;₽</strong><span>в месяц за заведение</span></p>
             <p class="price-note">подключение 1&nbsp;490&nbsp;₽ · до 5 карт</p>
             <ul>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Карты NFC + QR — вертикальные или горизонтальные</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Страница с кнопками Яндекс Карт, 2ГИС, Google Maps</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Оценка гостя: недовольные пишут вам, а не на карты</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Причины жалоб, «Перезвоните мне», напоминание, если не разобрано</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Статистика и отчёт в Telegram по понедельникам</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Кнопки Яндекс Карт, 2ГИС, Google</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Жалобы вам, а не на карты</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Статистика и отчёт в Telegram</li>
             </ul>
             <a class="btn btn-ghost" href="/order/?tariff=start">Выбрать Start</a>
           </article>
@@ -1155,80 +995,31 @@
             <p class="price-note">подключение 3&nbsp;490&nbsp;₽ · до 20 карт</p>
             <ul>
               <li><svg aria-hidden="true"><use href="#i-check"/></svg>Всё, что в Start</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Меню на странице, «Сейчас у нас», запись и чаевые</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Колесо подарков, штампы, VIP-гости, «Подарите другу»</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Баллы с каждого чека и касса для персонала</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Score, итоги месяца, настройки и управление из Telegram</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Модули по желанию: «Сервис в зале» и AI — по 490&nbsp;₽ в месяц</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Подарки, штампы, баллы, VIP-гости</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Меню, новости, Score и итоги месяца</li>
             </ul>
             <a class="btn btn-gold" href="/order/?tariff=standard">Выбрать Plus</a>
           </article>
 
           <article class="plan reveal" style="--d:.12s">
             <h3>Pro</h3>
-            <p class="plan-sub">Ресторан с залом, большие заведения</p>
+            <p class="plan-sub">Ресторан с залом</p>
             <p class="price"><strong>1&nbsp;990&nbsp;₽</strong><span>в месяц за заведение</span></p>
             <p class="price-note">подключение 5&nbsp;990&nbsp;₽ · до 50 карт</p>
             <ul>
               <li><svg aria-hidden="true"><use href="#i-check"/></svg>Всё, что в Plus</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Вызов официанта и «Попросить счёт» со стола</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Заказ из меню со стола и «К этому часто берут»</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Сотрудники и их оценки, личные карты официантов</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>AI: «🔥 Срочно», разбор недели и ассистент по вашим цифрам</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Вызов официанта и заказ со стола</li>
+              <li><svg aria-hidden="true"><use href="#i-check"/></svg>AI-разбор отзывов</li>
             </ul>
             <a class="btn btn-ghost" href="/order/?tariff=plus">Выбрать Pro</a>
           </article>
         </div>
 
-        <div class="price-extra reveal">
-          <div>
-            <h3>Больше столов — без доплаты каждый месяц</h3>
-            <p>Карты — разовая покупка: пакет входит в подключение, каждая карта сверх пакета — 199&nbsp;₽ один раз. Подписка от числа карт не зависит.</p>
-            <p>Сеть заведений: со второй точки подписка на 20% дешевле. Год — как 10&nbsp;месяцев.</p>
-          </div>
-          <table class="tiers" aria-label="Примеры: подключение и подписка">
-            <tr><th>Пример</th><th>Подключение</th><th>В месяц</th></tr>
-            <tr><td>Барбершоп, 3 карты · Start</td><td>1&nbsp;490&nbsp;₽</td><td>490&nbsp;₽</td></tr>
-            <tr><td>Кафе, 30 столов · Plus</td><td>5&nbsp;480&nbsp;₽</td><td>990&nbsp;₽</td></tr>
-            <tr><td>То же + «Сервис в зале»</td><td>5&nbsp;480&nbsp;₽</td><td>1&nbsp;480&nbsp;₽</td></tr>
-            <tr><td>Ресторан, 50 столов · Pro</td><td>5&nbsp;990&nbsp;₽</td><td>1&nbsp;990&nbsp;₽</td></tr>
-          </table>
-        </div>
-
-        <div class="price-design reveal">
-          <div class="design-demo" aria-hidden="true"><span class="dd-name">Бар «Огни»</span><span class="dd-line"></span><span class="dd-btn">Яндекс Карты</span></div>
-          <div>
-            <h3>«Свой дизайн» страницы — 990&nbsp;₽ разово</h3>
-            <p>Фото вашего зала на фоне, ваш логотип со свечением, фирменные цвета кнопок. В любом тарифе, один раз — без доплат каждый месяц.</p>
-            <a class="btn btn-ghost" href="/order/?design=1">Заказать с дизайном</a>
-          </div>
-        </div>
-
-        <div class="pricing-foot reveal">
-          <p><svg aria-hidden="true"><use href="#i-check"/></svg>Первый месяц подписки бесплатно — при заказе вы платите только за подключение с картами.</p>
-          <p><svg aria-hidden="true"><use href="#i-check"/></svg>Без автосписаний — каждый период вы оплачиваете сами, за 5 дней до конца напомним.</p>
-          <p><svg aria-hidden="true"><use href="#i-check"/></svg>Смена ссылок и перепривязка карт — бесплатно, пока действует подписка.</p>
-        </div>
+        <p class="price-line reveal">Карта сверх пакета — 199&nbsp;₽ разово · со второй точки −20% · год = 10 месяцев · «Свой дизайн» — 990&nbsp;₽ разово · без автосписаний · <a href="/order/">посчитать в калькуляторе</a></p>
       </div>
     </section>
 
-    <!-- ---------- как заказать ---------- -->
-    <section id="order">
-      <div class="wrap">
-        <div class="section-head reveal">
-          <p class="kicker">Как заказать</p>
-          <h2>От сообщения до первого отзыва</h2>
-        </div>
-        <ol class="order">
-          <li class="reveal"><h3>Напишите нам</h3><p>Посчитайте стоимость в <a href="/order/">калькуляторе</a> и отправьте расчёт в Telegram.</p></li>
-          <li class="reveal" style="--d:.06s"><h3>Настроим страницу</h3><p>Найдём ваши карточки на площадках и пришлём ссылку на проверку.</p></li>
-          <li class="reveal" style="--d:.12s"><h3>Оплата и карты</h3><p>После оплаты передадим готовые карты — они уже работают.</p></li>
-          <li class="reveal" style="--d:.18s"><h3>Смотрите результат</h3><p>Поставьте карту на видное место и следите за статистикой.</p></li>
-        </ol>
-      </div>
-    </section>
-
-    <!-- ---------- вопросы ---------- -->
+    <!-- ---------- вопросы: главные сразу, остальные под «Все вопросы» ---------- -->
     <section class="section-soft" id="faq">
       <div class="wrap">
         <div class="section-head reveal">
@@ -1239,10 +1030,6 @@
           <details>
             <summary>Гостю нужно что-то устанавливать?</summary>
             <p>Нет. Карта открывает обычную страницу в браузере. Достаточно приложить телефон или навести камеру на QR-код.</p>
-          </details>
-          <details>
-            <summary>Что если в телефоне нет NFC?</summary>
-            <p>На той же карте есть QR-код — его считывает камера любого смартфона. На некоторых Android NFC нужно включить в настройках.</p>
           </details>
           <details>
             <summary>Это не накрутка отзывов?</summary>
@@ -1257,52 +1044,74 @@
             <p>Да, потому что подарок не зависит от отзыва. Колесо и подарок появляются после любой оценки, даже если гость не пишет отзыв. Просим только не писать «подарок за отзыв» — это запрещают правила Яндекс Карт и 2ГИС.</p>
           </details>
           <details>
-            <summary>Гости не будут получать подарки бесконечно?</summary>
-            <p>Нет. Один подарок на телефон за период, который вы выбираете (например, раз в неделю), не больше одного кода в день с телефона даже в режиме инкогнито и общий лимит подарков в день. Код одноразовый — кассир гасит его по ссылке.</p>
-          </details>
-          <details>
             <summary>Вы собираете данные гостей?</summary>
             <p>Нет. Мы не спрашиваем имён и телефонов: постоянного гостя узнаём по обезличенной метке в браузере, IP-адреса не храним. Телефон появляется, только если недовольный гость сам попросит перезвонить, — и удаляется через 30 дней. Все данные хранятся на сервере в России.</p>
           </details>
           <details>
-            <summary>Можно поменять ссылки или площадки потом?</summary>
-            <p>Да, в любой момент и без перепечатки. Карту можно даже перенести на другое заведение.</p>
+            <summary>Как проходит подключение?</summary>
+            <p>Посчитайте стоимость в <a href="/order/">калькуляторе</a> и отправьте расчёт нам в Telegram. Мы найдём ваши карточки на площадках, настроим страницу и пришлём ссылку на проверку. После оплаты передадим готовые карты — они уже работают: поставьте их на видное место и следите за статистикой.</p>
           </details>
-          <details>
-            <summary>Что показывает статистика?</summary>
-            <p>Сколько раз открыли страницу, с NFC или по QR, какие оценки ставят и что хвалят, сколько человек перешли на Яндекс Карты, 2ГИС или Google, сколько подарков выдали и забрали, сколько гостей вернулись. По дням, по каждой карте и точке, плюс TapReview Score и итоги месяца. Смотреть можно по личной ссылке или в Telegram.</p>
-          </details>
-          <details>
-            <summary>Что будет, если не продлить подписку?</summary>
-            <p>Мы напомним заранее. Если всё же не продлить, через 3 дня карта продолжит работать, но будет вести гостей сразу на площадку отзывов, а статистика встанет на паузу. После оплаты всё вернётся. Если не продлить в течение недели, карты могут быть отвязаны, а статистика удалена.</p>
-          </details>
-          <details>
-            <summary>У меня несколько заведений. Это удобно?</summary>
-            <p>Да. Все точки и карты можно собрать в одну ссылку: видно общую сводку и каждое заведение отдельно. А один QR-код может вести на список ваших заведений.</p>
-          </details>
-          <details>
-            <summary>Как работает вызов официанта? Нужна касса или планшет?</summary>
-            <p>Ничего ставить не нужно. Гость касается карты на столе и нажимает «Позвать официанта», «Попросить счёт» или заказывает из меню. Официант видит вызов со звуком на своей ссылке — в браузере любого телефона, — и в Telegram-чате смены. Оплата — как обычно, официанту: деньги через TapReview не идут.</p>
-          </details>
-          <details>
-            <summary>А если гость нажмёт «Позвать официанта» из дома?</summary>
-            <p>Кнопки работают, только когда гость коснулся карты на столе с этого телефона. Повторное нажатие не создаёт второй вызов, а частые вызовы с одного телефона ограничены.</p>
-          </details>
-          <details>
-            <summary>Как начисляются баллы?</summary>
-            <p>Гость нажимает «Код для кассы» и показывает 6 цифр. Кассир на своей ссылке вводит код и сумму чека — баллы начисляются сами (например, 5% от чека), а при желании гостя списываются как скидка. Код одноразовый и живёт 10 минут, процент и правила задаёте вы.</p>
-          </details>
-          <details>
-            <summary>AI не придумает лишнего?</summary>
-            <p>Все цифры считает наш код по вашим данным, а AI только формулирует. Если в ответе появляется число, которого нет в ваших данных, мы убираем это предложение. Работает на YandexGPT в России, телефоны и почту гостей AI не получает.</p>
-          </details>
-          <details>
-            <summary>Можно оценить работу каждого официанта?</summary>
-            <p>Да, в модуле «Сервис в зале». У официанта своя карта — оценки и жалобы с неё засчитываются ему, а «Принял» на вызове — тоже ему. Средняя оценка показывается с 10 оценок, с одного телефона — не чаще раза в день, и видите её только вы.</p>
-          </details>
-          <details>
-            <summary>Есть бонус за рекомендацию?</summary>
-            <p>Да. У каждого клиента есть своя ссылка-приглашение в статистике. Когда приглашённое заведение подключится и оплатит подписку, вы оба получаете месяц бесплатно.</p>
+
+          <details class="faq-all">
+            <summary>Все вопросы</summary>
+            <div class="faq">
+              <details>
+                <summary>Какие бывают карты?</summary>
+                <p>Размер как у банковской карты, NFC-метка внутри и QR-код на лицевой стороне. Вертикальная (54 × 85,6 мм) хорошо смотрится в подставке на столе и у кассы, горизонтальная (85,6 × 54 мм) — на стойке, ресепшене или в папке со счётом.</p>
+              </details>
+              <details>
+                <summary>Что если в телефоне нет NFC?</summary>
+                <p>На той же карте есть QR-код — его считывает камера любого смартфона. На некоторых Android NFC нужно включить в настройках.</p>
+              </details>
+              <details>
+                <summary>Гости не будут получать подарки бесконечно?</summary>
+                <p>Нет. Один подарок на телефон за период, который вы выбираете (например, раз в неделю), не больше одного кода в день с телефона даже в режиме инкогнито и общий лимит подарков в день. Код одноразовый — кассир гасит его по ссылке.</p>
+              </details>
+              <details>
+                <summary>Как начисляются баллы?</summary>
+                <p>Гость нажимает «Код для кассы» и показывает 6 цифр. Кассир на своей ссылке вводит код и сумму чека — баллы начисляются сами (например, 5% от чека), а при желании гостя списываются как скидка. Код одноразовый и живёт 10 минут, процент и правила задаёте вы.</p>
+              </details>
+              <details>
+                <summary>Можно поменять ссылки или площадки потом?</summary>
+                <p>Да, в любой момент и без перепечатки. Карту можно даже перенести на другое заведение.</p>
+              </details>
+              <details>
+                <summary>Что показывает статистика?</summary>
+                <p>Сколько раз открыли страницу, с NFC или по QR, какие оценки ставят и что хвалят, сколько человек перешли на Яндекс Карты, 2ГИС или Google, сколько подарков выдали и забрали, сколько гостей вернулись. По дням, по каждой карте и точке, плюс TapReview Score и итоги месяца. Смотреть можно по личной ссылке или в Telegram.</p>
+              </details>
+              <details>
+                <summary>У меня несколько заведений. Это удобно?</summary>
+                <p>Да. Все точки и карты можно собрать в одну ссылку: видно общую сводку и каждое заведение отдельно. А один QR-код может вести на список ваших заведений.</p>
+              </details>
+              <details>
+                <summary>Как работает вызов официанта? Нужна касса или планшет?</summary>
+                <p>Ничего ставить не нужно. Гость касается карты на столе и нажимает «Позвать официанта», «Попросить счёт» или заказывает из меню. Официант видит вызов со звуком на своей ссылке — в браузере любого телефона, — и в Telegram-чате смены. Оплата — как обычно, официанту: деньги через TapReview не идут.</p>
+              </details>
+              <details>
+                <summary>А если гость нажмёт «Позвать официанта» из дома?</summary>
+                <p>Кнопки работают, только когда гость коснулся карты на столе с этого телефона. Повторное нажатие не создаёт второй вызов, а частые вызовы с одного телефона ограничены.</p>
+              </details>
+              <details>
+                <summary>Можно оценить работу каждого официанта?</summary>
+                <p>Да, в модуле «Сервис в зале». У официанта своя карта — оценки и жалобы с неё засчитываются ему, а «Принял» на вызове — тоже ему. Средняя оценка показывается с 10 оценок, с одного телефона — не чаще раза в день, и видите её только вы.</p>
+              </details>
+              <details>
+                <summary>AI не придумает лишнего?</summary>
+                <p>Все цифры считает наш код по вашим данным, а AI только формулирует. Если в ответе появляется число, которого нет в ваших данных, мы убираем это предложение. Работает на YandexGPT в России, телефоны и почту гостей AI не получает.</p>
+              </details>
+              <details>
+                <summary>Сколько стоит больше карт и несколько точек?</summary>
+                <p>Карты — разовая покупка: пакет входит в подключение, каждая карта сверх пакета — 199&nbsp;₽ один раз, подписка от числа карт не зависит. Например, кафе на 30 столов на Plus: подключение 5&nbsp;480&nbsp;₽ и 990&nbsp;₽ в месяц. Со второй точки подписка на 20% дешевле, год — как 10 месяцев.</p>
+              </details>
+              <details>
+                <summary>Что будет, если не продлить подписку?</summary>
+                <p>Мы напомним заранее, автосписаний нет. Если всё же не продлить, через 3 дня карта продолжит работать, но будет вести гостей сразу на площадку отзывов, а статистика встанет на паузу. После оплаты всё вернётся. Если не продлить в течение недели, карты могут быть отвязаны, а статистика удалена.</p>
+              </details>
+              <details>
+                <summary>Есть бонус за рекомендацию?</summary>
+                <p>Да. У каждого клиента есть своя ссылка-приглашение в статистике. Когда приглашённое заведение подключится и оплатит подписку, вы оба получаете месяц бесплатно.</p>
+              </details>
+            </div>
           </details>
         </div>
       </div>
