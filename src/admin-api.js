@@ -90,7 +90,7 @@ const ADMIN_COLUMNS =
   "google_url,yandex_url,twogis_url,discount_code,discount_text,is_active," +
   "paid_until,monthly_price,billing_note," +
   "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions,bonus_daily_limit," +
-  "stamps_goal,stamps_prize,friend_gift,friend_reward,vip_visits,vip_gift," +
+  "stamps_goal,stamps_prize,friend_gift,friend_reward,vip_visits,vip_gift,sorry_gift," +
   "referred_by,ref_reward_at,theme,design,extra_links,rating_first,moment,tariff,modules," +
   "points_on,points_percent,points_max_share,points_expire_days,points_max_check," +
   "catalog_visible,catalog_since,catalog_consent_at,description,city,photos,app_button,lat,lon," +
@@ -885,6 +885,8 @@ function cleanBonus(input) {
     throw new HttpError(400, "VIP-гости: укажите и с какого визита (от 4), и VIP-подарок — или оставьте оба пустыми");
   }
   return {
+    // Подарок-извинение при оценке 1–3 (миграция 050): пусто — выключен
+    sorry_gift: cleanText(input.sorry_gift, 60, "Подарок-извинение") || null,
     vip_visits: vipVisits,
     vip_gift: vipGift,
     friend_gift: friendGift,

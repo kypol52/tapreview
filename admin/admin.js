@@ -1597,6 +1597,7 @@ function readForm() {
     vip_gift: $("f-vip-gift").value,
     friend_gift: $("f-friend-gift").value,
     friend_reward: $("f-friend-reward").value,
+    sorry_gift: $("f-sorry-gift").value,
     bonus_conditions: $("f-bonus-conditions").value,
     brand_color: $("f-color-on").checked ? $("f-color").value : null,
     is_active: $("f-active").checked,
@@ -2083,6 +2084,7 @@ function fillBonus(business) {
   $("f-vip-gift").value = business ? business.vip_gift || "" : "";
   $("f-friend-gift").value = business ? business.friend_gift || "" : "";
   $("f-friend-reward").value = business ? business.friend_reward || "" : "";
+  $("f-sorry-gift").value = business ? business.sorry_gift || "" : "";
   $("f-bonus-conditions").value = business ? business.bonus_conditions || "" : "";
   $("f-bonus-stats").textContent = "";
   showBonusMode();

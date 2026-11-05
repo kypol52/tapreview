@@ -181,7 +181,8 @@ function bonusFields(form) {
     vip_visits: String(form.get("vip_visits") || ""),
     vip_gift: String(form.get("vip_gift") || ""),
     friend_gift: String(form.get("friend_gift") || ""),
-    friend_reward: String(form.get("friend_reward") || "")
+    friend_reward: String(form.get("friend_reward") || ""),
+    sorry_gift: String(form.get("sorry_gift") || "")
   };
 }
 
@@ -371,6 +372,10 @@ function bonusSection(b, hidden, msg) {
             <label>Подарок другу<input name="friend_gift" maxlength="60" value="${esc(b.friend_gift || "")}" placeholder="Десерт в подарок"></label>
             <label>Подарок пригласившему<input name="friend_reward" maxlength="60" value="${esc(b.friend_reward || "")}" placeholder="Капучино"></label>
           </div>
+        </fieldset>
+        <fieldset class="set-prizes"><legend>Извинение при оценке 1–3 (необязательно)</legend>
+          <p class="set-hint">Недовольный гость сразу видит промокод — без колеса, над формой сообщения вам. Это тот же одноразовый код: кассир гасит его по ссылке, действуют те же сроки и «Один подарок на телефон раз в». Пусто — как раньше, обычный подарок под формой.</p>
+          <label>Подарок-извинение<input name="sorry_gift" maxlength="60" value="${esc(b.sorry_gift || "")}" placeholder="Десерт в подарок"></label>
         </fieldset>
         <p class="set-hint">Подарок не должен зависеть от отзыва — так требуют правила Яндекс Карт и 2ГИС. Не пишите «за отзыв».</p>
         <button class="set-save" type="submit">Сохранить</button>

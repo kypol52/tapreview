@@ -10,7 +10,7 @@ import { logEvent, sourceFrom, isBot } from "./analytics.js";
 import { guestOf, vipOn } from "./guests.js";
 import { has, hasModule } from "./tariffs.js";
 import { isExpired } from "./billing.js";
-import { bonusBlock } from "./bonus.js";
+import { bonusBlock, sorryOn, sorryCode, sorryHtml } from "./bonus.js";
 import { flowFrom, logRating, LIKES, PHONE_KEEP_DAYS, reasonLabels } from "./rating.js";
 import { makeCardTicket } from "./app-auth.js";
 import { serviceBlock, SERVICE_CSS } from "./service.js";
@@ -79,7 +79,7 @@ export const GIFT = `<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20"
 // Настройки бонуса для гостей (bonus.js, миграции 015, 023)
 export const BONUS_COLUMNS =
   "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions,bonus_daily_limit," +
-  "stamps_goal,stamps_prize,friend_gift,friend_reward,vip_visits,vip_gift,tariff," +
+  "stamps_goal,stamps_prize,friend_gift,friend_reward,vip_visits,vip_gift,tariff,sorry_gift," +
   // Баллы (points.js, миграция 045)
   "points_on,points_percent,points_max_share,points_expire_days,points_max_check";
 
@@ -255,6 +255,8 @@ export async function handleBusinessPage(request, env, ctx, slug) {
   const withMenu = has(business, "menu") && (await hasMenu(env, business.id))
     ? { ...business, menuUrl: `/menu/${business.slug}${source !== "direct" ? `?s=${source}` : ""}` }
     : business;
+  // Оценка 1–3 и подарок-извинение (миграция 050): код выдаём сразу — он будет над формой
+  if (business.rating_first && flow.score && flow.score <= 3) flow.sorry = await sorryCode(request, env, business, { source }).catch((e) => { console.error(`Подарок-извинение: ${e.message}`); return null; });
   return withGuestCookie(businessPage(withMenu, source, null, flow, guest), guest);
 }
 
@@ -409,6 +411,8 @@ export async function handleCardPage(request, env, ctx, rawCode) {
   if (menu) business = { ...business, menuUrl: `/menu/${business.slug}?c=${card.code}${source !== "direct" ? `&s=${source}` : ""}` };
   const service = serviceBlock(business, card, source, { menu }) ||
     (staff ? `<section class="svc"><p class="svc-place">Вас обслуживает: ${escapeHtml(staff.name)}</p></section>` : "");
+  // Оценка 1–3 и подарок-извинение (миграция 050): код выдаём сразу — он будет над формой
+  if (business.rating_first && flow.score && flow.score <= 3) flow.sorry = await sorryCode(request, env, business, { source, cardId: card.id }).catch((e) => { console.error(`Подарок-извинение: ${e.message}`); return null; });
   return withGuestCookie(businessPage(withStaffTips(business, staff), source, card.code, flow, guest, appLink, service), guest);
 }
 
@@ -712,6 +716,31 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
 
 // Сначала оценка (rating.js): карточка заведения → «Как вам у нас?» → площадки (4–5) или сообщение владельцу (1–3).
 // Площадки доступны при любой оценке, подарок — после любой оценки.
+// Форма 1–3: выбранные причины сразу пишутся в начало поля обычным текстом («Долго ждали, чистота. »),
+// гость дописывает подробности после них. Снял отметку — причина ушла из текста, своё гостя остаётся.
+// При отправке причины из текста убираются: владелец и так получает их отдельно, в тексте — только своё гостя
+const FB_SCRIPT = `(function () {
+  var f = document.getElementById("fb");
+  if (!f) return;
+  var t = f.querySelector("textarea"), auto = "";
+  function reasons() {
+    var on = Array.prototype.map.call(f.querySelectorAll(".why input:checked"), function (i, n) {
+      var s = i.nextElementSibling.textContent.trim();
+      return n ? s.toLowerCase() : s;
+    });
+    return on.length ? on.join(", ") + ". " : "";
+  }
+  f.addEventListener("change", function (e) {
+    if (!e.target.matches(".why input")) return;
+    var own = t.value.indexOf(auto) === 0 ? t.value.slice(auto.length) : t.value;
+    auto = reasons();
+    t.value = auto + own;
+  });
+  f.addEventListener("submit", function () {
+    if (auto && t.value.indexOf(auto.trim()) === 0) t.value = t.value.slice(auto.trim().length).trim();
+  });
+})();`;
+
 function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, wallet = "", discount, design, appLink, service = "", pointsHtml = "" }) {
   const base = new URLSearchParams();
   if (source !== "direct") base.set("s", source);
@@ -768,14 +797,15 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
     step = `
       <h2 class="thanks">Спасибо, что рассказали</h2>
       ${chosen}
+      ${sorryHtml(flow.sorry)}
       <p class="lead">Владелец уже получил ваше сообщение и разберётся. Будем рады видеть вас снова.</p>
-      ${flow.phoneLost ? `<p class="fb-warn">Номер не похож на российский, поэтому мы его не сохранили. Сообщение владелец получил.</p>` : ""}
-      ${publicLink("Оставить отзыв на картах")}`;
+      ${flow.phoneLost ? `<p class="fb-warn">Номер не похож на российский, поэтому мы его не сохранили. Сообщение владелец получил.</p>` : ""}`;
   } else {
-    // 2в. Оценка 1–3 — сообщение владельцу
+    // 2в. Оценка 1–3 — сообщение владельцу; поле и кнопка — после выбора причины
     step = `
       <h2 class="thanks">Нам жаль, что что-то пошло не так</h2>
       ${chosen}
+      ${sorryHtml(flow.sorry)}
       <p class="lead">Отметьте, что не так, — владелец получит сообщение сразу и разберётся.</p>
       ${flow.empty ? `<p class="fb-warn" role="alert">Отметьте причину или напишите пару слов.</p>` : ""}
       <form class="fb" id="fb" method="post" action="/feedback">
@@ -788,6 +818,8 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
         ${source !== "direct" ? `<input type="hidden" name="s" value="${escapeHtml(source)}">` : ""}
         <input type="hidden" name="r" value="${score}">
         <input class="fb-trap" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <!-- Остальная форма появляется после выбора причины (CSS :has); старые браузеры видят её сразу -->
+        <div class="fb-more">
         <textarea name="text" rows="3" maxlength="1000" placeholder="Расскажите подробнее (необязательно)" aria-label="Ваше сообщение"></textarea>
         <input class="fb-call-box" type="checkbox" name="call" value="1" id="fb-call">
         <label class="fb-call" for="fb-call">Перезвоните мне</label>
@@ -798,9 +830,11 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
         </div>
         <p class="fb-hint">Без отметки сообщение анонимное — имя и телефон в тексте не пишите.</p>
         <button class="fb-send" type="submit">Отправить владельцу</button>
-      </form>
-      ${publicLink("Оставить отзыв на картах")}`;
+        </div>
+      </form>`;
   }
+  // 1–3: сначала кнопка Telegram, под ней «Оставить отзыв на картах» (доступна при любой оценке — правило площадок)
+  const low = Boolean(score && score <= 3);
 
   // До оценки в карточке «Бонусы и подарки» только баллы (они про чек, а не про оценку) — внизу страницы.
   // После любой оценки — подарок со штампами, баллы и «Мои штампы и подарки» сразу под главным действием
@@ -811,7 +845,9 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
   const backHome = hub
     ? `<a class="hub-back" href="${link({})}" aria-label="Вернуться на главную" title="На главную"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>`
     : "";
-  const perks = perksCard({ gift: rated ? discount : "", points: pointsHtml });
+  // Подарок-извинение включён — при 1–3 колеса нет, код уже показан над формой
+  const sorryInstead = Boolean(score && score <= 3 && sorryOn(business));
+  const perks = perksCard({ gift: rated && !sorryInstead ? discount : "", points: pointsHtml });
   const tg = rated ? telegramBlock(wallet ? "/me-link" : "", appLink) : "";
 
   return renderPage({
@@ -822,6 +858,8 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
     design,
     // Оценка 1–3: подарок появляется позже (22 с), чтобы гость сначала спокойно написал владельцу
     extraCss: (score && score <= 3 ? ".bonus, .perks-late { animation-delay: 22s; }" : "") + (service ? SERVICE_CSS : ""),
+    // Скрипт только на шаге формы 1–3
+    script: score && score <= 3 && !sent && !all ? FB_SCRIPT : "",
     footer: { href: `/r/${business.slug}?s=card`, text: "Хочу такую карту" },
     body: `
       ${rated ? backHome : ""}
@@ -832,6 +870,7 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
       ${step}
       ${rated ? perks : ""}
       ${tg}
+      ${low ? `<div>${publicLink("Оставить отзыв на картах")}</div>` : ""}
       ${all || sent || score >= 4 ? momentBlock(business) : ""}
       ${rated ? "" : hub}`
   });
@@ -1148,6 +1187,12 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
     }
     .fb-send:active { transform: scale(0.98); }
     .fb-trap { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+    /* Поле, «Перезвоните мне» и кнопка — только после выбора причины */
+    .fb-more { animation: fb-in 0.25s ease both; }
+    @keyframes fb-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+    @supports selector(:has(*)) {
+      .fb:not(:has(.why input:checked)) .fb-more { display: none; }
+    }
     /* «Перезвоните мне»: поле телефона появляется только после отметки (без скриптов) */
     .fb-call-box { width: 20px; height: 20px; margin: 14px 8px 0 2px; vertical-align: -4px; accent-color: var(--accent); cursor: pointer; }
     .fb-call { font-size: 15px; font-weight: 650; cursor: pointer; }
@@ -1266,6 +1311,12 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
     .xlinks-fold .xlinks-grid { padding: 0 12px 12px; }
     .xlinks-fold .xlink { background: var(--card); }
 
+    /* Подарок-извинение при 1–3: сразу, над формой — крупный код для кассы */
+    .sorry { margin: 4px 0 20px; padding: 16px 16px 14px; border-radius: 18px; border: 1.5px dashed var(--gift-border); background: var(--gift-bg); }
+    .sorry-title { margin: 0 0 6px; color: var(--text); font-size: 14.5px; font-weight: 700; }
+    .sorry-prize { margin: 0; color: var(--text); font-size: 18px; font-weight: 700; line-height: 1.25; }
+    .sorry-code { margin: 8px 0 6px; color: var(--text); font-size: 34px; font-weight: 800; letter-spacing: 0.08em; font-variant-numeric: tabular-nums; }
+    .sorry-note { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.4; }
     /* Переходник под звёздами: плитки оплаты и чаевых, строка вызова, список ссылок — всё второстепенное, спокойного цвета */
     .hub { display: grid; gap: 10px; margin-top: 26px; text-align: left; }
     .hub-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

@@ -204,6 +204,45 @@ export async function handleBonus(request, env) {
 
 export const CODE_FIELDS = "code,prize,conditions,valid_from,valid_until,redeemed_at,created_at,stamp_reward,reward_kind,vip";
 
+// ---------- Извинение при оценке 1–3 (миграция 050) ----------
+// Владелец задаёт sorry_gift — недовольный гость сразу видит одноразовый код над формой, без колеса.
+// Защита та же, что у обычного подарка: только с карты, только с уже знакомого телефона (cookie с главного экрана),
+// один подарок на телефон за bonus_cooldown_days (если код уже был — показываем его же), dailyGuard.
+export function sorryOn(business) {
+  return Boolean(business.sorry_gift) && has(business, "gifts");
+}
+
+// → строка bonus_codes или null (выключено, не с карты, робот, лимит)
+export async function sorryCode(request, env, business, { source, cardId = null }) {
+  if (!sorryOn(business) || (source !== "nfc" && source !== "qr") || isBot(request)) return null;
+  const { deviceId, setCookie } = deviceFrom(request);
+  if (setCookie) return null; // телефон без метки — не выдаём (инкогнито, прямой заход на шаг оценки)
+  const visitorKey = await visitorKeyOf(env, deviceId, business.id);
+  const since = new Date(Date.now() - (business.bonus_cooldown_days || 30) * DAY).toISOString();
+  const existing = await db(
+    env,
+    `bonus_codes?business_id=eq.${business.id}&visitor_key=eq.${visitorKey}` +
+      `&created_at=gt.${encodeURIComponent(since)}&or=(reward_kind.is.null,reward_kind.eq.friend)&select=${CODE_FIELDS}` +
+      `&order=created_at.desc&limit=1`
+  );
+  if (existing.length) return existing[0];
+  const guard = await dailyGuard(request, env, business);
+  if (guard.blocked) return null;
+  return issueCode(env, business, { prize: business.sorry_gift, visitorKey, deviceDay: guard.deviceDay, cardId, extra: { sorry: true } });
+}
+
+// Блок над формой: подарок, крупный код, сроки
+export function sorryHtml(c) {
+  if (!c) return "";
+  return `
+    <section class="sorry" aria-label="Подарок на следующий визит">
+      <p class="sorry-title">🎁 Простите нас — подарок на следующий визит</p>
+      <p class="sorry-prize">${escapeHtml(c.prize)}</p>
+      <p class="sorry-code" aria-label="Код ${c.code.split("").join(" ")}">${formatCode(c.code)}</p>
+      <p class="sorry-note">${escapeHtml(validityText(c))}${c.conditions ? ` · ${escapeHtml(c.conditions)}` : ""}. Покажите код кассиру.</p>
+    </section>`;
+}
+
 // Защита от накрутки (миграция 023):
 //  1) один код в день с одного телефона, даже в инкогнито / после очистки cookie —
 //     по суточному обезличенному отпечатку «сеть + браузер» (IP не хранится);
