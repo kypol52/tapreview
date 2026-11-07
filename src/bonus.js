@@ -239,7 +239,7 @@ export function sorryHtml(c) {
       <p class="sorry-title">🎁 Простите нас — подарок на следующий визит</p>
       <p class="sorry-prize">${escapeHtml(c.prize)}</p>
       <p class="sorry-code" aria-label="Код ${c.code.split("").join(" ")}">${formatCode(c.code)}</p>
-      <p class="sorry-note">${escapeHtml(validityText(c))}${c.conditions ? ` · ${escapeHtml(c.conditions)}` : ""}. Покажите код кассиру.</p>
+      <p class="sorry-note">Покажите код кассиру. ${escapeHtml(validityText(c))}${c.conditions ? ` · ${escapeHtml(c.conditions)}` : ""}.</p>
     </section>`;
 }
 
@@ -416,10 +416,10 @@ function resultPage(business, c, { repeat, backUrl, wheel = null, stamps = null,
       <p class="br-kicker">${c.stamp_reward ? "Подарок за штампы" : c.reward_kind === "friend" ? "Подарок от друга" : c.vip ? "⭐ VIP-подарок" : repeat ? "Ваш подарок уже ждёт вас" : wheel ? "Ваш приз" : "Ваш подарок"}</p>
       <p class="br-prize">${escapeHtml(c.prize)}</p>
       <p class="br-code" aria-label="Код ${escapeHtml(c.code.split("").join(" "))}">${escapeHtml(formatCode(c.code))}</p>
+      <p class="br-hint">Покажите код на кассе. Сделайте скриншот, чтобы не потерять.</p>
       <p class="br-valid">${escapeHtml(validityText(c))}</p>
       ${c.conditions ? `<p class="br-cond">Условия: ${escapeHtml(c.conditions)}</p>` : ""}
       ${status}
-      <p class="br-hint">Покажите код на кассе. Сделайте скриншот, чтобы не потерять.</p>
       ${next}
     </div>`;
 
@@ -567,10 +567,10 @@ const BONUS_PAGE_CSS = `
     box-shadow: 0 0 0 1.5px #e2c46e inset; font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
     font-size: 30px; font-weight: 700; letter-spacing: 0.12em; user-select: all;
   }
-  .br-valid { margin: 0; font-size: 17px; font-weight: 700; }
+  .br-valid { margin: 10px 0 0; font-size: 17px; font-weight: 700; }
   .br-cond { margin: 6px 0 0; font-size: 14px; color: #6b7280; }
   .br-warn { margin: 10px 0 0; padding: 8px 10px; border-radius: 10px; background: #fdecec; color: #7f1d1d; font-size: 14px; }
-  .br-hint { margin: 10px 0 0; font-size: 15.5px; font-weight: 600; line-height: 1.4; color: inherit; }
+  .br-hint { margin: 0; font-size: 15.5px; font-weight: 600; line-height: 1.4; color: inherit; }
   .br-rules { margin: 14px 0 0; font-size: 12px; color: var(--muted); }
   .br-back { display: inline-block; margin-top: 14px; font-size: 14px; color: var(--text); text-underline-offset: 3px; }
   .br .stamps, .br ~ .stamps { margin-top: 16px; }
