@@ -1346,6 +1346,7 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
     .sorry-prize { margin: 0; color: var(--text); font-size: 18px; font-weight: 700; line-height: 1.25; }
     .sorry-code { margin: 8px 0 6px; color: var(--text); font-size: 34px; font-weight: 800; letter-spacing: 0.08em; font-variant-numeric: tabular-nums; }
     .sorry-note { margin: 0; color: var(--text); font-size: 15.5px; font-weight: 600; line-height: 1.4; }
+    .sorry-valid { margin: 4px 0 0; color: var(--text); font-size: 13px; line-height: 1.4; }
     /* Переходник под звёздами: плитки оплаты и чаевых, строка вызова, список ссылок — всё второстепенное, спокойного цвета */
     .hub { display: grid; gap: 10px; margin-top: 26px; text-align: left; }
     .hub-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

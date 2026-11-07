@@ -239,7 +239,8 @@ export function sorryHtml(c) {
       <p class="sorry-title">🎁 Простите нас — подарок на следующий визит</p>
       <p class="sorry-prize">${escapeHtml(c.prize)}</p>
       <p class="sorry-code" aria-label="Код ${c.code.split("").join(" ")}">${formatCode(c.code)}</p>
-      <p class="sorry-note">Покажите код кассиру. ${escapeHtml(validityText(c))}${c.conditions ? ` · ${escapeHtml(c.conditions)}` : ""}.</p>
+      <p class="sorry-note">Покажите код кассиру.</p>
+      <p class="sorry-valid">${escapeHtml(validityText(c))}${c.conditions ? ` · ${escapeHtml(c.conditions)}` : ""}.</p>
     </section>`;
 }
 
@@ -567,7 +568,7 @@ const BONUS_PAGE_CSS = `
     box-shadow: 0 0 0 1.5px #e2c46e inset; font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
     font-size: 30px; font-weight: 700; letter-spacing: 0.12em; user-select: all;
   }
-  .br-valid { margin: 10px 0 0; font-size: 17px; font-weight: 700; }
+  .br-valid { margin: 8px 0 0; font-size: 14px; font-weight: 500; }
   .br-cond { margin: 6px 0 0; font-size: 14px; color: #6b7280; }
   .br-warn { margin: 10px 0 0; padding: 8px 10px; border-radius: 10px; background: #fdecec; color: #7f1d1d; font-size: 14px; }
   .br-hint { margin: 0; font-size: 15.5px; font-weight: 600; line-height: 1.4; color: inherit; }
