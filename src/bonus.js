@@ -567,10 +567,10 @@ const BONUS_PAGE_CSS = `
     box-shadow: 0 0 0 1.5px #e2c46e inset; font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
     font-size: 30px; font-weight: 700; letter-spacing: 0.12em; user-select: all;
   }
-  .br-valid { margin: 0; font-size: 15px; font-weight: 600; }
+  .br-valid { margin: 0; font-size: 17px; font-weight: 700; }
   .br-cond { margin: 6px 0 0; font-size: 14px; color: #6b7280; }
   .br-warn { margin: 10px 0 0; padding: 8px 10px; border-radius: 10px; background: #fdecec; color: #7f1d1d; font-size: 14px; }
-  .br-hint { margin: 10px 0 0; font-size: 13px; color: #6b7280; }
+  .br-hint { margin: 10px 0 0; font-size: 15.5px; font-weight: 600; line-height: 1.4; color: inherit; }
   .br-rules { margin: 14px 0 0; font-size: 12px; color: var(--muted); }
   .br-back { display: inline-block; margin-top: 14px; font-size: 14px; color: var(--text); text-underline-offset: 3px; }
   .br .stamps, .br ~ .stamps { margin-top: 16px; }
@@ -585,7 +585,7 @@ const BONUS_PAGE_CSS = `
   .invite-wa { background: #25a244; }
   .invite-link { margin: 10px 0 0; padding: 9px 12px; border-radius: 10px; background: rgba(127,127,127,0.08); font-size: 13.5px; font-weight: 600; color: var(--text); overflow-wrap: anywhere; user-select: all; -webkit-user-select: all; }
   .invite-hint { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
-  .br-stamp-note { margin: 6px 0 0; font-size: 12.5px; color: var(--muted); }
+  .br-stamp-note { margin: 10px 0 0; font-size: 15.5px; font-weight: 600; line-height: 1.4; color: var(--text); }
   @media (prefers-reduced-motion: reduce) {
     .wheel { animation: none; transform: rotate(var(--end)); }
     .br-fade, .br-after-spin { animation: none; }
