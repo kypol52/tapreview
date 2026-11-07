@@ -736,8 +736,34 @@ const FB_SCRIPT = `(function () {
     auto = reasons();
     t.value = auto + own;
   });
+  // Телефон всегда начинается с +7: «+7 900 000-00-00», префикс не стирается
+  var p = f.querySelector("input[name=phone]");
+  function digits(v) {
+    var d = v.replace(/\\D/g, "");
+    if (/^\\s*\\+7/.test(v) || (d.length === 11 && /^[78]/.test(d))) d = d.slice(1);
+    // По привычке набрали «8 9…» после +7 — кодов 89x/79x нет, лишняя цифра
+    if (/^[78]9/.test(d)) d = d.slice(1);
+    return d.slice(0, 10);
+  }
+  function fmt(d) {
+    return "+7 " + d.slice(0, 3) + (d.length > 3 ? " " + d.slice(3, 6) : "") +
+      (d.length > 6 ? "-" + d.slice(6, 8) : "") + (d.length > 8 ? "-" + d.slice(8, 10) : "");
+  }
+  if (p) {
+    p.addEventListener("input", function () {
+      var before = digits(p.value.slice(0, p.selectionStart)).length, d = digits(p.value), v = fmt(d), pos = 3;
+      for (var n = 0; pos < v.length && n < before; pos++) if (/\\d/.test(v[pos])) n++;
+      p.value = v;
+      p.setSelectionRange(pos, pos);
+    });
+    p.addEventListener("focus", function () {
+      if (!p.value) p.value = "+7 ";
+      setTimeout(function () { if (p.selectionStart < 3) p.setSelectionRange(p.value.length, p.value.length); }, 0);
+    });
+  }
   f.addEventListener("submit", function () {
     if (auto && t.value.indexOf(auto.trim()) === 0) t.value = t.value.slice(auto.trim().length).trim();
+    if (p && !digits(p.value)) p.value = "";
   });
 })();`;
 
@@ -824,7 +850,7 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
         <input class="fb-call-box" type="checkbox" name="call" value="1" id="fb-call">
         <label class="fb-call" for="fb-call">Перезвоните мне</label>
         <div class="fb-phone">
-          <input type="tel" name="phone" inputmode="tel" autocomplete="tel" maxlength="20" placeholder="+7 900 000-00-00" aria-label="Ваш телефон">
+          <input type="tel" name="phone" inputmode="tel" autocomplete="tel" maxlength="20" value="+7 " placeholder="+7 900 000-00-00" aria-label="Ваш телефон">
           <p class="fb-consent">Отмечая «Перезвоните мне» и указывая номер, вы соглашаетесь, что ${escapeHtml(business.name)} позвонит вам по этому сообщению.
             Номер видит только владелец, он не уходит в рекламу и удаляется через ${PHONE_KEEP_DAYS} дней. <a href="/privacy/#guests" target="_blank" rel="noopener">Подробнее</a></p>
         </div>

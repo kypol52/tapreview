@@ -127,7 +127,8 @@ export async function handleFeedback(request, env, ctx) {
   const message = String(form.get("text") || "").replace(/\r\n?/g, "\n").trim().slice(0, MAX_TEXT);
   // Телефон — только если гость сам отметил «Перезвоните мне» (это и есть согласие); без отметки номер не берём
   const consent = form.get("call") === "1";
-  const rawPhone = consent ? String(form.get("phone") || "").trim() : "";
+  // Поле телефона заранее заполнено «+7 » — без остальных цифр считаем пустым
+  const rawPhone = consent && String(form.get("phone") || "").replace(/\D/g, "").length > 1 ? String(form.get("phone")).trim() : "";
   const phone = rawPhone ? normalizePhone(rawPhone) : null;
   if (rawPhone && !phone) back.set("np", "1");
   const location = `${cardCode ? `/c/${cardCode}` : `/b/${slug}`}?${back}`;
