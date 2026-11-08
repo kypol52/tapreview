@@ -8,7 +8,7 @@
 //   plus     Pro    1 990 ₽/мес, подключение 5 990 ₽ (до 50 карт) — + модули «Сервис в зале» и «AI» включены
 // Модули к Plus — по MODULE_PRICE ₽/мес каждый. Карта сверх пакета — EXTRA_CARD_PRICE ₽ разово.
 // Сеть: со второй точки подписка дешевле на NETWORK_DISCOUNT. Год = 10 месяцев, первый месяц бесплатно.
-// Early Partner (первые EARLY.seats заведений): подключение EARLY.connection ₽ (до EARLY.cards карт, «Свой дизайн»
+// Early Partner (первые EARLY.seats заведений): подключение бесплатно с 8.11.2026 (до EARLY.cards карт, «Свой дизайн»
 // в подарок), EARLY.monthly ₽/мес до конца EARLY.months-го месяца с функциями Plus.
 // Расчёт — orders.js orderTotals; те же цифры на главной, в калькуляторе /order/ и в оферте (п. 3.3–3.4).
 
@@ -23,7 +23,7 @@ export const EXTRA_CARD_PRICE = 199;
 export const MODULE_PRICE = 490;
 export const NETWORK_DISCOUNT = 0.2;
 export const YEAR_MONTHS = 10;
-export const EARLY = { connection: 1990, cards: 10, monthly: 490, months: 6, seats: 20 };
+export const EARLY = { connection: 0, cards: 10, monthly: 490, months: 6, seats: 20 };
 
 const LEVEL = { start: 0, standard: 1, plus: 2 };
 // С какого тарифа доступна функция

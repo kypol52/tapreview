@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TapReview для владельцев заведений</title>
+  <meta name="description" content="Карта для отзывов: довольные гости уходят в отзыв на Яндекс Картах и 2ГИС, недовольные сначала пишут вам. Первый месяц бесплатно.">
+  <meta name="theme-color" content="#0a2a5c">
+  <link rel="canonical" href="https://tapreview.ru/vladeltsam/">
+  <link rel="icon" type="image/png" href="/assets/favicon.png">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <meta property="og:title" content="TapReview — месяц бесплатно для вашего заведения">
+  <meta property="og:description" content="Довольные гости — в отзыв на картах. Недовольные — сначала к вам. Ставлю карты сам, через месяц показываю цифры.">
+  <meta property="og:image" content="https://tapreview.ru/assets/og.png">
+  <link rel="preload" href="/fonts/montserrat-var-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
+
+  <style>
+    /* Montserrat (OFL, см. fonts/OFL-Montserrat.txt) — как на главной */
+    @font-face {
+      font-family: "Montserrat";
+      src: url("/fonts/montserrat-var-cyrillic.woff2") format("woff2");
+      font-weight: 500 800;
+      font-display: swap;
+      unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+    }
+    @font-face {
+      font-family: "Montserrat";
+      src: url("/fonts/montserrat-var-latin.woff2") format("woff2");
+      font-weight: 500 800;
+      font-display: swap;
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+    }
+
+    :root {
+      --navy: #0a2a5c;
+      --gold: #e5aa0c;
+      --ink: #1b2236;
+      --muted: #5d6475;
+      --line: #e3e6ee;
+      --soft: #f4f6fa;
+      --green: #1f8a4c;
+      --red: #c2410c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #fff;
+      color: var(--ink);
+      font-family: "Montserrat", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      font-weight: 500;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--navy); }
+    .wrap { width: min(640px, 100%); margin: 0 auto; padding: 0 16px; }
+
+    .header { border-bottom: 1px solid var(--line); }
+    .header .wrap { display: flex; align-items: center; height: 64px; }
+    .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 700; font-size: 19px; color: var(--navy); }
+    .logo-mark { position: relative; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--navy); color: #fff; font-size: 13px; font-weight: 700; }
+    .logo-mark svg { position: absolute; top: 5px; right: 4px; width: 10px; height: 10px; }
+
+    .hero { padding: 32px 0 8px; }
+    .kicker { margin: 0 0 10px; color: #b58200; font-size: 12px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; }
+    h1 { margin: 0 0 14px; font-size: clamp(27px, 7vw, 38px); line-height: 1.15; font-weight: 800; color: var(--navy); text-wrap: balance; }
+    h1 span { color: #b58200; }
+    .lead { margin: 0; font-size: 16px; color: var(--muted); }
+
+    h2 { margin: 36px 0 14px; font-size: 20px; line-height: 1.3; font-weight: 700; color: var(--navy); }
+
+    .flow { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+    .flow li { display: grid; grid-template-columns: 36px 1fr; gap: 12px; align-items: start; padding: 14px 16px; border: 1px solid var(--line); border-radius: 16px; }
+    .flow .n { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--soft); color: var(--navy); font-weight: 700; }
+    .flow b { display: block; color: var(--navy); }
+    .flow p { margin: 2px 0 0; font-size: 14.5px; color: var(--muted); }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .split div { padding: 12px 14px; border-radius: 14px; font-size: 14px; }
+    .split .good { background: #eaf6ef; }
+    .split .bad { background: #fdf0e8; }
+    .split strong { display: block; font-size: 15px; }
+    .split .good strong { color: var(--green); }
+    .split .bad strong { color: var(--red); }
+
+    .gets { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; }
+    .gets li { position: relative; padding-left: 28px; font-size: 15px; }
+    .gets li::before { content: ""; position: absolute; left: 4px; top: 7px; width: 10px; height: 10px; border-radius: 3px; background: var(--gold); transform: rotate(45deg); }
+    .gets b { color: var(--navy); }
+
+    .offer { margin: 36px 0 0; padding: 24px 20px; border-radius: 20px; background: var(--navy); color: #fff; }
+    .offer h2 { margin: 0 0 6px; color: #fff; font-size: 24px; }
+    .offer h2 span { color: var(--gold); }
+    .offer ul { margin: 14px 0 18px; padding: 0; list-style: none; display: grid; gap: 8px; }
+    .offer li { position: relative; padding-left: 26px; font-size: 15px; }
+    .offer li::before { content: "✓"; position: absolute; left: 2px; color: var(--gold); font-weight: 700; }
+    .offer .price { margin: 0 0 18px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.18); font-size: 14px; color: #c9d3e6; }
+    .offer .price b { color: #fff; }
+    .btn { display: block; padding: 15px 18px; border-radius: 999px; background: var(--gold); color: var(--navy); font-weight: 700; font-size: 16px; text-align: center; text-decoration: none; }
+    .btn:hover { filter: brightness(1.05); }
+    .btn-ghost { margin-top: 10px; background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.35); }
+
+    .fair { margin: 28px 0 0; padding: 16px 18px; border-radius: 16px; background: var(--soft); font-size: 14px; color: var(--muted); }
+    .fair b { color: var(--ink); }
+
+    .footer { margin-top: 40px; padding: 24px 0 36px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+    .footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 16px; }
+    .footer a { font-weight: 600; text-decoration: none; }
+
+    @media (max-width: 380px) { .split { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="wrap">
+      <a class="logo" href="/" aria-label="TapReview — на главную">
+        <span class="logo-mark">TR<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 5.2a4 4 0 0 1 4 4M2 1.6a7.6 7.6 0 0 1 7.6 7.6" fill="none" stroke="#e5aa0c" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+        TapReview
+      </a>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <p class="kicker">Для владельцев заведений</p>
+      <h1>Довольные гости — в отзыв. <span>Недовольные — сначала к вам.</span></h1>
+      <p class="lead">Карта с NFC и QR на стойке или столе. Гость прикладывает телефон, ставит оценку и в одно касание попадает на Яндекс Карты или 2ГИС.</p>
+    </section>
+
+    <h2>Как это работает</h2>
+    <ol class="flow">
+      <li><span class="n">1</span><div><b>Гость касается карты</b><p>Телефоном или камерой по QR. Приложение не нужно.</p></div></li>
+      <li><span class="n">2</span><div><b>Ставит оценку от 1 до 5</b><p>Одно нажатие, без регистрации.</p>
+        <div class="split">
+          <div class="good"><strong>4–5 ★</strong>Сразу видит кнопки Яндекс Карт и 2ГИС</div>
+          <div class="bad"><strong>1–3 ★</strong>Может написать вам — сообщение придёт в Telegram</div>
+        </div></div></li>
+      <li><span class="n">3</span><div><b>Вы видите цифры</b><p>Сколько гостей открыли страницу, оценили и перешли к отзыву. Отчёт раз в неделю в Telegram.</p></div></li>
+    </ol>
+
+    <h2>Что вы получаете</h2>
+    <ul class="gets">
+      <li><b>Жалобы в тот же день</b> — успеваете исправить, пока гость не ушёл писать на Карты.</li>
+      <li><b>Отзыв без поиска</b> — гостю не нужно искать вас в приложении, кнопка уже открыта.</li>
+      <li><b>Статистика</b> — видно, работает ли карта и где она стоит лучше: стойка, столы, касса.</li>
+      <li><b>Ссылки меняются без перепечатки</b> — переехали или сменили карточку на Картах, карта продолжит работать.</li>
+    </ul>
+
+    <section class="offer">
+      <h2>Первый месяц — <span>бесплатно</span></h2>
+      <ul>
+        <li>Привожу и ставлю карты сам, всё настраиваю</li>
+        <li>Через месяц показываю цифры по вашему заведению</li>
+        <li>Не подошло — забираю карты, вы ничего не платите</li>
+      </ul>
+      <p class="price">Первым 20 заведениям <b>подключение бесплатно</b>. Если оставляете — <b>490 ₽ в месяц</b> первые полгода, дальше по тарифу.</p>
+      <a class="btn" href="https://t.me/tapreview_ru">Написать в Telegram</a>
+      <a class="btn btn-ghost" href="/b/yarik">Посмотреть, что видит гость</a>
+    </section>
+
+    <p class="fair"><b>Честно по правилам Яндекса и 2ГИС.</b> Мы не платим за отзывы и не прячем Карты от недовольных: оставить отзыв может любой гость. Отзыв пишет настоящий гость со своего аккаунта.</p>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <span>© 2026 TapReview · Отзывы в одно касание</span>
+      <span><a href="/">Главная</a> · <a href="/oferta/">Оферта</a> · <a href="/privacy/">Политика</a></span>
+    </div>
+  </footer>
+</body>
+</html>
