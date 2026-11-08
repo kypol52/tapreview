@@ -1203,13 +1203,14 @@ async function adminStats(env, url) {
   });
 }
 
-// Пользователи Mini App: внутренний номер (не Telegram ID), даты, отзывы по статусам, жалобы от пользователя
+// Пользователи Mini App: внутренний номер и Telegram ID (только в админке), даты, отзывы по статусам, жалобы от пользователя
 async function adminUsers(env, url) {
-  const q = String(url.searchParams.get("q") || "").replace(/[^0-9]/g, "");
+  const q = String(url.searchParams.get("q") || "").replace(/[^0-9]/g, "").slice(0, 18);
   const filter = url.searchParams.get("filter") || "all";
   const offset = Math.max(0, Math.floor(Number(url.searchParams.get("offset")) || 0));
-  let path = "app_users?select=id,created_at,last_seen_at,banned_at,ban_reason,notify";
-  if (q) path += `&id=eq.${q}`;
+  let path = "app_users?select=id,tg_id,created_at,last_seen_at,banned_at,ban_reason,notify";
+  // Поиск по внутреннему номеру или по Telegram ID
+  if (q) path += `&or=(id.eq.${q},tg_id.eq.${q})`;
   if (filter === "banned") path += "&banned_at=not.is.null";
   let rows;
   if (filter === "reviewers" && !q) {
@@ -1236,6 +1237,7 @@ async function adminUsers(env, url) {
       const mine = revs.filter((r) => r.user_id === u.id);
       return {
         id: u.id,
+        tgId: String(u.tg_id),
         created: u.created_at,
         lastSeen: u.last_seen_at,
         banned: Boolean(u.banned_at),

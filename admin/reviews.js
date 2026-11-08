@@ -264,7 +264,13 @@ async function loadMiniAppUsers(more = false) {
     const rows = data.users.map((u) => {
       const tr = document.createElement("tr");
       const who = el("td");
-      who.append(el("div", "cell-name", `#${u.id}${u.notify ? " · 🔔" : ""}`), el("div", "cell-sub", `с ${new Date(u.created).toLocaleDateString("ru-RU")}`));
+      // Telegram ID — ссылка tg://user?id=… открывает профиль в Telegram (если человек не скрыл его настройками)
+      const tgLink = el("a", null, `TG ${u.tgId}`);
+      tgLink.href = `tg://user?id=${encodeURIComponent(u.tgId)}`;
+      tgLink.title = "Открыть профиль в Telegram";
+      const tgLine = el("div", "cell-sub");
+      tgLine.append(tgLink);
+      who.append(el("div", "cell-name", `#${u.id}${u.notify ? " · 🔔" : ""}`), tgLine, el("div", "cell-sub", `с ${new Date(u.created).toLocaleDateString("ru-RU")}`));
       if (u.banned) who.append(el("div", "cell-gaps", `Заблокирован${u.banReason ? `: ${u.banReason}` : ""}`));
       const rv = u.reviews;
       const act = el("td", "cell-actions");
