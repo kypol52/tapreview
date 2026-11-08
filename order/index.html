@@ -239,7 +239,7 @@
 
             <label class="design-opt early-opt">
               <input type="checkbox" id="early" name="early">
-              <span><b>Early Partner — для первых 20 заведений</b>Подключение бесплатно с 10 картами и «Своим дизайном», 490 ₽ в месяц первые полгода — с функциями Plus. Одно заведение, оплата помесячно.</span>
+              <span><b>Early Partner — для первых 20 заведений</b>Подключение бесплатно с 5 картами и «Своим дизайном», каждая карта сверх — 150 ₽, 490 ₽ в месяц первые полгода — с функциями Plus. Одно заведение, оплата помесячно.</span>
             </label>
 
             <div class="seg seg-3" role="radiogroup" aria-label="Тариф" id="tariff-seg">
@@ -395,12 +395,12 @@
         plus: { label: "Pro", base: 1990, connection: 5990, cards: 50 }
       };
       var PRICES = { extraCard: 199, module: 490, network: 0.2, yearMonths: 10, design: 990 };
-      var EARLY = { connection: 0, cards: 10, monthly: 490 };
+      var EARLY = { connection: 0, cards: 5, extraCard: 150, monthly: 490 };
       function totals(o) {
         var extra, connection, monthly;
         if (o.early) {
           extra = Math.max(0, o.cards - EARLY.cards);
-          connection = EARLY.connection + extra * PRICES.extraCard;
+          connection = EARLY.connection + extra * EARLY.extraCard;
           monthly = EARLY.monthly + o.modules.length * PRICES.module;
           return { extra: extra, connection: connection, design: 0, monthly: monthly, subscription: monthly, now: connection, next: monthly };
         }
@@ -478,7 +478,7 @@
         document.getElementById("modules-box").hidden = !(t === "standard" || isEarly);
         document.getElementById("custom-design").disabled = isEarly;
         document.getElementById("cards-note").textContent = "В подключение входит " + included + " " + plural(included, "карта", "карты", "карт") +
-          ", каждая сверх — 199 ₽";
+          ", каждая сверх — " + (isEarly ? EARLY.extraCard : PRICES.extraCard) + " ₽";
         document.getElementById("s-conn-note").textContent = label + " · " + cards + " " + plural(cards, "карта", "карты", "карт") +
           (r.extra ? " (" + r.extra + " сверх пакета)" : "") + (isEarly ? " · «Свой дизайн» в подарок" : "");
         document.getElementById("s-conn").textContent = r.connection ? rub(r.connection) : "бесплатно";

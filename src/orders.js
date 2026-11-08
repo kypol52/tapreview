@@ -22,7 +22,7 @@ import { TARIFFS, DESIGN_PRICE, EXTRA_CARD_PRICE, MODULE_PRICE, MODULE_KEYS, NET
 // Подключение — за заведение, в него входит пакет карт (5 / 20 / 50); каждая карта сверх пакетов — 199 ₽ разово.
 // К Plus — модули «Сервис в зале» и «AI» по 490 ₽ в месяц за точку (в Pro включены).
 // Год = 10 месяцев, первый месяц подписки бесплатно, «Свой дизайн» — разово 990 ₽.
-// Early Partner: одно заведение, функции Plus, подключение бесплатно с 10 картами и «Своим дизайном»,
+// Early Partner: одно заведение, функции Plus, подключение бесплатно с 5 картами (сверх — 150 ₽) и «Своим дизайном»,
 // 490 ₽/мес (+ модули) до конца 6-го месяца, оплата помесячно.
 export const PRICES = { yearMonths: YEAR_MONTHS, trialMonths: 1 };
 
@@ -236,7 +236,7 @@ export function orderTotals({ venues = 1, cards, plan, tariff = "standard", cust
   const n = Math.max(v, cards);
   if (early) {
     const extra = Math.max(0, n - EARLY.cards);
-    const connection = EARLY.connection + extra * EXTRA_CARD_PRICE;
+    const connection = EARLY.connection + extra * EARLY.extraCard;
     const monthly = EARLY.monthly + modules.length * MODULE_PRICE;
     return { connection, design: 0, extra, monthly, subscription: monthly, now: connection, next: monthly };
   }
