@@ -250,7 +250,7 @@ function menuBody(b, items, { ordering, card, source, back, empty }) {
         <label class="mn-comment">Комментарий (необязательно)<textarea name="comment" rows="2" maxlength="200" placeholder="Например: без сахара, принести сразу"></textarea></label>
         <div class="mn-bar">
           <span class="mn-total" aria-live="polite">Выберите блюда</span>
-          <button class="mn-send" type="submit">Отправить официанту</button>
+          <button class="mn-send" type="submit">Отправить<span class="mn-send-to"> официанту</span></button>
         </div>
         <p class="mn-note">Оплата — официанту, как обычно. Заказ увидит персонал заведения.</p>
       </form>
@@ -286,8 +286,11 @@ export const MENU_CSS = `
   .mn-comment textarea { padding: 10px 12px; border-radius: 14px; border: 1px solid var(--btn-border); background: var(--btn-bg); color: var(--text); font: inherit; font-size: 16px; }
   .mn-bar { position: sticky; bottom: 10px; display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 10px 10px 10px 16px;
     border-radius: 999px; background: var(--text); color: var(--card); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25); }
-  .mn-total { font-weight: 700; font-size: 14px; white-space: nowrap; }
-  .mn-send { flex: none; padding: 11px 16px; border-radius: 999px; border: 0; background: var(--accent); color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+  /* Сумма видна всегда (переносится, а не обрезается); на узком телефоне кнопка — просто «Отправить» */
+  .mn-total { flex: 1; min-width: 0; font-weight: 700; font-size: 14px; line-height: 1.25; }
+  .mn-send { flex: none; padding: 11px 16px; border-radius: 999px; border: 0; background: var(--accent); color: #fff; font: inherit; font-weight: 700;
+    white-space: nowrap; cursor: pointer; }
+  @media (max-width: 440px) { .mn-send-to { display: none; } }
   .mn-note { margin: 10px 0 0; color: var(--muted); font-size: 12px; }
   .mn-back { display: inline-block; margin-top: 14px; color: var(--muted); font-size: 14px; }
   .mn-lines { list-style: none; margin: 10px 0; padding: 0; text-align: left; }
