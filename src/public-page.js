@@ -71,9 +71,6 @@ const ARROW = `<svg class="arrow" viewBox="0 0 24 24" aria-hidden="true"><path d
 
 const STAR = `<svg viewBox="0 0 24 24"><path d="M12 2.6l2.9 6 6.6.8-4.9 4.6 1.3 6.5L12 17.3l-5.9 3.2 1.3-6.5L2.5 9.4l6.6-.8z"/></svg>`;
 
-const HEART = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7a4.3 4.3 0 0 1 7.5 2.8C19.5 15.4 12 20 12 20z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
-
-const EXTERNAL = `<svg class="ext" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 16 16 8M9.5 8H16v6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
 export const GIFT = `<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="20" fill="#f0b43c"/><g fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"><rect x="11" y="17" width="18" height="12" rx="1.5"/><path d="M10 13.5h20v3.5H10zM20 13.5V29"/><path d="M20 13.5c-1.5-3.5-6-4-6-1.2 0 1.5 2.5 1.2 6 1.2zM20 13.5c1.5-3.5 6-4 6-1.2 0 1.5-2.5 1.2-6 1.2z" stroke-linecap="round"/></g></svg>`;
 
@@ -999,13 +996,13 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
   const t = THEMES[theme] || THEMES.classic;
   const nonce = script ? btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16)))) : "";
   if (design) extraCss = designCss(design) + extraCss;
-  const footerHtml = footer
-    ? `<a class="footer footer-cta-btn" href="${escapeHtml(footer.href)}" rel="nofollow">
+  // Внизу всегда зелёная кнопка «Работает на TapReview»; на страницах без заведения (карта отключена, не найдена) — на главную
+  const cta = footer || { href: "/", text: "Хочу такую карту" };
+  const footerHtml = `<a class="footer footer-cta-btn" href="${escapeHtml(cta.href)}" rel="nofollow">
         <span class="footer-mark" aria-hidden="true">TR</span>
-        <span class="footer-copy"><span class="footer-small">Работает на TapReview</span><span class="footer-big">${escapeHtml(footer.text)}</span></span>
+        <span class="footer-copy"><span class="footer-small">Работает на TapReview</span><span class="footer-big">${escapeHtml(cta.text)}</span></span>
         <svg class="footer-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </a>`
-    : `<a class="footer" href="${TELEGRAM_URL}" target="_blank" rel="noopener">${HEART}<span class="footer-text">TapReview</span>${EXTERNAL}</a>`;
+      </a>`;
   const html = `<!DOCTYPE html>
 <html lang="ru">
 <head>
