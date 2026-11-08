@@ -32,7 +32,8 @@ const state = {
   orderFilter: "open",
   editingCard: null,
   pendingCardCode: null, // карта, которую нужно открыть после загрузки (?card=КОД)
-  tg: null // состояние Telegram-бота (загружается один раз)
+  tg: null, // состояние Telegram-бота (загружается один раз)
+  appConfig: null // имя бота и приложения Mini App — для ссылок персонала в Telegram
 };
 
 const $ = (id) => document.getElementById(id);
@@ -2107,12 +2108,14 @@ async function loadStaffLinks(business) {
   $("staff-list").replaceChildren();
   $("team-list").replaceChildren();
   try {
-    // Сотрудники и карты заведения нужны и для выбора «Чья ссылка»
-    const [rows, team, cards] = await Promise.all([
+    // Сотрудники и карты заведения нужны и для выбора «Чья ссылка»; имя бота приложения — для ссылки в Telegram
+    const [rows, team, cards, appConfig] = await Promise.all([
       api(`/api/admin/businesses/${business.id}/staff-links`),
       api(`/api/admin/businesses/${business.id}/staff`),
-      api("/api/admin/cards")
+      api("/api/admin/cards"),
+      state.appConfig ? Promise.resolve(state.appConfig) : fetch("/api/app/config").then((r) => r.json()).catch(() => null)
     ]);
+    state.appConfig = appConfig;
     if (state.editing !== business) return;
     state.team = team;
     renderTeam(business, team, cards.filter((c) => c.business_id === business.id && c.is_active && !c.is_table));
@@ -2301,6 +2304,26 @@ function renderStaffLinks(business, rows) {
         callsRow.append(callsInput, callsCopy, callsOpen);
       }
 
+      // Та же ссылка в Telegram-приложении (раздел «Работа»): отправьте её официанту, он нажмёт «Подключить»
+      let tgRow = null;
+      const app = state.appConfig;
+      if (app && app.bot && app.app) {
+        const tgUrl = `https://t.me/${app.bot}/${app.app}?startapp=k_${link.token}`;
+        tgRow = el("div", "link-row");
+        const tgInput = el("input");
+        tgInput.type = "text";
+        tgInput.readOnly = true;
+        tgInput.value = tgUrl;
+        const tgCopy = el("button", "btn btn-secondary", "Копировать");
+        tgCopy.type = "button";
+        tgCopy.addEventListener("click", () => copyText(tgUrl));
+        const tgOpen = el("a", "btn btn-secondary", "Telegram");
+        tgOpen.href = tgUrl;
+        tgOpen.target = "_blank";
+        tgOpen.rel = "noopener noreferrer";
+        tgRow.append(tgInput, tgCopy, tgOpen);
+      }
+
       const meta = el(
         "span",
         "sl-meta",
@@ -2345,7 +2368,7 @@ function renderStaffLinks(business, rows) {
           showError("staff-error", error.message);
         }
       });
-      li.append(row, ...(callsRow ? [callsRow] : []), ...((state.team || []).length ? [owner] : []), meta, remove);
+      li.append(row, ...(callsRow ? [callsRow] : []), ...(tgRow ? [tgRow] : []), ...((state.team || []).length ? [owner] : []), meta, remove);
       return li;
     })
   );
