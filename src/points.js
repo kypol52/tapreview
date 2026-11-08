@@ -290,7 +290,7 @@ async function pointsDesk(request, env, { ids, base, back, by, staffId, onUse })
   }
 }
 
-async function findCode(env, code, businessIds) {
+export async function findCode(env, code, businessIds) {
   if (!/^[0-9]{6}$/.test(code)) return null;
   const rows = await db(
     env,
@@ -322,7 +322,7 @@ function result(kind, title, text) {
 }
 
 // Списание и начисление по одному коду
-async function operate(env, b, found, balance, form, { by, staffId }) {
+export async function operate(env, b, found, balance, form, { by, staffId }) {
   const check = Number(form.get("check"));
   const spend = form.get("spend") === null || form.get("spend") === "" ? 0 : Number(form.get("spend"));
   if (!Number.isInteger(check) || check < 1) throw new PointsError("Укажите сумму чека в рублях");

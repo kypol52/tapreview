@@ -14,6 +14,7 @@ import { bonusBlock, sorryOn, sorryCode, sorryHtml } from "./bonus.js";
 import { flowFrom, logRating, LIKES, PHONE_KEEP_DAYS, reasonLabels } from "./rating.js";
 import { makeCardTicket } from "./app-auth.js";
 import { serviceBlock, SERVICE_CSS } from "./service.js";
+import { payOn } from "./pay.js";
 import { staffOfCard, withStaffTips } from "./staff.js";
 import { pointsBlock, POINTS_CSS } from "./points.js";
 import { hasMenu } from "./menu.js";
@@ -86,7 +87,7 @@ export const BONUS_COLUMNS =
 const BUSINESS_COLUMNS =
   "id,slug,name,tagline,category,logo_url,brand_color,google_url,yandex_url,twogis_url," +
   "discount_code,discount_text,paid_until,theme,design,extra_links,rating_first,moment," +
-  "catalog_visible,app_button,modules," + BONUS_COLUMNS;
+  "catalog_visible,app_button,modules,pay_on," + BONUS_COLUMNS;
 
 // Ссылки заведения под кнопками отзывов (миграция 020): меню, каталог, услуги…
 // Значки — тонкие линии в цвете текста темы, чтобы не спорить с логотипами площадок
@@ -195,7 +196,9 @@ function hubBlock(business, { service = "", points = "" } = {}) {
   const links = has(business, "links")
     ? (Array.isArray(business.extra_links) ? business.extra_links : []).filter((l) => l && isHttpsUrl(l.url))
     : [];
-  const tiles = [...links.filter((l) => l.type === "pay"), ...links.filter((l) => l.type === "tips")];
+  // Своя оплата счёта по СБП (pay.js) заменяет ссылку заведения «Оплатить счёт»
+  const payTiles = business.payUrl ? [{ type: "pay", url: business.payUrl, own: true }] : links.filter((l) => l.type === "pay");
+  const tiles = [...payTiles, ...links.filter((l) => l.type === "tips")];
   const rows = links.filter((l) => l.type !== "pay" && l.type !== "tips");
   if (business.menuUrl && !rows.some((l) => l.type === "menu")) rows.unshift({ type: "menu", url: business.menuUrl, own: true });
   if (!tiles.length && !rows.length && !service && !points) return "";
@@ -409,7 +412,10 @@ export async function handleCardPage(request, env, ctx, rawCode) {
   // Своё меню (menu.js): кнопка «Меню» на странице и «Меню и заказ» у стола
   const menu = has(business, "menu") && (await hasMenu(env, business.id));
   if (menu) business = { ...business, menuUrl: `/menu/${business.slug}?c=${card.code}${source !== "direct" ? `&s=${source}` : ""}` };
-  const service = serviceBlock(business, card, source, { menu }) ||
+  // Оплата счёта со стола (pay.js): плитка «Оплатить счёт» ведёт на вызов «счёт» → страница оплаты
+  const pay = payOn(env, business, card, source);
+  if (pay) business = { ...business, payUrl: `/call?c=${card.code}&t=bill&s=${source}` };
+  const service = serviceBlock(business, card, source, { menu, pay }) ||
     (staff ? `<section class="svc"><p class="svc-place">Вас обслуживает: ${escapeHtml(staff.name)}</p></section>` : "");
   // Оценка 1–3 и подарок-извинение (миграция 050): код выдаём сразу — он будет над формой
   if (business.rating_first && flow.score && flow.score <= 3) flow.sorry = await sorryCode(request, env, business, { source, cardId: card.id }).catch((e) => { console.error(`Подарок-извинение: ${e.message}`); return null; });

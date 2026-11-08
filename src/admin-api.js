@@ -30,6 +30,7 @@
 //   POST   /api/admin/businesses/:id/staff-links     — создать { label }
 //   DELETE /api/admin/staff-links/:token             — отключить
 //   GET    /api/admin/businesses/:id/bonus-stats     — подарки за 30 дней: выдано / погашено
+//   GET    /api/admin/businesses/:id/pay-fee         — сервисный сбор оплат по QR: прошлый и текущий месяц (pay.js)
 //   GET    /api/admin/orders                         — заявки с сайта (/order/)
 //   POST   /api/admin/orders                         — добавить контакт вручную
 //   PATCH  /api/admin/orders/:id                     — воронка { status, next_step, next_at, note }
@@ -57,6 +58,7 @@ import { billingState, formatDay } from "./billing.js";
 import { TARIFF_KEYS, MODULE_KEYS } from "./tariffs.js";
 import { handleAppAdmin } from "./app-api.js";
 import { listStaff, createStaff, updateStaff, setStaffCard, StaffError } from "./staff.js";
+import { feeMonths } from "./pay.js";
 
 import { cleanPoints, PointsError } from "./points.js";
 import { aiConfigured, monthUsage, aiPing } from "./ai.js";
@@ -91,7 +93,7 @@ const ADMIN_COLUMNS =
   "paid_until,monthly_price,billing_note," +
   "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions,bonus_daily_limit," +
   "stamps_goal,stamps_prize,friend_gift,friend_reward,vip_visits,vip_gift,sorry_gift," +
-  "referred_by,ref_reward_at,theme,design,extra_links,rating_first,moment,tariff,modules," +
+  "referred_by,ref_reward_at,theme,design,extra_links,rating_first,moment,tariff,modules,pay_on," +
   "points_on,points_percent,points_max_share,points_expire_days,points_max_check," +
   "catalog_visible,catalog_since,catalog_consent_at,description,city,photos,app_button,lat,lon," +
   "created_at,updated_at";
@@ -348,6 +350,10 @@ export async function handleApi(request, env, url) {
         return json({ deleted: true });
       }
 
+      const payFeeMatch = path.match(/^\/api\/admin\/businesses\/(\d{1,18})\/pay-fee$/);
+      if (payFeeMatch && method === "GET") {
+        return json(await feeMonths(env, [Number(payFeeMatch[1])]));
+      }
       const bonusStatsMatch = path.match(/^\/api\/admin\/businesses\/(\d{1,18})\/bonus-stats$/);
       if (bonusStatsMatch && method === "GET") {
         return json(await bonusCounts(env, [Number(bonusStatsMatch[1])], 30));
@@ -746,6 +752,8 @@ function validateBusiness(input) {
     ...pointsFields(input),
     // Модули сверх тарифа (миграция 042): только известные ключи, без повторов
     modules: [...new Set((Array.isArray(input.modules) ? input.modules : []).filter((m) => MODULE_KEYS.includes(m)))],
+    // Оплата счёта со стола по СБП (pay.js, миграция 051)
+    pay_on: input.pay_on === true,
     moment: cleanMoment(input.moment),
     // Каталог Mini App (миграция 034): показывать только с согласия заведения
     catalog_visible: input.catalog_visible === true,

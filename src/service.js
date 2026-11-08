@@ -20,6 +20,7 @@ import { isExpired } from "./billing.js";
 import { renderPage, escapeHtml, customDesign, DEFAULT_ACCENT } from "./public-page.js";
 import { html, esc, notFound, TOKEN_RE } from "./stats-page.js";
 import { tg } from "./telegram.js";
+import { payOn, issueBill, activeBills, closeBill, parseRub, rub } from "./pay.js";
 
 export const CALL_KINDS = {
   waiter: { label: "Позвать официанта", icon: "🙋", tg: "зовут официанта", staff: "Зовут официанта" },
@@ -48,7 +49,8 @@ export function callsOn(business, card, source) {
 // ---------- Блок на странице стола ----------
 
 // menu — у заведения есть меню (menu.js): под кнопками вызова — «Меню и заказ»
-export function serviceBlock(business, card, source, { menu = false } = {}) {
+// pay — включена оплата счёта (pay.js): вместо меню «одним / разделить» — одна кнопка «Счёт и оплата»
+export function serviceBlock(business, card, source, { menu = false, pay = false } = {}) {
   if (!callsOn(business, card, source)) return "";
   const menuLink = menu
     ? `<a class="svc-menu" href="${escapeHtml(`/menu/${business.slug}?c=${card.code}&s=${source}`)}">📖 Меню и заказ</a>`
@@ -64,14 +66,14 @@ export function serviceBlock(business, card, source, { menu = false } = {}) {
       <p class="svc-place">${escapeHtml(placeOf(card))}</p>
       <div class="svc-row">
         <a class="svc-btn" href="${href("waiter")}" rel="nofollow"><span class="svc-icon" aria-hidden="true">${CALL_KINDS.waiter.icon}</span>${CALL_KINDS.waiter.label}</a>
-        <details class="svc-bill">
+        ${pay ? `<a class="svc-btn" href="${href("bill")}" rel="nofollow"><span class="svc-icon" aria-hidden="true">💳</span>Счёт и оплата</a>` : `<details class="svc-bill">
           <summary class="svc-btn"><span class="svc-icon" aria-hidden="true">${CALL_KINDS.bill.icon}</span>${CALL_KINDS.bill.label}</summary>
           <div class="svc-bill-menu">
             <a class="svc-split svc-split-one" href="${href("bill", 1)}" rel="nofollow">Одним счётом</a>
             <p class="svc-bill-q">Разделить счёт</p>
             <div class="svc-splits">${splits}</div>
           </div>
-        </details>
+        </details>`}
         <a class="svc-btn" href="${href("help")}" rel="nofollow"><span class="svc-icon" aria-hidden="true">${CALL_KINDS.help.icon}</span>${CALL_KINDS.help.label}</a>
       </div>
       ${menuLink}
@@ -130,12 +132,17 @@ export async function handleCall(request, env, ctx) {
     const cards = await db(env, `cards?code=eq.${code}&is_active=is.true&select=id,code,label,is_table,business_id&limit=1`);
     const card = cards[0];
     const business = card && card.business_id
-      ? (await db(env, `businesses?id=eq.${card.business_id}&is_active=eq.true&select=id,slug,name,theme,design,brand_color,paid_until,modules,tariff&limit=1`))[0]
+      ? (await db(env, `businesses?id=eq.${card.business_id}&is_active=eq.true&select=id,slug,name,theme,design,brand_color,paid_until,modules,tariff,pay_on&limit=1`))[0]
       : null;
     if (!business || !callsOn(business, card, source) || isExpired(business.paid_until)) {
       return guestPage(404, business, "Вызов с этой карты сейчас недоступен. Обратитесь, пожалуйста, к персоналу.");
     }
     const back = `/c/${card.code}?s=${source}`;
+    // Оплата счёта включена: после вызова гость сразу попадает на страницу счёта (там ждёт сумму от официанта)
+    const payPage = kind === "bill" && payOn(env, business, card, source) ? `/pay?c=${card.code}&s=${source}` : null;
+    const shown = (call) => payPage
+      ? new Response(null, { status: 303, headers: { Location: payPage, "Cache-Control": "no-store" } })
+      : statusPage(business, card, kind, call, back);
 
     // Cookie ставится, когда страницу стола открыли с карты. Без неё — ссылку открыли не со стола (или из превью)
     const { deviceId, setCookie } = deviceFrom(request);
@@ -154,9 +161,9 @@ export async function handleCall(request, env, ctx) {
         await db(env, `service_calls?id=eq.${call.id}`, { method: "PATCH", body: { split }, prefer: "return=minimal" });
         call.split = split;
       }
-      return statusPage(business, card, kind, call, back);
+      return shown(call);
     }
-    if (mineDone.length) return statusPage(business, card, kind, { status: "done", split }, back);
+    if (mineDone.length) return shown({ status: "done", split });
 
     const [mine, all] = await Promise.all([
       db(env, `service_calls?business_id=eq.${business.id}&visitor_hash=eq.${visitor}&created_at=gt.${since(3600e3)}&select=id`),
@@ -173,7 +180,7 @@ export async function handleCall(request, env, ctx) {
       prefer: "return=representation"
     });
     ctx.waitUntil(notifyChats(env, business, { place, kind, split }));
-    return statusPage(business, card, kind, rows[0], back);
+    return shown(rows[0]);
   } catch (error) {
     console.error(`Service call error: ${error.message}\n${error.stack}`);
     return guestPage(500, null, "Не получилось отправить вызов. Попробуйте ещё раз или подойдите к персоналу.");
@@ -227,14 +234,14 @@ function guestPage(status, business, text, back = null) {
   return page;
 }
 
-function themed(business, { status = 200, title, body, meta = "" }) {
+export function themed(business, { status = 200, title, body, meta = "", extraCss = "" }) {
   const response = renderPage({
     status,
     title,
     accent: business && /^#[0-9A-Fa-f]{6}$/.test(business.brand_color || "") ? business.brand_color : (business ? null : DEFAULT_ACCENT),
     theme: business ? business.theme : "classic",
     design: business ? customDesign(business) : null,
-    extraCss: SERVICE_CSS,
+    extraCss: SERVICE_CSS + extraCss,
     meta,
     // Как на странице заведения: зелёная кнопка «Работает на TapReview / Хочу такую карту»
     footer: business ? { href: `/r/${business.slug}?s=card`, text: "Хочу такую карту" } : null,
@@ -273,9 +280,10 @@ export async function handleStaffCalls(request, env, token) {
     const links = await db(env, `staff_links?token=eq.${token}&select=business_id,label,staff_id`);
     if (!links.length) return notFound();
     const link = links[0];
-    const business = (await db(env, `businesses?id=eq.${link.business_id}&select=id,name,modules,tariff,bonus_mode&limit=1`))[0];
+    const business = (await db(env, `businesses?id=eq.${link.business_id}&select=id,name,modules,tariff,bonus_mode,pay_on&limit=1`))[0];
     if (!business) return notFound();
     const base = `/k/${token}/calls`;
+    const pay = Boolean(env.PAY_PROVIDER && business.pay_on);
     if (!hasModule(business, "service")) {
       return html(200, "Вызовы гостей", `<main class="wrap wrap-center"><section class="panel">
         <h1 class="lost">Вызовы гостей не подключены</h1>
@@ -288,42 +296,22 @@ export async function handleStaffCalls(request, env, token) {
 
     if (request.method === "POST") {
       const form = new URLSearchParams((await request.text()).slice(0, 500));
-      const id = Number(form.get("id"));
-      const action = form.get("do");
-      // t=order — заказ со стола (menu.js), иначе вызов
-      const table = form.get("t") === "order" ? "table_orders" : "service_calls";
-      if (Number.isSafeInteger(id) && id > 0 && (action === "accept" || action === "done")) {
-        const now = new Date().toISOString();
-        const by = link.label ? link.label.slice(0, 80) : "персонал";
-        // Ссылка привязана к сотруднику (staff.js) — вызов засчитывается ему
-        const who = { accepted_at: now, accepted_by: by, accepted_staff_id: link.staff_id || null };
-        const body = action === "accept"
-          ? { status: "accepted", ...who }
-          : { status: "done", done_at: now };
-        // Только вызовы своего заведения; «Принял» — только у нового, у принятого время не меняем
-        const filter = action === "accept" ? "&status=eq.new" : "&status=neq.done";
-        await db(env, `${table}?id=eq.${id}&business_id=eq.${business.id}${filter}`, { method: "PATCH", body, prefer: "return=minimal" });
-        // «Готово» без «Принял» — считаем принятым в тот же момент (для времени реакции)
-        if (action === "done") {
-          await db(env, `${table}?id=eq.${id}&business_id=eq.${business.id}&accepted_at=is.null`, {
-            method: "PATCH", body: who, prefer: "return=minimal"
-          });
-        }
-        db(env, `staff_links?token=eq.${token}`, { method: "PATCH", body: { last_used_at: now }, prefer: "return=minimal" }).catch(() => {});
-      }
-      if (wantsJson) return callsJson(env, business);
+      await staffCallAction(env, business, link, token, pay, {
+        type: form.get("t"), id: form.get("id"), action: form.get("do"), amount: form.get("amount")
+      });
+      if (wantsJson) return callsJson(env, business, pay);
       return new Response(null, { status: 303, headers: { Location: base, "Cache-Control": "no-store" } });
     }
 
-    if (wantsJson) return callsJson(env, business);
-    const calls = await activeCalls(env, business.id);
+    if (wantsJson) return callsJson(env, business, pay);
+    const calls = await activeCalls(env, business.id, pay);
     const gifts = business.bonus_mode && business.bonus_mode !== "off";
     const body = `
   <style>${STAFF_CSS}</style>
   <header class="top">
     <div class="top-inner">
       <div class="brand">TapReview <span>· вызовы</span></div>
-      ${gifts ? `<a class="back" href="/k/${token}">🎁 Касса подарков</a>` : ""}
+      ${gifts ? `<a class="back" href="/k/${token}">🎁 Касса подарков</a>` : ""}${staffAppButton(env, token)}
       <h1 class="name">Вызовы гостей</h1>
       <p class="sub">${esc(business.name)}</p>
       <p class="range">Новые вызовы появляются сами, со звуком. Держите страницу открытой.</p>
@@ -331,9 +319,10 @@ export async function handleStaffCalls(request, env, token) {
   </header>
   <main class="wrap">
     <button class="calls-sound" type="button" hidden>🔔 Включить звук</button>
-    <section class="panel"><div id="calls" aria-live="polite">${callsList(calls, base)}</div></section>
+    <section class="panel"><div id="calls" aria-live="polite">${callsList(calls, base, pay)}</div></section>
     <section class="note">
       <p><b>Принял</b> — гость увидит, что вы идёте. <b>Готово</b> — вызов закрыт. Вызов старше часа исчезает сам.</p>
+      ${pay ? `<p><b>Счёт</b> — введите сумму у вызова «Просят счёт»: гость оплатит по СБП со своего телефона, можно по частям. Оплаченный счёт станет зелёным — нажмите «Закрыть», когда гости ушли.</p>` : ""}
       <p>Это рабочая ссылка персонала. Не передавайте её гостям.</p>
     </section>
   </main>`;
@@ -344,22 +333,66 @@ export async function handleStaffCalls(request, env, token) {
   }
 }
 
+// «📱 Открыть в Telegram» на страницах персонала: та же рабочая ссылка в приложении TapReview (staff-app.js)
+export function staffAppButton(env, token) {
+  if (!env.APP_BOT_USERNAME || !env.APP_SHORT_NAME) return "";
+  return `<a class="back" href="https://t.me/${esc(env.APP_BOT_USERNAME)}/${esc(env.APP_SHORT_NAME)}?startapp=k_${token}">📱 Открыть в Telegram</a>`;
+}
+
+// Действие персонала: «Принял» / «Готово» у вызова или заказа, «Выставить» счёт, «Закрыть» счёт.
+// Общее для страницы /k/ТОКЕН/calls и Telegram-приложения (staff-app.js). Чужие id просто ничего не меняют.
+export async function staffCallAction(env, business, link, token, pay, { type, id, action, amount }) {
+  id = Number(id);
+  if (!Number.isSafeInteger(id) || id <= 0) return;
+  // t=order — заказ со стола (menu.js), иначе вызов
+  const table = type === "order" ? "table_orders" : "service_calls";
+  // Счёт стола (pay.js): «Выставить счёт» по вызову и «Закрыть» счёт
+  if (pay && action === "bill") {
+    const kop = parseRub(amount);
+    if (kop && kop >= 100) await issueBill(env, business, link, id, kop);
+  } else if (type === "bill" && action === "done") {
+    await closeBill(env, business.id, id);
+  } else if (action === "accept" || action === "done") {
+    const now = new Date().toISOString();
+    const by = link.label ? link.label.slice(0, 80) : "персонал";
+    // Ссылка привязана к сотруднику (staff.js) — вызов засчитывается ему
+    const who = { accepted_at: now, accepted_by: by, accepted_staff_id: link.staff_id || null };
+    const body = action === "accept"
+      ? { status: "accepted", ...who }
+      : { status: "done", done_at: now };
+    // Только вызовы своего заведения; «Принял» — только у нового, у принятого время не меняем
+    const filter = action === "accept" ? "&status=eq.new" : "&status=neq.done";
+    await db(env, `${table}?id=eq.${id}&business_id=eq.${business.id}${filter}`, { method: "PATCH", body, prefer: "return=minimal" });
+    // «Готово» без «Принял» — считаем принятым в тот же момент (для времени реакции)
+    if (action === "done") {
+      await db(env, `${table}?id=eq.${id}&business_id=eq.${business.id}&accepted_at=is.null`, {
+        method: "PATCH", body: who, prefer: "return=minimal"
+      });
+    }
+    db(env, `staff_links?token=eq.${token}`, { method: "PATCH", body: { last_used_at: now }, prefer: "return=minimal" }).catch(() => {});
+  }
+}
+
 // Вызовы (за час) и заказы со стола (за 3 часа, menu.js) — один список по времени; uid: c123 / o45
-async function activeCalls(env, businessId) {
+export async function activeCalls(env, businessId, pay = false) {
   const since = (min) => encodeURIComponent(new Date(Date.now() - min * 60e3).toISOString());
   const [calls, orders] = await Promise.all([
     db(env, `service_calls?business_id=eq.${businessId}&status=neq.done&created_at=gt.${since(ACTIVE_MINUTES)}&select=id,place,kind,split,status,accepted_by,created_at,accepted_at&order=created_at.asc&limit=100`),
     db(env, `table_orders?business_id=eq.${businessId}&status=neq.done&created_at=gt.${since(ACTIVE_MINUTES * 3)}&select=id,place,items,total,comment,status,accepted_by,created_at,accepted_at&order=created_at.asc&limit=100`).catch(() => [])
   ]);
+  const bills = pay ? await activeBills(env, businessId) : [];
   return [
     ...calls.map((c) => ({ ...c, type: "call", uid: `c${c.id}` })),
-    ...orders.map((o) => ({ ...o, type: "order", uid: `o${o.id}` }))
+    ...orders.map((o) => ({ ...o, type: "order", uid: `o${o.id}` })),
+    // Счёт оплачен полностью — «новое» событие (звук), uid меняется
+    ...bills.map((b) => ({ ...b, type: "bill", uid: b.status === "paid" ? `bp${b.id}` : `b${b.id}` }))
   ].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
 }
 
-async function callsJson(env, business) {
-  const calls = await activeCalls(env, business.id);
-  return new Response(JSON.stringify({ ids: calls.filter((c) => c.status === "new").map((c) => c.uid), count: calls.length, html: callsList(calls, null) }), {
+async function callsJson(env, business, pay = false) {
+  const calls = await activeCalls(env, business.id, pay);
+  const fresh = calls.filter((c) => c.status === "new" || (c.type === "bill" && c.status === "paid"));
+  return new Response(JSON.stringify({ ids: fresh.map((c) => c.uid), count: calls.filter((c) => c.type !== "bill").length, html: callsList(calls, null, pay) }), {
     headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" }
   });
 }
@@ -370,11 +403,12 @@ function ago(iso, now = Date.now()) {
 }
 
 // base = null → формы отправляет скрипт (адрес берётся из страницы)
-function callsList(calls, base) {
+function callsList(calls, base, pay = false) {
   if (!calls.length) return `<p class="calls-empty">Сейчас вызовов нет 👌</p>`;
   const action = base ? ` action="${esc(base)}"` : "";
   return `<ul class="calls">${calls
     .map((c) => {
+      if (c.type === "bill") return billItem(c, action);
       const accepted = c.status === "accepted";
       const button = (todo, text, cls) =>
         `<form method="post"${action}><input type="hidden" name="t" value="${c.type}"><input type="hidden" name="id" value="${c.id}"><input type="hidden" name="do" value="${todo}"><button class="${cls}" type="submit">${text}</button></form>`;
@@ -386,6 +420,11 @@ function callsList(calls, base) {
         const k = CALL_KINDS[c.kind] || CALL_KINDS.help;
         const split = c.kind === "bill" && c.split ? ` · ${splitText(c.split)}` : "";
         what = `<p class="call-what">${k.icon} ${esc(k.staff)}${esc(split)}</p>`;
+        // Оплата включена — сумму счёта вводят прямо здесь, гость платит со своего телефона
+        if (pay && c.kind === "bill") {
+          what += `<form class="bill-form" method="post"${action}><input type="hidden" name="t" value="call"><input type="hidden" name="id" value="${c.id}"><input type="hidden" name="do" value="bill">` +
+            `<input name="amount" inputmode="decimal" autocomplete="off" maxlength="10" placeholder="Сумма, ₽" required aria-label="Сумма счёта"><button type="submit">Выставить</button></form>`;
+        }
       }
       return `<li class="call${accepted ? " call-taken" : " call-new"}" data-id="${c.uid}">
         <div class="call-main">
@@ -402,6 +441,22 @@ function callsList(calls, base) {
     .join("")}</ul>`;
 }
 
+// Счёт стола: сколько оплачено; оплачен полностью — зелёный, «Закрыть»
+function billItem(b, action) {
+  const paid = b.status === "paid";
+  const left = Math.max(0, b.amount - b.paid);
+  return `<li class="call bill${paid ? " bill-paid" : ""}" data-id="${b.uid}">
+    <div class="call-main">
+      <p class="call-place">${esc(b.place)}</p>
+      <p class="call-what">💳 Счёт ${esc(rub(b.amount))}${paid ? " · ✓ оплачен" : ""}</p>
+      <p class="call-meta">${paid ? "Оплачено полностью по СБП" : b.paid ? `Оплачено ${esc(rub(b.paid))} · осталось ${esc(rub(left))}` : "Ждём оплату гостя"} · ${esc(ago(b.created_at))}</p>
+    </div>
+    <div class="call-actions">
+      <form method="post"${action}><input type="hidden" name="t" value="bill"><input type="hidden" name="id" value="${b.id}"><input type="hidden" name="do" value="done"><button class="call-done" type="submit">Закрыть</button></form>
+    </div>
+  </li>`;
+}
+
 const STAFF_CSS = `
   .calls { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
   .call { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 14px; border-radius: 16px; border: 1px solid #e3e7ef; background: #fff; }
@@ -416,6 +471,11 @@ const STAFF_CSS = `
   .call-accept { background: #0a2a5c; color: #fff; }
   .call-done { background: #eaf6ef; color: #137a4d; }
   .calls-empty { margin: 8px 0; text-align: center; color: #6b7280; font-size: 15px; }
+  .bill-form { display: flex; gap: 6px; margin-top: 8px; }
+  .bill-form input { width: 110px; min-width: 0; padding: 9px 10px; border-radius: 10px; border: 1px solid #c9d2e3; font: inherit; font-size: 16px; }
+  .bill-form button { padding: 9px 12px; border-radius: 10px; border: 0; background: #e5aa0c; color: #1a1300; font: inherit; font-weight: 700; cursor: pointer; }
+  .bill { border-color: #c9d2e3; }
+  .bill-paid { border-color: #22a06b; background: #eaf6ef; box-shadow: 0 0 0 3px rgba(34, 160, 107, 0.18); }
   .calls-sound { display: block; width: 100%; margin: 0 0 12px; padding: 12px; border-radius: 14px; border: 1px dashed #e5aa0c; background: #fffaf0; color: #8a6400; font: inherit; font-weight: 700; cursor: pointer; }
 `;
 
@@ -454,6 +514,8 @@ const STAFF_SCRIPT = `(function () {
     if (fresh) { beep(); if (navigator.vibrate) navigator.vibrate([200, 100, 200]); }
   }
   function refresh() {
+    var typing = Array.prototype.some.call(box.querySelectorAll("input[name=amount]"), function (i) { return i.value || i === document.activeElement; });
+    if (typing) return;
     fetch(base + "?format=json", { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) { if (d) apply(d); }).catch(function () {});
   }
   box.addEventListener("submit", function (e) {

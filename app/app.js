@@ -1,7 +1,7 @@
 // TapReview Mini App: каталог заведений и отзывы. Без фреймворков и сборки.
 // Данные — /api/app/* (src/app-api.js). Вход — подпись Telegram (initData) в каждом запросе,
 // сервер сам проверяет её; здесь мы ничего не решаем о правах, только показываем.
-// Адреса экранов (hash): #/  #/catalog?cat=&q=&min=&sort=  #/place/:slug  #/favorites  #/me
+// Адреса экранов (hash): #/  #/catalog?cat=&q=&min=&sort=  #/place/:slug  #/favorites  #/me  #/work[/:token[/calls|gifts|points]]
 "use strict";
 
 const tg = window.Telegram && window.Telegram.WebApp;
@@ -1662,6 +1662,485 @@ async function walletView() {
   );
 }
 
+// ================= Работа: официант (вызовы, касса подарков и баллов) =================
+// Рабочие ссылки персонала (/k/ТОКЕН) хранятся в Telegram CloudStorage этого аккаунта (есть на всех его телефонах),
+// запасной вариант — localStorage. Права проверяет сервер по ссылке; отключили ссылку в админке — она пропадёт и здесь.
+
+const STAFF_KEY = "tr_staff";
+
+function cloudGet() {
+  return new Promise((resolve) => {
+    const local = () => {
+      try {
+        resolve(JSON.parse(localStorage.getItem(STAFF_KEY) || "[]"));
+      } catch {
+        resolve([]);
+      }
+    };
+    const cs = tg && tg.CloudStorage && tg.isVersionAtLeast && tg.isVersionAtLeast("6.9") ? tg.CloudStorage : null;
+    if (!cs) return local();
+    try {
+      cs.getItem(STAFF_KEY, (error, value) => {
+        if (error) return local();
+        try {
+          resolve(JSON.parse(value || "[]"));
+        } catch {
+          resolve([]);
+        }
+      });
+    } catch {
+      local();
+    }
+  });
+}
+
+function cloudSet(tokens) {
+  const value = JSON.stringify(tokens.slice(0, 10));
+  try {
+    localStorage.setItem(STAFF_KEY, value);
+  } catch {
+    // приватный режим — останется только CloudStorage
+  }
+  return new Promise((resolve) => {
+    const cs = tg && tg.CloudStorage && tg.isVersionAtLeast && tg.isVersionAtLeast("6.9") ? tg.CloudStorage : null;
+    if (!cs) return resolve();
+    try {
+      cs.setItem(STAFF_KEY, value, () => resolve());
+    } catch {
+      resolve();
+    }
+  });
+}
+
+async function staffTokens() {
+  const list = await cloudGet();
+  return Array.isArray(list) ? list.filter((t) => /^[A-Za-z0-9]{24}$/.test(t)) : [];
+}
+
+// Живые ссылки с названиями; отключённые убираем из памяти телефона
+async function staffPlacesLoad() {
+  const tokens = await staffTokens();
+  if (!tokens.length) return [];
+  const data = await api("/api/app/staff/places", { method: "POST", body: { tokens } });
+  const alive = data.places.filter((p) => p.ok);
+  if (alive.length !== tokens.length) await cloudSet(alive.map((p) => p.token));
+  return alive;
+}
+
+const rubles = (kop) => `${(kop / 100).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽`;
+const agoText = (iso) => {
+  const min = Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 60e3));
+  return min < 1 ? "только что" : `${min} мин назад`;
+};
+
+// Звук нового вызова: браузер разрешает его только после касания экрана
+const bell = {
+  ctx: null,
+  unlock() {
+    try {
+      bell.ctx = bell.ctx || new (window.AudioContext || window.webkitAudioContext)();
+      bell.ctx.resume();
+    } catch {}
+  },
+  ring() {
+    const a = bell.ctx;
+    if (!a) return;
+    [0, 0.25].forEach((t) => {
+      const o = a.createOscillator();
+      const g = a.createGain();
+      o.frequency.value = 880;
+      o.connect(g);
+      g.connect(a.destination);
+      g.gain.setValueAtTime(0.0001, a.currentTime + t);
+      g.gain.exponentialRampToValueAtTime(0.4, a.currentTime + t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + t + 0.2);
+      o.start(a.currentTime + t);
+      o.stop(a.currentTime + t + 0.22);
+    });
+  }
+};
+
+let staffTimer = null;
+function stopStaffPolling() {
+  clearInterval(staffTimer);
+  staffTimer = null;
+}
+
+async function workView() {
+  const head = h("header", { class: "head" }, h("h1", { class: "title" }, "Работа"), h("p", { class: "lead" }, "Вызовы гостей, подарки и баллы"));
+  if (!inTelegram) return render(head, emptyView(I.store, "Только в Telegram", "Рабочий режим открывается в приложении TapReview в Telegram.", openInTelegramButton()));
+
+  // Пришли по рабочей ссылке (startapp=k_ТОКЕН) — спросить, подключить ли
+  if (state.staffJoin) {
+    const token = state.staffJoin;
+    render(head, skeletonList(1));
+    let info;
+    try {
+      info = (await api("/api/app/staff/places", { method: "POST", body: { tokens: [token] } })).places[0];
+    } catch (error) {
+      state.staffJoin = null;
+      return render(head, errorView(error, workView));
+    }
+    if (!info || !info.ok) {
+      state.staffJoin = null;
+      toast("Рабочая ссылка не найдена или отключена");
+      return workView();
+    }
+    const yes = h("button", { class: "btn btn-primary btn-block" }, "Подключить");
+    const no = h("button", { class: "btn btn-soft btn-block" }, "Не сейчас");
+    render(head, h("div", { class: "stack" },
+      h("div", { class: "card link-card" },
+        h("div", { class: "empty-icon", style: "margin:0 auto 12px" }, icon(I.store)),
+        h("h2", { class: "section-title", style: "text-align:center;margin-bottom:4px" }, info.name),
+        info.label ? h("p", { class: "fine", style: "text-align:center;margin:0 0 10px" }, info.label) : null,
+        h("ul", { class: "consent-list" },
+          h("li", null, "В профиле появится раздел «Работа» этого заведения: " + staffWhat(info) + "."),
+          h("li", null, "Это рабочая ссылка персонала — не пересылайте её гостям."),
+          h("li", null, "Убрать можно в любой момент здесь же. Если заведение отключит ссылку, она пропадёт сама.")
+        ),
+        h("div", { class: "sheet-actions" }, yes, no))
+    ));
+    no.addEventListener("click", () => {
+      state.staffJoin = null;
+      go("#/me", true);
+    });
+    yes.addEventListener("click", async () => {
+      yes.disabled = true;
+      const tokens = await staffTokens();
+      await cloudSet([token, ...tokens.filter((t) => t !== token)]);
+      state.staffJoin = null;
+      haptic.ok();
+      toast("Рабочий режим подключён");
+      go(`#/work/${token}`, true);
+    });
+    return;
+  }
+
+  render(head, skeletonList(2));
+  let places;
+  try {
+    places = await staffPlacesLoad();
+  } catch (error) {
+    return render(head, errorView(error, workView));
+  }
+  if (places.length === 1 && depth === 0) return go(`#/work/${places[0].token}`, true);
+  render(head, places.length
+    ? h("div", { class: "menu", style: "margin:14px var(--gutter) 0" },
+        places.map((p) => h("a", { class: "menu-item", href: `#/work/${p.token}`, onclick: haptic.tap },
+          icon(I.store, "menu-icon"),
+          h("div", { class: "grow" }, h("div", { style: "font-weight:700;color:var(--ink)" }, p.name), h("span", { class: "sub" }, [p.label, staffWhat(p)].filter(Boolean).join(" · "))),
+          h("span", { class: "info-go" }, "›"))))
+    : emptyView(I.store, "Нет рабочих ссылок", "Откройте рабочую ссылку из заведения и нажмите «Открыть в Telegram» — она появится здесь."));
+}
+
+function staffWhat(p) {
+  return [p.calls ? "вызовы" : null, p.gifts ? "подарки" : null, p.points ? "баллы" : null].filter(Boolean).join(", ") || "касса";
+}
+
+async function workPlaceView(token, tab) {
+  stopStaffPolling();
+  const head = h("header", { class: "head" }, h("h1", { class: "title" }, "Работа"));
+  if (!inTelegram) return render(head, emptyView(I.store, "Только в Telegram", "Рабочий режим открывается в приложении TapReview в Telegram.", openInTelegramButton()));
+  render(head, skeletonList(2));
+  let p;
+  try {
+    p = (await staffPlacesLoad()).find((x) => x.token === token);
+  } catch (error) {
+    return render(head, errorView(error, () => workPlaceView(token, tab)));
+  }
+  if (!p) return render(head, emptyView(I.store, "Ссылка отключена", "Эта рабочая ссылка больше не действует. Попросите новую у администратора."));
+
+  const tabs = [p.calls ? ["calls", "Вызовы"] : null, p.gifts ? ["gifts", "Подарки"] : null, p.points ? ["points", "Баллы"] : null].filter(Boolean);
+  if (!tabs.length) tabs.push(["gifts", "Подарки"]);
+  const current = tabs.some(([v]) => v === tab) ? tab : tabs[0][0];
+  const header = h("header", { class: "head" },
+    h("h1", { class: "title" }, p.name),
+    h("p", { class: "lead" }, p.label || "Рабочий режим"),
+    tabs.length > 1
+      ? h("div", { class: "seg", role: "tablist", style: "margin-top:12px" },
+          tabs.map(([v, label]) => h("button", { class: v === current ? "on" : "", role: "tab", onclick: () => { haptic.tap(); if (v !== current) go(`#/work/${token}/${v}`, true); } }, label)))
+      : null);
+  const box = h("div", { class: "stack" });
+  const remove = h("button", { class: "btn btn-ghost", style: "color:var(--bad);padding:0;justify-self:start;margin:6px var(--gutter) 0", onclick: async () => {
+    if (!(await confirmBox(`Убрать «${p.name}» из рабочего режима на этом аккаунте?`))) return;
+    await cloudSet((await staffTokens()).filter((t) => t !== token));
+    stopStaffPolling();
+    go("#/me", true);
+  } }, "Убрать это заведение");
+  render(header, box, remove);
+  if (current === "calls") return staffCallsTab(box, token);
+  if (current === "points") return staffPointsTab(box, token);
+  return staffGiftTab(box, token);
+}
+
+// ---------- Вызовы и заказы ----------
+
+function staffCallsTab(box, token) {
+  const seen = {};
+  let first = true;
+  const list = h("div", { class: "stack", style: "padding:0" });
+  const sound = h("button", { class: "btn btn-soft btn-block", type: "button" }, "🔔 Включить звук");
+  sound.addEventListener("click", () => { bell.unlock(); bell.ring(); sound.hidden = true; });
+  box.replaceChildren(sound, list,
+    h("p", { class: "fine", style: "margin:2px" }, "Новые вызовы появляются сами, со звуком и вибрацией, пока приложение открыто. «Принял» — гость увидит, что вы идёте. Вызов старше часа исчезает сам."));
+
+  const draw = (data) => {
+    // Пока официант вводит сумму счёта, список не перерисовываем
+    if (list.querySelector("input:focus") || [...list.querySelectorAll("input")].some((i) => i.value)) return;
+    const fresh = data.items.filter((c) => c.status === "new" || (c.type === "bill" && c.status === "paid")).map((c) => c.uid);
+    const ring = !first && fresh.some((id) => !seen[id]);
+    fresh.forEach((id) => (seen[id] = true));
+    first = false;
+    if (ring) {
+      bell.ring();
+      haptic.ok();
+    }
+    list.replaceChildren(...(data.items.length ? data.items.map((c) => callCard(c, data.pay)) : [h("div", { class: "card fine", style: "text-align:center" }, "Сейчас вызовов нет 👌")]));
+  };
+
+  const act = async (body, button) => {
+    if (button) button.disabled = true;
+    try {
+      const data = await api("/api/app/staff/calls", { method: "POST", body: { t: token, ...body } });
+      haptic.tap();
+      [...list.querySelectorAll("input")].forEach((i) => (i.value = ""));
+      draw(data);
+    } catch (error) {
+      haptic.err();
+      toast(error.message);
+      if (button) button.disabled = false;
+    }
+  };
+
+  const callCard = (c, pay) => {
+    const accepted = c.status === "accepted";
+    const parts = [h("div", { class: "row-name", style: "font-size:19px;color:var(--navy)" }, c.place)];
+    const actions = [];
+    if (c.type === "bill") {
+      const paid = c.status === "paid";
+      parts.push(h("div", { style: "font-weight:600" }, `💳 Счёт ${rubles(c.amount)}${paid ? " · ✓ оплачен" : ""}`),
+        h("div", { class: "fine" }, `${paid ? "Оплачено полностью по СБП" : c.paid ? `Оплачено ${rubles(c.paid)} · осталось ${rubles(Math.max(0, c.amount - c.paid))}` : "Ждём оплату гостя"} · ${agoText(c.created)}`));
+      const close = h("button", { class: "btn btn-soft", style: "height:40px" }, "Закрыть");
+      close.addEventListener("click", () => act({ type: "bill", id: c.id, do: "done" }, close));
+      actions.push(close);
+      return h("article", { class: `card staff-call${paid ? " staff-paid" : ""}` }, h("div", { class: "grow" }, parts), h("div", { class: "staff-actions" }, actions));
+    }
+    if (c.type === "order") {
+      parts.push(h("div", { style: "font-weight:600" }, `🧾 Заказ · ${c.total.toLocaleString("ru-RU")} ₽`),
+        h("ul", { class: "staff-lines" }, c.lines.map((l) => h("li", null, `${l.name} × ${l.qty}`))),
+        c.comment ? h("div", { class: "fine" }, `«${c.comment}»`) : null);
+    } else {
+      parts.push(h("div", { style: "font-weight:600" }, `${c.icon} ${c.what}${c.split ? ` · разделить на ${c.split}` : ""}`));
+      if (pay && c.kind === "bill") {
+        const amount = h("input", { class: "input", inputmode: "decimal", autocomplete: "off", maxlength: "10", placeholder: "Сумма, ₽", "aria-label": "Сумма счёта", style: "height:40px;width:120px" });
+        const send = h("button", { class: "btn btn-gold", style: "height:40px;padding:0 12px" }, "Выставить");
+        send.addEventListener("click", () => {
+          if (!amount.value.trim()) return amount.focus();
+          act({ type: "call", id: c.id, do: "bill", amount: amount.value }, send);
+        });
+        parts.push(h("div", { style: "display:flex;gap:6px;margin-top:8px" }, amount, send));
+      }
+    }
+    parts.push(h("div", { class: "fine" }, `${agoText(c.created)}${accepted ? ` · принял${c.acceptedBy ? `: ${c.acceptedBy}` : ""}` : ""}`));
+    if (!accepted) {
+      const ok = h("button", { class: "btn btn-primary", style: "height:40px" }, "Принял");
+      ok.addEventListener("click", () => act({ type: c.type, id: c.id, do: "accept" }, ok));
+      actions.push(ok);
+    }
+    const done = h("button", { class: "btn btn-soft staff-done", style: "height:40px" }, "Готово");
+    done.addEventListener("click", () => act({ type: c.type, id: c.id, do: "done" }, done));
+    actions.push(done);
+    return h("article", { class: `card staff-call${accepted ? "" : " staff-new"}` }, h("div", { class: "grow" }, parts), h("div", { class: "staff-actions" }, actions));
+  };
+
+  const load = async () => {
+    try {
+      draw(await api(`/api/app/staff/calls?t=${token}`));
+    } catch (error) {
+      if (first) list.replaceChildren(errorView(error, load));
+    }
+  };
+  list.replaceChildren(skeletonList(2));
+  load();
+  const here = location.hash;
+  staffTimer = setInterval(() => {
+    if (location.hash !== here) return stopStaffPolling();
+    if (!document.hidden) load();
+  }, 5000);
+}
+
+// ---------- Касса подарков ----------
+
+const GIFT_STATE = {
+  ok: ["notice-published", "Код действует"],
+  done: ["notice-published", "✅ Код погашен — можно выдавать подарок"],
+  used: ["notice-rejected", "Код уже погашен"],
+  expired: ["notice-rejected", "Срок действия кода истёк"],
+  soon: ["notice-pending", "Код ещё не начал действовать"],
+  none: ["notice-rejected", "Такого кода нет"],
+  format: ["notice-rejected", "Код — 6 символов, например 123-456"]
+};
+
+function staffGiftTab(box, token) {
+  const RU = { "А": "A", "В": "B", "Е": "E", "К": "K", "М": "M", "Н": "H", "О": "O", "Р": "P", "С": "C", "Т": "T", "Х": "X", "У": "Y" };
+  const input = h("input", { class: "input", inputmode: "numeric", autocomplete: "off", maxlength: "7", placeholder: "123-456", "aria-label": "Код подарка", style: "font-size:22px;height:54px;text-align:center;letter-spacing:.08em" });
+  const abc = h("button", { class: "btn btn-ghost", style: "padding:0;justify-self:start" }, "Старый код с буквами?");
+  abc.addEventListener("click", () => {
+    const letters = input.getAttribute("inputmode") === "numeric";
+    input.setAttribute("inputmode", letters ? "text" : "numeric");
+    abc.textContent = letters ? "Обычный код из цифр" : "Старый код с буквами?";
+    input.focus();
+  });
+  const check = h("button", { class: "btn btn-primary btn-block" }, "Проверить");
+  const out = h("div", { class: "stack", style: "padding:0" });
+  box.replaceChildren(h("div", { class: "card" }, h("p", { class: "fine", style: "margin:0 0 10px" }, "Введите код с экрана гостя: 6 символов, например 123-456"), input, h("div", { style: "height:10px" }), check, abc), out,
+    h("p", { class: "fine", style: "margin:2px" }, "Код действует один раз. Подарок не зависит от отзыва — так требуют правила Яндекс Карт и 2ГИС."));
+
+  const format = (v) => {
+    const raw = v.toUpperCase().replace(/[А-ЯЁ]/g, (ch) => RU[ch] || "").replace(/[^A-Z0-9]/g, "").slice(0, 6);
+    return raw.length > 3 ? `${raw.slice(0, 3)}-${raw.slice(3)}` : raw;
+  };
+  const show = (r) => {
+    const [cls, title] = GIFT_STATE[r.state] || GIFT_STATE.none;
+    const nodes = [h("div", { class: `notice ${cls}`, style: "display:block" },
+      h("b", null, title),
+      r.vip ? h("div", null, "⭐ VIP-гость") : null,
+      r.prize ? h("div", { style: "font-size:18px;font-weight:800;margin:4px 0" }, r.prize) : null,
+      r.validity ? h("div", null, r.validity) : null,
+      r.conditions ? h("div", null, `Условия: ${r.conditions}`) : null,
+      r.state === "used" && r.redeemedAt ? h("div", null, `Погашен ${new Date(r.redeemedAt).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}`) : null)];
+    if (r.state === "ok") {
+      const redeem = h("button", { class: "btn btn-gold btn-block" }, "Погасить код и выдать подарок");
+      redeem.addEventListener("click", () => run(true, redeem));
+      nodes.push(redeem);
+    }
+    out.replaceChildren(...nodes);
+  };
+  let busy = false;
+  const run = async (redeem, button) => {
+    if (busy) return;
+    const code = input.value.replace(/[^A-Za-z0-9А-Яа-я]/g, "");
+    if (code.length < 6) return input.focus();
+    busy = true;
+    if (button) button.disabled = true;
+    try {
+      const r = await api("/api/app/staff/gift", { method: "POST", body: { t: token, code, redeem } });
+      show(r);
+      if (r.state === "done") haptic.ok();
+      else if (r.state !== "ok") haptic.err();
+    } catch (error) {
+      haptic.err();
+      toast(error.message);
+    } finally {
+      busy = false;
+      if (button) button.disabled = false;
+    }
+  };
+  let sent = "";
+  input.addEventListener("input", () => {
+    const v = format(input.value);
+    if (v !== input.value) input.value = v;
+    if (v.length === 7 && v !== sent) {
+      sent = v;
+      run(false, check);
+    }
+    if (v.length < 7) {
+      sent = "";
+      out.replaceChildren();
+    }
+  });
+  check.addEventListener("click", () => run(false, check));
+  input.focus();
+}
+
+// ---------- Касса баллов ----------
+
+function staffPointsTab(box, token) {
+  const input = h("input", { class: "input", inputmode: "numeric", autocomplete: "off", maxlength: "7", placeholder: "123 456", "aria-label": "Код гостя", style: "font-size:22px;height:54px;text-align:center;letter-spacing:.08em" });
+  const find = h("button", { class: "btn btn-primary btn-block" }, "Найти");
+  const out = h("div", { class: "stack", style: "padding:0" });
+  box.replaceChildren(h("div", { class: "card" }, h("p", { class: "fine", style: "margin:0 0 10px" }, "Гость показывает код из 6 цифр. Введите его, затем сумму чека."), input, h("div", { style: "height:10px" }), find), out,
+    h("p", { class: "fine", style: "margin:2px" }, "1 балл = 1 ₽. Скидку проведите в своей кассе как обычно. Один код — одна операция."));
+
+  const code = () => input.value.replace(/\D/g, "");
+  const opForm = (r, error) => {
+    const check = h("input", { class: "input", type: "number", min: "1", max: String(r.maxCheck), inputmode: "numeric", "aria-label": "Сумма чека, ₽" });
+    const spend = r.balance > 0 ? h("input", { class: "input", type: "number", min: "0", max: String(r.balance), inputmode: "numeric", placeholder: "0", "aria-label": "Списать баллов" }) : null;
+    const run = h("button", { class: "btn btn-primary btn-block" }, "Провести");
+    run.addEventListener("click", async () => {
+      if (!check.value) return check.focus();
+      run.disabled = true;
+      try {
+        const res = await api("/api/app/staff/points", { method: "POST", body: { t: token, code: code(), check: Number(check.value), spend: spend && spend.value ? Number(spend.value) : 0 } });
+        if (res.state === "done") {
+          haptic.ok();
+          out.replaceChildren(h("div", { class: "notice notice-published", style: "display:block" },
+            h("b", null, "✅ Проведено"),
+            h("div", null, res.spend ? `Списано ${res.spend} ${plural(res.spend, "балл", "балла", "баллов")} — скидка ${res.spend} ₽. К оплате ${res.check - res.spend} ₽.` : `К оплате ${res.check} ₽.`),
+            res.earn ? h("div", null, `Начислено ${res.earn} ${plural(res.earn, "балл", "балла", "баллов")}.`) : null,
+            h("div", null, `Баланс гостя: ${res.balance}.`)));
+          input.value = "";
+        } else if (res.state === "error") {
+          haptic.err();
+          out.replaceChildren(...opForm(res, res.error));
+        } else {
+          haptic.err();
+          out.replaceChildren(notFoundBox());
+        }
+      } catch (e) {
+        haptic.err();
+        toast(e.message);
+        run.disabled = false;
+      }
+    });
+    return [
+      error ? h("div", { class: "notice notice-rejected", style: "display:block" }, h("b", null, "Не проведено"), h("div", null, error)) : null,
+      h("div", { class: "notice notice-published", style: "display:block" },
+        h("b", null, "Код действует"),
+        h("div", { style: "font-size:18px;font-weight:800;margin:4px 0" }, `${r.balance} ${plural(r.balance, "балл", "балла", "баллов")}`),
+        h("div", null, r.rules)),
+      h("div", { class: "card" },
+        h("label", { class: "field", style: "margin-top:0" }, h("span", { class: "field-label" }, "Сумма чека, ₽"), check),
+        spend ? h("label", { class: "field" }, h("span", { class: "field-label" }, `Списать баллов (необязательно, до ${r.maxShare}% чека)`), spend) : null,
+        h("div", { style: "height:12px" }), run)
+    ].filter(Boolean);
+  };
+  const notFoundBox = () => h("div", { class: "notice notice-rejected", style: "display:block" }, h("b", null, "Такого кода нет"),
+    h("div", null, "Код неверный, уже использован или прошло больше 10 минут. Попросите гостя нажать «Новый код»."));
+
+  let busy = false;
+  const lookup = async () => {
+    if (busy || code().length !== 6) return input.focus();
+    busy = true;
+    find.disabled = true;
+    try {
+      const r = await api("/api/app/staff/points", { method: "POST", body: { t: token, code: code() } });
+      if (r.state === "found") {
+        haptic.tap();
+        out.replaceChildren(...opForm(r));
+      } else {
+        haptic.err();
+        out.replaceChildren(notFoundBox());
+      }
+    } catch (error) {
+      haptic.err();
+      toast(error.message);
+    } finally {
+      busy = false;
+      find.disabled = false;
+    }
+  };
+  input.addEventListener("input", () => {
+    const d = code().slice(0, 6);
+    const v = d.length > 3 ? `${d.slice(0, 3)} ${d.slice(3)}` : d;
+    if (v !== input.value) input.value = v;
+    if (d.length === 6) lookup();
+    else out.replaceChildren();
+  });
+  find.addEventListener("click", lookup);
+  input.focus();
+}
+
 // ================= Избранное и профиль =================
 
 async function favoritesView() {
@@ -1715,6 +2194,15 @@ async function meView() {
       )
     : emptyView(I.pen, "Вы ещё не оставляли отзывов", "Найдите заведение в каталоге и поделитесь впечатлением.", h("a", { class: "btn btn-soft", href: "#/catalog" }, "Открыть каталог"));
 
+  // Рабочий режим официанта — если на этом аккаунте подключены рабочие ссылки
+  const work = await staffTokens();
+  const workEntry = work.length
+    ? h("a", { class: "card invite-card", href: work.length === 1 ? `#/work/${work[0]}` : "#/work", onclick: haptic.tap },
+        h("div", { class: "invite-icon", style: "background:#fff4d6" }, icon(I.store)),
+        h("div", { class: "grow" }, h("div", { style: "font-weight:700;color:var(--ink)" }, "Работа"), h("div", { class: "fine" }, "Вызовы гостей, подарки и баллы")),
+        h("span", { class: "info-go" }, "›"))
+    : null;
+
   const business = data.businesses.length
     ? [
         h("div", { class: "section-head", style: "padding:18px 0 10px" }, h("h2", { class: "section-title" }, "Мои заведения")),
@@ -1737,6 +2225,7 @@ async function meView() {
       h("div", { class: "section-head", style: "padding:6px 0 0" }, h("h2", { class: "section-title" }, "Мои отзывы"), h("span", { class: "fine" }, data.reviews.length ? String(data.reviews.length) : "")),
       reviews,
       ...business,
+      workEntry,
       h("a", { class: "card invite-card", href: "#/wallet", onclick: haptic.tap },
         h("div", { class: "invite-icon", style: "background:#eaf0fb" }, icon(I.card)),
         h("div", { class: "grow" }, h("div", { style: "font-weight:700;color:var(--ink)" }, "Мои заведения и подарки"), h("div", { class: "fine" }, "Визиты, штампы и коды подарков")),
@@ -1876,15 +2365,18 @@ function syncBackButton(sheetOpen) {
 function route() {
   const { parts, params } = parseHash();
   if (state.sheet && state.sheet.isOpen()) state.sheet.close();
-  const tab = parts[0] === "place" ? null : parts[0] === "biz" || parts[0] === "wallet" ? "me" : TAB_OF[parts[0] || ""];
+  const tab = parts[0] === "place" ? null : parts[0] === "biz" || parts[0] === "wallet" || parts[0] === "work" ? "me" : TAB_OF[parts[0] || ""];
   for (const t of document.querySelectorAll(".tabbar .tab")) t.classList.toggle("on", t.dataset.tab === tab);
   syncBackButton();
   window.scrollTo(0, 0);
+  stopStaffPolling();
 
   if (parts[0] === "place" && parts[1]) return placeView(parts[1]);
   if (parts[0] === "biz" && parts[1]) return bizView(parts[1]);
   if (parts[0] === "nearby") return nearbyView();
   if (parts[0] === "wallet") return walletView();
+  if (parts[0] === "work" && parts[1]) return workPlaceView(parts[1], parts[2]);
+  if (parts[0] === "work") return workView();
   if (parts[0] === "catalog") return catalogView(params);
   if (parts[0] === "favorites") return favoritesView();
   if (parts[0] === "me") return meView();
@@ -1895,7 +2387,7 @@ window.addEventListener("hashchange", (e) => {
   const from = new URL(e.oldURL).hash;
   const to = location.hash;
   // глубина для «Назад»: заведение и кабинет — на шаг глубже вкладок
-  const deep = (hash) => /^#\/(place\/|biz\/|nearby|wallet)/.test(hash);
+  const deep = (hash) => /^#\/(place\/|biz\/|nearby|wallet|work)/.test(hash);
   if (deep(to) && !deep(from)) depth++;
   else if (deep(from) && !deep(to)) depth = Math.max(0, depth - 1);
   route();
@@ -1917,6 +2409,11 @@ async function start() {
     // «Мои штампы и подарки» со страницы карты: подтверждение привязки телефона (walletView)
     state.linkToken = startParam.slice(2);
     history.replaceState(null, "", "#/wallet");
+    depth = 1;
+  } else if (/^k_[A-Za-z0-9]{24}$/.test(startParam)) {
+    // Рабочая ссылка персонала («Открыть в Telegram» на /k/…): подтверждение в workView
+    state.staffJoin = startParam.slice(2);
+    history.replaceState(null, "", "#/work");
     depth = 1;
   } else if (/^v_/.test(startParam)) {
     try {

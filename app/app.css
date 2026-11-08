@@ -456,3 +456,13 @@ a.notice { color: var(--navy); }
 
 .wallet-card .row-meta { white-space: normal; }
 
+
+/* ---------- Работа: вызовы гостей (официант) ---------- */
+.staff-call { display: flex; gap: 12px; align-items: center; }
+.staff-call .grow { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.staff-new { box-shadow: 0 0 0 2px var(--gold), var(--shadow); background: #fff8e6; }
+.staff-paid { box-shadow: 0 0 0 2px var(--ok), var(--shadow); background: var(--ok-bg); }
+.staff-actions { display: grid; gap: 6px; flex: none; }
+.staff-actions .btn { min-width: 96px; padding: 0 12px; }
+.staff-done { color: var(--ok); }
+.staff-lines { margin: 2px 0 0; padding-left: 18px; font-size: 14px; color: var(--ink); }

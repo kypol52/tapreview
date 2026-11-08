@@ -12,11 +12,12 @@ import { refUrl, refStats } from "./referral.js";
 import { recentScore, scoreHtml, SCORE_CSS } from "./score.js";
 import { rewardInviter } from "./friends.js";
 import { has, hasModule } from "./tariffs.js";
-import { serviceStats, serviceSection } from "./service.js";
+import { serviceStats, serviceSection, staffAppButton } from "./service.js";
 import { staffStats, staffSection } from "./staff.js";
 import { pointsOn, pointsStats, pointsSection } from "./points.js";
 import { aiStats, aiConfigured } from "./ai.js";
 import { orderStats, orderSection } from "./menu.js";
+import { payStats, feeMonths, paySection } from "./pay.js";
 
 const TOKEN_RE = /^[A-Za-z0-9]{24}$/;
 // Куда владелец пишет, чтобы продлить подписку (личный Telegram TapReview)
@@ -68,7 +69,7 @@ async function statsPage(request, env, ctx, token) {
   const [reports, extraRows] = await Promise.all([
     loadReports(env, linkIds, period, now),
     // slug — для ссылки-приглашения; bonus_mode — показывать ли кнопку кассы подарков
-    db(env, `businesses?id=in.(${linkIds.join(",")})&select=id,slug,category,bonus_mode,vip_visits,vip_gift,tariff,modules,points_on`).catch(() => [])
+    db(env, `businesses?id=in.(${linkIds.join(",")})&select=id,slug,category,bonus_mode,vip_visits,vip_gift,tariff,modules,points_on,pay_on`).catch(() => [])
   ]);
   const bonusRows = extraRows.filter((b) => b.bonus_mode && b.bonus_mode !== "off" && has(b, "gifts"));
   // Тарифы (tariffs.js): что показывать владельцу — по заведению на экране (сводка — если есть хоть у одного)
@@ -193,6 +194,15 @@ async function statsPage(request, env, ctx, token) {
       })
     : null;
 
+  // Оплаты по QR (pay.js): деньги за период + сбор TapReview за прошлый и текущий месяц
+  const payIds = view.dailyIds.filter((id) => rowOf(id) && rowOf(id).pay_on);
+  const [pay, payFee] = view.kind !== "card" && payIds.length
+    ? await Promise.all([payStats(env, payIds, venues[0].range), feeMonths(env, payIds, now)]).catch((error) => {
+        console.error(`payStats: ${error.message}`);
+        return [null, null];
+      })
+    : [null, null];
+
   // Модуль AI (ai.js) — на странице одного заведения
   const ai = view.kind === "venue" && hasModule(rowOf(view.dailyIds[0]), "ai")
     ? await aiStats(env, view.dailyIds[0], venues[0].range).catch((error) => {
@@ -204,7 +214,7 @@ async function statsPage(request, env, ctx, token) {
   // Подписи причин недовольства: «Еда и напитки» / «Результат услуги»… — по виду заведения на экране
   const reasonNames = reasonLabels(view.kind === "all" ? null : rowOf(view.dailyIds[0]).category);
 
-  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn, invite, ratings, names, bonus, score, levels, service, staff, reasonNames, points, pointsDesk, ai, orders,
+  const page = { token, period, range: venues[0].range, now, multi, notices, bonusOn, invite, ratings, names, bonus, score, levels, service, staff, reasonNames, points, pointsDesk, ai, orders, pay, payFee,
     askOn: aiConfigured(env) && extraRows.some((b) => hasModule(b, "ai")),
     canEdit: Boolean(link.can_edit) && anyHas("settings"), wrappedOn: anyHas("wrapped") };
   return html(200, `Статистика · ${view.title}`, renderBody(view, daily, page));
@@ -262,7 +272,9 @@ async function renderDesk(request, env, { ids, base, owner, token, by, onRedeem 
     const names = new Map(businesses.map((b) => [b.id, b.name]));
     // Ссылка персонала + «Сервис в зале» → переход на страницу вызовов (service.js); баллы → касса баллов (points.js)
     const callsLink = (!owner && hasModule(businesses[0], "service") ? `<a class="back" href="${base}/calls">🙋 Вызовы гостей</a>` : "") +
-      (businesses.some(pointsOn) ? `<a class="back" href="${owner ? `/s/${token}/points` : `${base}/points`}">💰 Баллы гостя</a>` : "");
+      (businesses.some(pointsOn) ? `<a class="back" href="${owner ? `/s/${token}/points` : `${base}/points`}">💰 Баллы гостя</a>` : "") +
+      // Та же рабочая ссылка в приложении TapReview (staff-app.js): вызовы, подарки и баллы в Telegram
+      (owner ? "" : staffAppButton(env, base.slice(3)));
 
     // Погашение — обычной ссылкой ?code=…&redeem=1 (а не формой): в РФ соединения с Cloudflare
     // иногда обрываются, и обычный переход браузер повторяет сам. Если повтор пришёл сразу после
@@ -644,6 +656,7 @@ function renderBody(view, daily, page) {
     ${staffSection(page.staff, page.reasonNames)}
     ${serviceSection(page.service)}
     ${orderSection(page.orders, esc)}
+    ${paySection(page.pay, page.payFee, esc)}
     ${sections}
     ${page.invite || ""}
     <section class="note">

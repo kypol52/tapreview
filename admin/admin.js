@@ -1066,6 +1066,8 @@ function openEditor(business) {
   $("f-tariff").value = (business && business.tariff) || "standard";
   $("f-mod-service").checked = Boolean(business && Array.isArray(business.modules) && business.modules.includes("service"));
   $("f-mod-ai").checked = Boolean(business && Array.isArray(business.modules) && business.modules.includes("ai"));
+  $("f-pay-on").checked = Boolean(business && business.pay_on);
+  loadPayFee(business);
   loadAiStatus();
   loadMenuText(business);
   // Баллы лояльности (миграция 045)
@@ -1611,6 +1613,7 @@ function readForm() {
     rating_first: $("f-rating-first").checked,
     tariff: $("f-tariff").value,
     modules: [...($("f-mod-service").checked ? ["service"] : []), ...($("f-mod-ai").checked ? ["ai"] : [])],
+    pay_on: $("f-pay-on").checked,
     points_on: $("f-points-on").checked,
     points_percent: $("f-points-percent").value,
     points_max_share: $("f-points-share").value,
@@ -2432,6 +2435,23 @@ async function loadBonusStats(business) {
     $("f-bonus-stats").className = "billing-status ok";
   } catch {
     // счётчики — не главное, форму не ломаем
+  }
+}
+
+// Оплаты по QR (pay.js): сбор TapReview за прошлый месяц — к счёту заведению, за текущий — на сегодня
+async function loadPayFee(business) {
+  const box = $("f-pay-fee");
+  box.hidden = true;
+  if (!business || !business.pay_on) return;
+  try {
+    const f = await api(`/api/admin/businesses/${business.id}/pay-fee`);
+    if (state.editing !== business) return;
+    const rub = (k) => `${(k / 100).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽`;
+    box.textContent = `Сбор за ${f.prev.name}: ${rub(f.prev.fee)} — выставить счёт · за ${f.cur.name} на сегодня: ${rub(f.cur.fee)}`;
+    box.className = "billing-status ok";
+    box.hidden = false;
+  } catch {
+    // счётчик — не главное, форму не ломаем
   }
 }
 

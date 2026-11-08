@@ -30,6 +30,7 @@
 //   PATCH  /api/app/biz/:slug                  — { description, city, address, coords }
 //   POST   /api/app/biz/:slug/catalog          — { on, consent } показ в каталоге (согласие владельца), { appButton }
 //   POST   /api/app/biz/:slug/photos           — { photo: dataURL } (до 8), DELETE …/photos/:id
+//   /api/app/staff/*                          — рабочий режим официанта: вызовы, касса подарков и баллов (staff-app.js)
 //
 // Модерация (админ-панель, /api/admin/app/*) — handleAppAdmin внизу файла.
 
@@ -41,6 +42,7 @@ import { tg, tgAs } from "./telegram.js";
 import { escapeHtml } from "./public-page.js";
 import { walletSummary, linkDevice, unlinkDevices } from "./guest-wallet.js";
 import { classifyReview } from "./ai.js";
+import { StaffError, staffPlaces, staffCalls, staffCallsDo, staffGift, staffPoints } from "./staff-app.js";
 
 export const APP_CATEGORIES = [
   { key: "restaurant", label: "Кафе и рестораны" },
@@ -218,6 +220,31 @@ export async function handleAppApi(request, env, url) {
       }
     }
     if (path === "/api/app/devices" && method === "DELETE") return json(await unlinkDevices(env, await requireUser(request, env)));
+
+    // Рабочий режим официанта (staff-app.js): права — ссылка персонала, плюс вход через Telegram
+    if (path.startsWith("/api/app/staff/")) {
+      const user = await requireUser(request, env);
+      try {
+        if (path === "/api/app/staff/places" && method === "POST") return json(await staffPlaces(env, (await readJson(request)).tokens));
+        if (path === "/api/app/staff/calls" && method === "GET") return json(await staffCalls(env, url.searchParams.get("t")));
+        if (path === "/api/app/staff/calls" && method === "POST") {
+          rateLimit(`sc:${user.id}`, 120, 60e3);
+          return json(await staffCallsDo(env, await readJson(request)));
+        }
+        // Коды подарков и баллов подбирать перебором нельзя: не больше 30 проверок в минуту
+        if (path === "/api/app/staff/gift" && method === "POST") {
+          rateLimit(`sg:${user.id}`, 30, 60e3);
+          return json(await staffGift(env, await readJson(request)));
+        }
+        if (path === "/api/app/staff/points" && method === "POST") {
+          rateLimit(`sp:${user.id}`, 30, 60e3);
+          return json(await staffPoints(env, await readJson(request)));
+        }
+      } catch (error) {
+        if (error instanceof StaffError) throw new AppError(error.status, error.message);
+        throw error;
+      }
+    }
 
     if (path === "/api/app/me" && method === "GET") return await me(request, env);
     if (path === "/api/app/me" && method === "PATCH") return await meSettings(request, env);

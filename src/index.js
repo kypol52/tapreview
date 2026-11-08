@@ -16,6 +16,7 @@
 //   /k/:token            — касса для персонала: только проверить и погасить код (stats-page.js)
 //   /k/:token/calls      — вызовы гостей для персонала: «Сервис в зале» (service.js)
 //   GET /call            — гость зовёт сотрудника со стола (service.js)
+//   /pay, /pay/status    — оплата счёта со стола по СБП + чаевые (pay.js); /pay/mock — поддельный банк стенда
 //   GET /menu/:slug      — меню заведения; с карты стола — корзина (menu.js)
 //   GET|POST /table-order — заказ со стола и его статус (menu.js); /order/ и /api/order — заявки с сайта, не путать
 //   GET /points          — одноразовый код гостя для кассы баллов (points.js)
@@ -48,6 +49,7 @@ import { handleCall, handleStaffCalls, purgeOldCalls } from "./service.js";
 import { handlePointsCode, handleStaffPoints, handleOwnerPoints, pointsDaily } from "./points.js";
 import { handleMenuPage, handleOrder as handleTableOrder, purgeOldOrders } from "./menu.js";
 import { handleAsk } from "./assistant.js";
+import { handlePay } from "./pay.js";
 import { db } from "./supabase.js";
 
 // Должно совпадать с расписанием в server/server.mjs
@@ -153,6 +155,10 @@ export default {
     // «Сервис в зале» (service.js): гость зовёт сотрудника со стола, персонал видит вызовы
     if (url.pathname === "/call") {
       return handleCall(request, env, ctx);
+    }
+    // Оплата счёта со стола (pay.js)
+    if (url.pathname === "/pay" || url.pathname === "/pay/status" || url.pathname === "/pay/mock") {
+      return handlePay(request, env, url);
     }
     // Меню и заказ со стола (menu.js)
     const menuMatch = url.pathname.match(/^\/menu\/([^/]+)\/?$/);
