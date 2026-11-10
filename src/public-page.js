@@ -853,7 +853,7 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
         <label class="fb-call" for="fb-call">Перезвоните мне</label>
         <div class="fb-phone">
           <input type="tel" name="phone" inputmode="tel" autocomplete="tel" maxlength="20" value="+7 " placeholder="+7 900 000-00-00" aria-label="Ваш телефон">
-          <p class="fb-consent">Отмечая «Перезвоните мне» и указывая номер, вы соглашаетесь, что ${escapeHtml(business.name)} позвонит вам по этому сообщению.
+          <p class="fb-consent">Отмечая «Перезвоните мне» и указывая номер, вы соглашаетесь, что ${escapeHtml(business.name)} свяжется с вами по этому сообщению.
             Номер видит только владелец, он не уходит в рекламу и удаляется через ${PHONE_KEEP_DAYS} дней. <a href="/privacy/#guests" target="_blank" rel="noopener">Подробнее</a></p>
         </div>
         <p class="fb-hint">Без отметки сообщение анонимное — имя и телефон в тексте не пишите.</p>
