@@ -26,7 +26,7 @@ import { has } from "./tariffs.js";
 import { tapOf, ipAllow } from "./tap.js";
 
 // Подарков в сутки с одного адреса сети на заведение (dailyGuard)
-export const GIFTS_PER_IP = 6;
+export const GIFTS_PER_IP = 10;
 
 // Коды подарков — 6 цифр (быстро набрать на кассе). Старые коды с буквами по-прежнему принимаются.
 const CODE_DIGITS = "0123456789";

@@ -21,10 +21,10 @@ const MAX_TEXT = 1000;
 // Телефон гостя (по желанию, с согласием) хранится столько дней, потом стирается (purgeOldPhones)
 export const PHONE_KEEP_DAYS = 30;
 // Сообщений владельцу в сутки на заведение: всего и пришедших не с карты (прямая ссылка, накрутка)
-export const FEEDBACK_PER_DAY = 30;
-export const DIRECT_FEEDBACK_PER_DAY = 5;
+export const FEEDBACK_PER_DAY = 50;
+export const DIRECT_FEEDBACK_PER_DAY = 8;
 // С одного адреса сети в сутки (с запасом на общий Wi-Fi и мобильных операторов)
-export const FEEDBACK_PER_IP = 10;
+export const FEEDBACK_PER_IP = 15;
 
 // «Что понравилось?» после оценки 4–5 — порядок как на странице
 export const LIKES = [
@@ -86,8 +86,8 @@ export function normalizePhone(value) {
 // Личная карта сотрудника (staffId, staff.js): одна оценка с телефона в день — чтобы рейтинг сотрудника не накручивали.
 // Потолки против накрутки (tap.js): с одного адреса сети — RATINGS_PER_IP в сутки на заведение
 // (с запасом на общий Wi-Fi и «Что понравилось», каждое касание — запрос), на заведение — RATINGS_PER_HOUR.
-export const RATINGS_PER_IP = 40;
-export const RATINGS_PER_HOUR = 40;
+export const RATINGS_PER_IP = 60;
+export const RATINGS_PER_HOUR = 60;
 
 export async function logRating(request, env, { businessId, cardId, score, source, likes = [], staffId = null }) {
   try {
