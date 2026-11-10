@@ -354,10 +354,41 @@ async function sendReports(env, chat, period, onlyIds) {
   const ids = onlyIds || (await chatBusinessIds(env, chat.id));
   if (!ids.length) return greet(env, chat);
 
-  const reports = await buildReports(env, ids, period, Date.now());
+  const now = Date.now();
+  // «7 дней» в личном чате — виджетом, как в понедельничном отчёте; при любой ошибке — текстом
+  if (period === "week" && chat.type === "private" && env.TG_WIDGETS !== "0") {
+    const raw = await loadReports(env, ids, period, now);
+    for (const id of ids) {
+      const report = raw.get(id);
+      if (!report) continue;
+      const text = reportText(report);
+      if (!text.startsWith("⏸")) {
+        try {
+          const rating = await ratingStats(env, [id], { from: now - 7 * 24 * 60 * 60 * 1000, to: now })
+            .then((r) => (r.count ? { avg: r.avg, count: r.count, low: r.low, reason: topReason(r) } : null))
+            .catch(() => null);
+          const widget = await buildWidget(env, report, rating, now);
+          await tg(env, "sendWidget", { chat_id: chat.id, html: WEEKLY_WIDGET_HTML, caption: widget.caption, chat_data: widget.data });
+          continue;
+        } catch (error) {
+          console.error(`Widget /week to ${chat.id} failed, sending text: ${error.message}`);
+        }
+      }
+      await send(env, chat.id, text, replyKeyboard(chat));
+    }
+    return;
+  }
+
+  const reports = await buildReports(env, ids, period, now);
   for (const id of ids) {
     if (reports.has(id)) await send(env, chat.id, reports.get(id), replyKeyboard(chat));
   }
+}
+
+// Самая частая причина недовольства (миграция 044) — строчными, или ""
+function topReason(r) {
+  const top = [...r.recovery.reasons.entries()].sort((a, b) => b[1] - a[1])[0];
+  return top && top[1] ? reasonLabels(null)[top[0]].toLowerCase() : "";
 }
 
 // ---------- Еженедельный отчёт ----------
