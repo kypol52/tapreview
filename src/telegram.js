@@ -15,7 +15,8 @@ import { askAssistant, SUGGESTIONS } from "./assistant.js";
 
 const escapeTg = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 import { db } from "./supabase.js";
-import { PERIODS, PLATFORMS, loadReports, formatDateRange } from "./report.js";
+import { PERIODS, PLATFORMS, loadReports, loadDaily, formatDateRange } from "./report.js";
+import { WEEKLY_WIDGET_HTML, widgetData, widgetCaption } from "./tg-widget.js";
 import { formatDay } from "./billing.js";
 import { isManageCommand, handleManage } from "./bot-manage.js";
 
@@ -380,7 +381,11 @@ export async function weeklyReports(env) {
 
   const ids = [...new Set(subs.map((s) => s.business_id))];
   const now = Date.now();
-  const reports = await buildReports(env, ids, "week", now);
+  const raw = await loadReports(env, ids, "week", now);
+  const reports = new Map();
+  for (const [id, report] of raw) reports.set(id, reportText(report));
+  const ratings = new Map(); // для виджета: { avg, count, low, reason }
+  const digests = new Map(); // разбор недели от AI — после виджета уходит отдельным сообщением
 
   // Оценки гостей за неделю (шаг «Сначала оценка»): средняя и сколько недовольных
   for (const id of ids) {
@@ -392,7 +397,9 @@ export async function weeklyReports(env) {
       const avg = r.avg.toLocaleString("ru-RU", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
       // Самая частая причина недовольства за неделю (миграция 044)
       const top = [...r.recovery.reasons.entries()].sort((a, b) => b[1] - a[1])[0];
-      const why = top && top[1] ? `\n      Чаще всего: ${reasonLabels(null)[top[0]].toLowerCase()} (${top[1]})` : "";
+      const reason = top && top[1] ? reasonLabels(null)[top[0]].toLowerCase() : "";
+      ratings.set(id, { avg: r.avg, count: r.count, low: r.low, reason });
+      const why = reason ? `\n      Чаще всего: ${reason} (${top[1]})` : "";
       reports.set(id, `${text}\n\n🌟 Оценки гостей: <b>${avg}</b> из 5 (${r.count})` +
         (r.low ? `\n      Недовольных (1–3 ★): ${r.low}, сообщений вам: ${r.recovery.total}${why}` : "\n      Недовольных не было 👏"));
     } catch (error) {
@@ -410,8 +417,22 @@ export async function weeklyReports(env) {
         console.error(`Weekly digest ${b.id}: ${error.message}`);
         return null;
       });
-      if (digest) reports.set(b.id, `${text}\n\n🤖 <b>Разбор недели</b> (AI по вашим отзывам):\n${escapeTg(digest)}`);
+      if (digest) {
+        const block = `🤖 <b>Разбор недели</b> (AI по вашим отзывам):\n${escapeTg(digest)}`;
+        digests.set(b.id, block);
+        reports.set(b.id, `${text}\n\n${block}`);
+      }
     }
+  }
+
+  // Виджет (tg-widget.js) — только в личных чатах (chat_id > 0), данные собираем один раз на заведение
+  const widgets = new Map();
+  async function widgetFor(id) {
+    if (!widgets.has(id)) widgets.set(id, await buildWidget(env, raw.get(id), ratings.get(id), now).catch((error) => {
+      console.error(`Weekly widget ${id}: ${error.message}`);
+      return null;
+    }));
+    return widgets.get(id);
   }
 
   let sent = 0;
@@ -419,6 +440,20 @@ export async function weeklyReports(env) {
     const text = reports.get(sub.business_id);
     if (!text) continue;
     try {
+      const widget = sub.chat_id > 0 && env.TG_WIDGETS !== "0" && !text.startsWith("⏸") ? await widgetFor(sub.business_id) : null;
+      if (widget) {
+        try {
+          await tg(env, "sendWidget", { chat_id: sub.chat_id, html: WEEKLY_WIDGET_HTML, caption: widget.caption, chat_data: widget.data });
+          const digest = digests.get(sub.business_id);
+          if (digest) await send(env, sub.chat_id, digest);
+          sent++;
+          continue;
+        } catch (error) {
+          if (error.tgCode === 403) throw error;
+          // Виджет не принят (старый Bot API, лимиты) — отправим обычный текст ниже
+          console.error(`Weekly widget to ${sub.chat_id} failed, sending text: ${error.message}`);
+        }
+      }
       await send(env, sub.chat_id, `🗓 <b>Отчёт за неделю</b>\n\n${text}`);
       sent++;
     } catch (error) {
@@ -430,6 +465,19 @@ export async function weeklyReports(env) {
     }
   }
   console.log(`Weekly reports sent: ${sent}`);
+}
+
+// Данные виджета: график по дням + ссылка на страницу статистики (последняя созданная для заведения)
+async function buildWidget(env, report, rating, now) {
+  if (!report) return null;
+  const [daily, links] = await Promise.all([
+    loadDaily(env, [report.id], "week", now),
+    db(env, `stats_links?business_id=eq.${report.id}&select=token&order=created_at.desc&limit=1`).catch(() => [])
+  ]);
+  const base = String(env.PUBLIC_BASE_URL || "https://tapreview.ru").replace(/\/+$/, "");
+  const link = links[0] ? `${base}/s/${links[0].token}?p=week` : null;
+  const rangeText = formatDateRange("week", report.range);
+  return { data: widgetData(report, daily, rating, link, rangeText), caption: widgetCaption(report, rangeText) };
 }
 
 // ---------- Текст отчёта (цифры считает report.js) ----------
