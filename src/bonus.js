@@ -239,7 +239,7 @@ export function sorryHtml(c) {
       <p class="sorry-title">🎁 Простите нас — подарок на следующий визит</p>
       <p class="sorry-prize">${escapeHtml(c.prize)}</p>
       <p class="sorry-code" aria-label="Код ${c.code.split("").join(" ")}">${formatCode(c.code)}</p>
-      <p class="sorry-note">Покажите код кассиру.</p>
+      <p class="sorry-note">Покажите код персоналу.</p>
       <p class="sorry-valid">${escapeHtml(validityText(c))}${c.conditions ? ` · ${escapeHtml(c.conditions)}` : ""}.</p>
     </section>`;
 }
@@ -402,7 +402,7 @@ function resultPage(business, c, { repeat, backUrl, wheel = null, stamps = null,
   if (stampsOn(business) && stamps !== null) {
     stampBox = c.stamp_reward
       ? `<p class="br-stamp">🎉 Все ${business.stamps_goal} ${plural(business.stamps_goal, "штамп", "штампа", "штампов")} собраны — это ваш особый подарок. Штампы начинают копиться заново.</p>`
-      : `${stampsHtml(business, stamps)}${c.redeemed_at ? "" : `<p class="br-stamp-note">Штамп появится, когда кассир погасит этот код.</p>`}`;
+      : `${stampsHtml(business, stamps)}${c.redeemed_at ? "" : `<p class="br-stamp-note">Штамп появится, когда персонал погасит этот код.</p>`}`;
   }
   const status = c.redeemed_at
     ? `<p class="br-warn">Этот код уже использован ${escapeHtml(dayLabel(Date.parse(c.redeemed_at)))}. Новый подарок можно будет получить позже.</p>`

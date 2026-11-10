@@ -130,7 +130,7 @@ export async function handlePointsCode(request, env) {
     const until = new Date(code.expires_at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" });
     return codePage(business, back, url, {
       done: false,
-      body: `<p class="lead">Покажите код кассиру</p>
+      body: `<p class="lead">Покажите код персоналу</p>
         <p class="pts-code" aria-label="Код ${code.code.split("").join(" ")}">${code.code.slice(0, 3)} ${code.code.slice(3)}</p>
         <p class="pts-sub">Действует до ${until} по МСК, один раз</p>
         <p class="lead">У вас <b>${balance}</b> ${plural(balance, "балл", "балла", "баллов")}</p>
