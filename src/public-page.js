@@ -796,8 +796,7 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
       <h2 class="thanks">Как вам у нас?</h2>
       <p class="lead">Оцените визит — это одно касание.</p>
       <div class="rate" role="group" aria-label="Оценка от 1 до 5">${stars}</div>
-      <div class="rate-scale"><span>Плохо</span><span>Отлично</span></div>
-      ${publicLink("Сразу оставить отзыв на картах →")}`;
+      <div class="rate-scale"><span>Плохо</span><span>Отлично</span></div>`;
   } else if (all || score >= 4) {
     // 2а. Довольный гость (или сам выбрал «сразу на картах») — площадки.
     // Под ними — необязательное «Что понравилось?»: каждое касание — ссылка, которая включает/выключает пункт (?l=…)
