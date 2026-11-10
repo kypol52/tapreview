@@ -16,10 +16,14 @@ import { has } from "./tariffs.js";
 import { isExpired } from "./billing.js";
 import { renderPage, escapeHtml, customDesign, DEFAULT_ACCENT } from "./public-page.js";
 import { html, esc, notFound, TOKEN_RE } from "./stats-page.js";
+import { tapOf } from "./tap.js";
 
 export const POINTS_COLUMNS = "points_on,points_percent,points_max_share,points_expire_days,points_max_check";
 const CODE_MINUTES = 10;
 const OPS_PER_DAY = 5;
+// Подсветка в статистике: одному гостю от одного сотрудника — от SUSPECT_OPS начислений и от SUSPECT_SHARE его баллов
+const SUSPECT_OPS = 4;
+const SUSPECT_SHARE = 0.4;
 const SLUG_RE = /^[A-Za-z0-9_-]{3,64}$/;
 
 export function pointsOn(business) {
@@ -100,7 +104,8 @@ export async function handlePointsCode(request, env) {
     const back = `${cardCode ? `/c/${cardCode}` : `/b/${business.slug}`}?s=${source}`;
 
     const { deviceId, setCookie } = deviceFrom(request);
-    if (setCookie) return guestPage(400, business, "Коснитесь карты заведения ещё раз и нажмите кнопку.", back);
+    // Метка касания (tap.js): код для кассы — только в заведении, не из дома по сохранённой ссылке
+    if (setCookie || !(await tapOf(request, env, business.id))) return guestPage(400, business, "Коснитесь карты заведения ещё раз и нажмите кнопку.", back);
     const key = await visitorKeyOf(env, deviceId, business.id);
     const now = Date.now();
 
@@ -353,14 +358,37 @@ export async function operate(env, b, found, balance, form, { by, staffId }) {
 export async function pointsStats(env, ids, { from, to }) {
   const iso = (ms) => encodeURIComponent(new Date(ms).toISOString());
   const [period, all] = await Promise.all([
-    db(env, `point_ops?business_id=in.(${ids.join(",")})&created_at=gte.${iso(from)}&created_at=lte.${iso(to)}&select=kind,points,visitor_key&limit=50000`),
+    db(env, `point_ops?business_id=in.(${ids.join(",")})&created_at=gte.${iso(from)}&created_at=lte.${iso(to)}&select=kind,points,visitor_key,by_label&limit=50000`),
     db(env, `point_ops?business_id=in.(${ids.join(",")})&select=business_id,visitor_key,points&limit=200000`)
   ]);
   const sum = (kind) => Math.abs(period.filter((o) => o.kind === kind).reduce((s, o) => s + o.points, 0));
   const balances = new Map();
   for (const o of all) balances.set(`${o.business_id}|${o.visitor_key}`, (balances.get(`${o.business_id}|${o.visitor_key}`) || 0) + o.points);
   const holders = [...balances.values()].filter((v) => v > 0);
+  // Кто проводил начисления: сумму чека вводит сотрудник, сверки с кассой нет — владелец должен видеть,
+  // если один сотрудник раз за разом начисляет одному и тому же гостю (SUSPECT_*)
+  const byStaff = new Map();
+  for (const o of period) {
+    if (o.kind !== "earn") continue;
+    const label = o.by_label || "—";
+    const s = byStaff.get(label) || { label, ops: 0, points: 0, guests: new Map() };
+    s.ops++;
+    s.points += o.points;
+    const g = s.guests.get(o.visitor_key) || { points: 0, ops: 0 };
+    g.points += o.points;
+    g.ops++;
+    s.guests.set(o.visitor_key, g);
+    byStaff.set(label, s);
+  }
+  const staff = [...byStaff.values()]
+    .map((s) => {
+      const top = [...s.guests.values()].sort((a, b) => b.points - a.points)[0];
+      const suspect = Boolean(top && s.points && top.ops >= SUSPECT_OPS && top.points / s.points >= SUSPECT_SHARE);
+      return { label: s.label, ops: s.ops, points: s.points, suspect };
+    })
+    .sort((a, b) => b.points - a.points);
   return {
+    staff,
     earned: sum("earn"),
     spent: sum("spend"),
     expired: sum("expire"),
@@ -381,6 +409,11 @@ export function pointsSection(s, token) {
       </div>
       <p>За период баллами пользовались гостей: ${s.guests}${s.expired ? ` · сгорело баллов: ${s.expired}` : ""}.
         Сейчас баллы копят ${s.holders} ${plural(s.holders, "гость", "гостя", "гостей")}, всего на счетах ${s.outstanding} ${plural(s.outstanding, "балл", "балла", "баллов")} (это ваши будущие скидки).</p>
+      ${s.staff && s.staff.length ? `
+      <table class="desk-table"><thead><tr><th>Кто начислял</th><th>Операций</th><th>Баллов</th></tr></thead><tbody>
+        ${s.staff.map((r) => `<tr><td>${esc(r.label)}${r.suspect ? ` <span title="Большая часть баллов — одному и тому же гостю. Сверьте чеки с кассой.">⚠️ часто одному гостю</span>` : ""}</td><td>${r.ops}</td><td>${r.points}</td></tr>`).join("")}
+      </tbody></table>
+      ${s.staff.some((r) => r.suspect) ? `<p class="hint">⚠️ — этот сотрудник раз за разом начисляет баллы одному гостю. Бывает и у постоянных гостей, но стоит сверить чеки с кассой.</p>` : ""}` : ""}
       <a class="desk-link" href="/s/${token}/points">💰 Провести баллы гостя</a>
     </section>`;
 }

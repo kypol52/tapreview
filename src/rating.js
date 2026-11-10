@@ -13,12 +13,18 @@ import { tg } from "./telegram.js";
 import { isBot, sha256, visitorHashOf } from "./analytics.js";
 import { has } from "./tariffs.js";
 import { classifyFeedback } from "./ai.js";
+import { tapOf, ipAllow } from "./tap.js";
 
 const DEDUPE_WINDOW_MINUTES = 30;
 const SLUG_RE = /^[A-Za-z0-9_-]{3,64}$/;
 const MAX_TEXT = 1000;
 // Телефон гостя (по желанию, с согласием) хранится столько дней, потом стирается (purgeOldPhones)
 export const PHONE_KEEP_DAYS = 30;
+// Сообщений владельцу в сутки на заведение: всего и пришедших не с карты (прямая ссылка, накрутка)
+export const FEEDBACK_PER_DAY = 30;
+export const DIRECT_FEEDBACK_PER_DAY = 5;
+// С одного адреса сети в сутки (с запасом на общий Wi-Fi и мобильных операторов)
+export const FEEDBACK_PER_IP = 10;
 
 // «Что понравилось?» после оценки 4–5 — порядок как на странице
 export const LIKES = [
@@ -78,9 +84,21 @@ export function normalizePhone(value) {
 
 // Оценка: один посетитель — одна оценка за 30 минут (передумал — обновляется).
 // Личная карта сотрудника (staffId, staff.js): одна оценка с телефона в день — чтобы рейтинг сотрудника не накручивали.
+// Потолки против накрутки (tap.js): с одного адреса сети — RATINGS_PER_IP в сутки на заведение
+// (с запасом на общий Wi-Fi и «Что понравилось», каждое касание — запрос), на заведение — RATINGS_PER_HOUR.
+export const RATINGS_PER_IP = 40;
+export const RATINGS_PER_HOUR = 40;
+
 export async function logRating(request, env, { businessId, cardId, score, source, likes = [], staffId = null }) {
   try {
     if (isBot(request)) return;
+    if (!(await ipAllow(request, env, `rate|${businessId}`, RATINGS_PER_IP, 24 * 3600e3))) return;
+    const hourAgo = encodeURIComponent(new Date(Date.now() - 3600e3).toISOString());
+    const lastHour = await db(env, `ratings?business_id=eq.${businessId}&created_at=gt.${hourAgo}&select=id&limit=${RATINGS_PER_HOUR}`);
+    if (lastHour.length >= RATINGS_PER_HOUR) {
+      console.error(`Оценки: заведение ${businessId} — больше ${RATINGS_PER_HOUR} за час, похоже на накрутку`);
+      return;
+    }
     const visitor = await visitorHashOf(request, env);
     const windowKey = staffId
       ? `staff${staffId}|day${Math.floor((Date.now() + 3 * 3600e3) / 86400e3)}`
@@ -113,7 +131,8 @@ export async function handleFeedback(request, env, ctx) {
 
   const slug = String(form.get("b") || "");
   const cardCode = String(form.get("c") || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12);
-  const source = ["nfc", "qr"].includes(form.get("s")) ? form.get("s") : "direct";
+  // Куда вернуть гостя — по адресу; «с карты» ли сообщение — по метке tap.js (ниже)
+  const backSource = ["nfc", "qr"].includes(form.get("s")) ? form.get("s") : "direct";
   const score = Number(form.get("r"));
   if (!SLUG_RE.test(slug) || !Number.isInteger(score) || score < 1 || score > 5) {
     return new Response("Откройте страницу с карты ещё раз", { status: 400 });
@@ -121,7 +140,7 @@ export async function handleFeedback(request, env, ctx) {
 
   // Обратно на ту же страницу (карты /c/КОД или заведения /b/slug) с отметкой «отправлено»
   const back = new URLSearchParams();
-  if (source !== "direct") back.set("s", source);
+  if (backSource !== "direct") back.set("s", backSource);
   back.set("r", String(score));
   back.set("sent", "1");
   const message = String(form.get("text") || "").replace(/\r\n?/g, "\n").trim().slice(0, MAX_TEXT);
@@ -150,15 +169,23 @@ export async function handleFeedback(request, env, ctx) {
     if (!rows.length || !has(rows[0], "rating")) return done();
     const business = rows[0];
     const visitor = await visitorHashOf(request, env);
+    const tap = await tapOf(request, env, business.id);
+    const source = tap || "direct";
 
-    // Не больше 3 сообщений с одного телефона за 10 минут и 20 на заведение в минуту
+    // Не больше 3 сообщений с одного телефона за 10 минут, FEEDBACK_PER_IP с одного адреса сети за сутки,
+    // 20 на заведение в минуту и FEEDBACK_PER_DAY в сутки; без касания карты (прямая ссылка) — DIRECT_FEEDBACK_PER_DAY.
+    // Сверх лимита гость видит обычное «спасибо», а владелец не получает поток сообщений.
     const since10 = encodeURIComponent(new Date(Date.now() - 10 * 60 * 1000).toISOString());
     const since1 = encodeURIComponent(new Date(Date.now() - 60 * 1000).toISOString());
-    const [mine, all] = await Promise.all([
+    const since24 = encodeURIComponent(new Date(Date.now() - 24 * 3600e3).toISOString());
+    const [mine, all, day] = await Promise.all([
       db(env, `feedback?business_id=eq.${business.id}&visitor_hash=eq.${visitor}&created_at=gt.${since10}&select=id`),
-      db(env, `feedback?business_id=eq.${business.id}&created_at=gt.${since1}&select=id`)
+      db(env, `feedback?business_id=eq.${business.id}&created_at=gt.${since1}&select=id`),
+      db(env, `feedback?business_id=eq.${business.id}&created_at=gt.${since24}&select=source&limit=${FEEDBACK_PER_DAY}`)
     ]);
-    if (mine.length >= 3 || all.length >= 20) return done();
+    const direct = day.filter((f) => f.source !== "nfc" && f.source !== "qr").length;
+    if (mine.length >= 3 || all.length >= 20 || day.length >= FEEDBACK_PER_DAY || (!tap && direct >= DIRECT_FEEDBACK_PER_DAY)) return done();
+    if (!(await ipAllow(request, env, `fb|${business.id}`, FEEDBACK_PER_IP, 24 * 3600e3))) return done();
 
     let card = null;
     if (cardCode) {
@@ -166,14 +193,15 @@ export async function handleFeedback(request, env, ctx) {
       card = cards[0] || null;
     }
     const body = { business_id: business.id, card_id: card ? card.id : null, score, text: message, reasons, source, visitor_hash: visitor };
-    // Личная карта сотрудника (staff.js) — сообщение относится к нему
-    if (card && card.staff_id) body.staff_id = card.staff_id;
+    // Личная карта сотрудника (staff.js) — сообщение относится к нему (только с касания карты, иначе жалобы на
+    // официанта можно было бы слать из дома по номеру его карты)
+    if (card && card.staff_id && tap) body.staff_id = card.staff_id;
     if (phone) Object.assign(body, { phone, phone_consent_at: new Date().toISOString() });
     const saved = await db(env, "feedback?select=id", { method: "POST", body, prefer: "return=representation" });
     // Модуль AI (ai.js): сначала разметка (до 15 с), потом сообщение владельцу — с пометкой «Срочно», если нужно.
-    // AI не ответил — сообщение уходит как обычно.
+    // AI не ответил — сообщение уходит как обычно. Сообщения не с карты в AI не отправляем.
     ctx.waitUntil((async () => {
-      const ai = await classifyFeedback(env, business, saved[0].id, { text: message, score, reasons }).catch(() => null);
+      const ai = tap ? await classifyFeedback(env, business, saved[0].id, { text: message, score, reasons }).catch(() => null) : null;
       await notifyOwner(env, business, card, score, message, saved[0].id, Boolean(phone), reasons, ai);
     })());
   } catch (error) {
@@ -193,7 +221,8 @@ async function notifyOwner(env, business, card, score, message, id, hasPhone, re
     if (hasPhone) {
       const link = await statsLinkOf(env, business.id);
       contact = `📞 <b>Гость просит перезвонить.</b> Номер — в статистике${link ? `:\n${link}#fb` : " по вашей ссылке."}\n` +
-        `Позвоните, пока впечатление свежее, — так недовольство не уйдёт в публичный отзыв.`;
+        `Позвоните, пока впечатление свежее, — так недовольство не уйдёт в публичный отзыв. ` +
+        `Номер гость ввёл сам, мы его не проверяем: если ответил другой человек — извинитесь и не продолжайте разговор.`;
     }
     const labels = reasonLabels(business.category);
     const why = reasons.length ? `\nПричина: <b>${reasons.map((k) => esc(labels[k])).join(", ")}</b>` : "";

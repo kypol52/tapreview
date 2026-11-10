@@ -728,7 +728,7 @@ function ratingsSection(r, names, showVenue, token, back, reasonNames = reasonLa
     const venue = showVenue && names.get(f.business_id) ? ` · ${esc(names.get(f.business_id))}` : "";
     const done = Boolean(f.resolved_at);
     const phone = f.phone && !done
-      ? `<a class="fb-phone" href="tel:${esc(f.phone)}">📞 ${esc(formatPhone(f.phone))}</a><span class="fb-phone-note">просит перезвонить</span>`
+      ? `<a class="fb-phone" href="tel:${esc(f.phone)}">📞 ${esc(formatPhone(f.phone))}</a><span class="fb-phone-note">просит перезвонить · номер не проверен</span>`
       : f.phone ? `<span class="fb-phone-note">📞 ${esc(formatPhone(f.phone))}</span>` : "";
     const button = `<form class="fb-act" method="post" action="/s/${token}/fb">
         <input type="hidden" name="id" value="${f.id}"><input type="hidden" name="done" value="${done ? 0 : 1}"><input type="hidden" name="back" value="${esc(back)}">

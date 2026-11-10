@@ -9,7 +9,8 @@
 // Яндекс не ответил — всё работает как раньше, просто без разметки.
 //
 // Настройки сервера (/etc/tapreview.env): YC_API_KEY (ключ сервисного аккаунта с ролью ai.languageModels.user),
-// YC_FOLDER_ID (каталог), AI_MONTHLY_TOKENS (лимит токенов в месяц, по умолчанию 3 000 000), YC_LLM_URL (для тестов).
+// YC_FOLDER_ID (каталог), AI_MONTHLY_TOKENS (лимит токенов в месяц, по умолчанию 3 000 000),
+// AI_VENUE_MONTHLY_TOKENS (лимит на одно заведение, по умолчанию 300 000), YC_LLM_URL (для тестов).
 
 import { db } from "./supabase.js";
 import { hasModule } from "./tariffs.js";
@@ -25,6 +26,7 @@ const TOPICS = ["wait", "quality", "service", "clean", "price", "other"];
 const TONES = ["negative", "neutral", "positive"];
 const TIMEOUT_MS = 15000;
 let usageCache = null;
+const venueCache = new Map();
 
 export function aiConfigured(env) {
   return Boolean(env.YC_API_KEY && env.YC_FOLDER_ID);
@@ -55,6 +57,22 @@ export async function monthUsage(env, now = Date.now()) {
   return { tokens, rub, requests: rows.length, failed: rows.filter((r) => !r.ok).length, limit: Number(env.AI_MONTHLY_TOKENS) || 3000000 };
 }
 
+// Лимит токенов в месяц на одно заведение (AI_VENUE_MONTHLY_TOKENS, по умолчанию 300 000 ≈ 1 000 разборов и 4 сводки)
+export function venueLimit(env) {
+  return Number(env.AI_VENUE_MONTHLY_TOKENS) || 300000;
+}
+
+// Расход заведения за месяц; кэш на 5 минут, но свои запросы добавляем сразу (см. complete)
+async function venueTokens(env, businessId) {
+  const hit = venueCache.get(businessId);
+  if (hit && Date.now() - hit.at < 5 * 60e3) return hit.tokens;
+  const rows = await db(env, `ai_usage?business_id=eq.${businessId}&created_at=gte.${encodeURIComponent(monthStart())}&select=tokens_in,tokens_out&limit=100000`).catch(() => null);
+  if (!rows) return 0;
+  const tokens = rows.reduce((s, r) => s + r.tokens_in + r.tokens_out, 0);
+  venueCache.set(businessId, { at: Date.now(), tokens });
+  return tokens;
+}
+
 // Один запрос к YandexGPT → текст ответа или null (ошибка, лимит, таймаут). Расход пишем в ai_usage.
 export async function complete(env, { model, system, user, json = false, maxTokens = 400, temperature = 0.2, businessId = null, kind }) {
   if (!aiConfigured(env)) return null;
@@ -65,6 +83,11 @@ export async function complete(env, { model, system, user, json = false, maxToke
   const usage = usageCache.value;
   if (usage && usage.tokens >= usage.limit) {
     console.error(`AI: месячный лимит ${usage.limit} токенов исчерпан`);
+    return null;
+  }
+  // Свой лимит у каждого заведения: накрутка сообщений в одном не выключит AI остальным
+  if (businessId && (await venueTokens(env, businessId)) >= venueLimit(env)) {
+    console.error(`AI: лимит заведения ${businessId} на месяц исчерпан`);
     return null;
   }
   const body = {
@@ -96,6 +119,8 @@ export async function complete(env, { model, system, user, json = false, maxToke
     console.error(`AI ${kind}: ${error.message}`);
     return null;
   } finally {
+    const hit = businessId && venueCache.get(businessId);
+    if (hit) hit.tokens += inTok + outTok;
     db(env, "ai_usage", {
       method: "POST",
       body: { business_id: businessId, kind, model, tokens_in: inTok, tokens_out: outTok, ok },

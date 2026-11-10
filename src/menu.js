@@ -21,6 +21,7 @@ import { isExpired } from "./billing.js";
 import { renderPage, escapeHtml, customDesign, DEFAULT_ACCENT } from "./public-page.js";
 import { callsOn, placeOf } from "./service.js";
 import { tg } from "./telegram.js";
+import { tapOf } from "./tap.js";
 
 export const MENU_MAX = 300;
 const SLUG_RE = /^[A-Za-z0-9_-]{3,64}$/;
@@ -369,6 +370,10 @@ export async function handleOrder(request, env, ctx) {
     }
 
     if (String(form.get("website") || "").trim()) return new Response(null, { status: 303, headers: { Location: menuUrl } });
+    // Метка касания (tap.js): заказ на стол — только со стола, не из дома по сохранённой ссылке меню
+    if (!(await tapOf(request, env, business.id))) {
+      return infoPage(400, business, "Коснитесь карты на столе ещё раз — заказ отправляется только из заведения.", `/c/${card.code}?s=${source}`);
+    }
     const items = await loadMenu(env, business.id);
     const byId = new Map(items.map((it) => [it.id, it]));
     const upIds = new Set(String(form.get("up") || "").split(",").map(Number).filter(Boolean));

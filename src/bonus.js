@@ -5,7 +5,9 @@
 // через несколько секунд после открытия страницы — ниже кнопок отзывов.
 //
 // Защита от злоупотреблений:
-//  - только при скане карты (?s=nfc / ?s=qr), по прямой ссылке кнопки нет;
+//  - только при скане карты (?s=nfc / ?s=qr), по прямой ссылке кнопки нет; сам код выдаётся только с меткой
+//    касания карты (tap.js) — пересланная ссылка /bonus?… не работает;
+//  - один код в день с отпечатка «сеть + браузер» и не больше GIFTS_PER_IP с одного адреса сети;
 //  - один бонус на устройство за bonus_cooldown_days (случайный id устройства в cookie,
 //    в базе — только его хеш с секретом), повторный заход показывает тот же код;
 //  - приз разыгрывает сервер, а не браузер;
@@ -21,6 +23,10 @@ import { isExpired } from "./billing.js";
 import { deviceFrom, visitorKeyOf, stampsOn, stampCount, vipOn, visitCount } from "./guests.js";
 import { friendOn, inviteFor, inviterRewards, inviteBlock } from "./friends.js";
 import { has } from "./tariffs.js";
+import { tapOf, ipAllow } from "./tap.js";
+
+// Подарков в сутки с одного адреса сети на заведение (dailyGuard)
+export const GIFTS_PER_IP = 6;
 
 // Коды подарков — 6 цифр (быстро набрать на кассе). Старые коды с буквами по-прежнему принимаются.
 const CODE_DIGITS = "0123456789";
@@ -124,6 +130,10 @@ export async function handleBonus(request, env) {
     const business = rows[0];
     if (!business || isExpired(business.paid_until) || !bonusEnabled(business) || !has(business, "gifts")) {
       return infoPage(404, "Бонус сейчас недоступен");
+    }
+    // Только после касания карты (tap.js): пересланная ссылка /bonus?… без этого не работает
+    if (!(await tapOf(request, env, business.id))) {
+      return infoPage(403, "Поднесите телефон к карте или отсканируйте QR-код ещё раз — подарок выдаётся только в заведении");
     }
 
     // Устройство: случайный id в cookie; в базе — только хеш с секретом (guests.js)
@@ -261,7 +271,9 @@ export async function dailyGuard(request, env, business) {
         `&select=id&limit=${limit}`
     )
   ]);
-  if (sameDevice.length) {
+  // Кроме отпечатка «сеть + браузер» — потолок на адрес сети: инкогнито или другой браузер на том же телефоне
+  // меняют отпечаток, но не адрес. С запасом на общий Wi-Fi и мобильных операторов, у которых один адрес на многих.
+  if (sameDevice.length || !(await ipAllow(request, env, `gift|${business.id}`, GIFTS_PER_IP, DAY))) {
     return {
       deviceDay,
       blocked: {

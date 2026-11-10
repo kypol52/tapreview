@@ -21,6 +21,7 @@ import { renderPage, escapeHtml, customDesign, DEFAULT_ACCENT } from "./public-p
 import { html, esc, notFound, TOKEN_RE } from "./stats-page.js";
 import { tg } from "./telegram.js";
 import { payOn, issueBill, activeBills, closeBill, parseRub, rub } from "./pay.js";
+import { tapOf } from "./tap.js";
 
 export const CALL_KINDS = {
   waiter: { label: "Позвать официанта", icon: "🙋", tg: "зовут официанта", staff: "Зовут официанта" },
@@ -146,7 +147,8 @@ export async function handleCall(request, env, ctx) {
 
     // Cookie ставится, когда страницу стола открыли с карты. Без неё — ссылку открыли не со стола (или из превью)
     const { deviceId, setCookie } = deviceFrom(request);
-    if (setCookie) return guestPage(400, business, "Коснитесь карты на столе ещё раз и нажмите кнопку.", back);
+    // Метка касания (tap.js): пересланная или сохранённая ссылка /call?… без свежего касания карты не работает
+    if (setCookie || !(await tapOf(request, env, business.id))) return guestPage(400, business, "Коснитесь карты на столе ещё раз и нажмите кнопку.", back);
     const visitor = await visitorKeyOf(env, deviceId, business.id);
 
     const since = (ms) => encodeURIComponent(new Date(Date.now() - ms).toISOString());

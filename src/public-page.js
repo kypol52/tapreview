@@ -18,6 +18,7 @@ import { payOn } from "./pay.js";
 import { staffOfCard, withStaffTips } from "./staff.js";
 import { pointsBlock, POINTS_CSS } from "./points.js";
 import { hasMenu } from "./menu.js";
+import { tapOf, tapCookie } from "./tap.js";
 
 const SLUG_RE = /^[A-Za-z0-9_-]{3,64}$/;
 const COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
@@ -245,8 +246,10 @@ export async function handleBusinessPage(request, env, ctx, slug) {
   ctx.waitUntil(
     logEvent(request, env, { businessId: business.id, eventType: "page_view", source })
   );
-  if (business.rating_first && has(business, "rating") && flow.score && !flow.sent && !flow.all) {
-    ctx.waitUntil(logRating(request, env, { businessId: business.id, score: flow.score, source, likes: flow.likes }));
+  // Оценку пишем, только если гость до этого открыл страницу с карты (метка tap.js), а не по ссылке ?r= из чата
+  const tap = await tapOf(request, env, business.id);
+  if (business.rating_first && has(business, "rating") && flow.score && !flow.sent && !flow.all && tap) {
+    ctx.waitUntil(logRating(request, env, { businessId: business.id, score: flow.score, source: tap, likes: flow.likes }));
   }
 
   if (isExpired(business.paid_until)) return pausedResponse(business);
@@ -256,13 +259,21 @@ export async function handleBusinessPage(request, env, ctx, slug) {
     ? { ...business, menuUrl: `/menu/${business.slug}${source !== "direct" ? `?s=${source}` : ""}` }
     : business;
   // Оценка 1–3 и подарок-извинение (миграция 050): код выдаём сразу — он будет над формой
-  if (business.rating_first && flow.score && flow.score <= 3) flow.sorry = await sorryCode(request, env, business, { source }).catch((e) => { console.error(`Подарок-извинение: ${e.message}`); return null; });
-  return withGuestCookie(businessPage(withMenu, source, null, flow, guest), guest);
+  if (business.rating_first && flow.score && flow.score <= 3 && tap) flow.sorry = await sorryCode(request, env, business, { source: tap }).catch((e) => { console.error(`Подарок-извинение: ${e.message}`); return null; });
+  return withTap(withGuestCookie(businessPage(withMenu, source, null, flow, guest), guest), request, env, business, source, flow);
 }
 
 // Cookie устройства ставим при первом касании карты (guests.js): «С возвращением!» и штампы
 function withGuestCookie(response, guest) {
   if (guest && guest.setCookie) response.headers.append("Set-Cookie", guest.setCookie);
+  return response;
+}
+
+// Метка «гость у карты» (tap.js) — только при обычном открытии с карты, не на шагах оценки
+async function withTap(response, request, env, business, source, flow) {
+  if (flow.score || flow.sent || flow.all) return response;
+  const cookie = await tapCookie(request, env, business.id, source);
+  if (cookie) response.headers.append("Set-Cookie", cookie);
   return response;
 }
 
@@ -398,8 +409,9 @@ export async function handleCardPage(request, env, ctx, rawCode) {
       cardId: card.id
     })
   );
-  if (business.rating_first && has(business, "rating") && flow.score && !flow.sent && !flow.all) {
-    ctx.waitUntil(logRating(request, env, { businessId: business.id, cardId: card.id, score: flow.score, source, likes: flow.likes, staffId: staff ? staff.id : null }));
+  const tap = await tapOf(request, env, business.id);
+  if (business.rating_first && has(business, "rating") && flow.score && !flow.sent && !flow.all && tap) {
+    ctx.waitUntil(logRating(request, env, { businessId: business.id, cardId: card.id, score: flow.score, source: tap, likes: flow.likes, staffId: staff ? staff.id : null }));
   }
 
   if (isExpired(business.paid_until)) return pausedResponse(business);
@@ -415,8 +427,8 @@ export async function handleCardPage(request, env, ctx, rawCode) {
   const service = serviceBlock(business, card, source, { menu, pay }) ||
     (staff ? `<section class="svc"><p class="svc-place">Вас обслуживает: ${escapeHtml(staff.name)}</p></section>` : "");
   // Оценка 1–3 и подарок-извинение (миграция 050): код выдаём сразу — он будет над формой
-  if (business.rating_first && flow.score && flow.score <= 3) flow.sorry = await sorryCode(request, env, business, { source, cardId: card.id }).catch((e) => { console.error(`Подарок-извинение: ${e.message}`); return null; });
-  return withGuestCookie(businessPage(withStaffTips(business, staff), source, card.code, flow, guest, appLink, service), guest);
+  if (business.rating_first && flow.score && flow.score <= 3 && tap) flow.sorry = await sorryCode(request, env, business, { source: tap, cardId: card.id }).catch((e) => { console.error(`Подарок-извинение: ${e.message}`); return null; });
+  return withTap(withGuestCookie(businessPage(withStaffTips(business, staff), source, card.code, flow, guest, appLink, service), guest), request, env, business, source, flow);
 }
 
 // Кнопка «Отзыв в Telegram» (миграция 035): галочка в админке + заведение в каталоге + бот настроен.
