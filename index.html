@@ -625,6 +625,104 @@
     .footer a { color: var(--navy); font-weight: 600; text-decoration: none; }
     .footer a:hover { text-decoration: underline; }
 
+    /* Шапка: канал в Telegram рядом с «Подключить» */
+    .h-actions { display: flex; align-items: center; gap: 10px; }
+    .h-social { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: var(--soft); color: var(--navy); box-shadow: 0 0 0 1px var(--line) inset; transition: background-color 0.2s var(--ease), color 0.2s var(--ease); }
+    .h-social:hover { background: #229ed9; color: #fff; box-shadow: none; }
+    .h-social svg { width: 20px; height: 20px; }
+
+    /* Вкладки «Гостю / Персоналу / Владельцу». Без JS видны все панели подряд с заголовками */
+    .tabs { display: none; }
+    .tabs-on .tabs { display: inline-flex; gap: 4px; max-width: 100%; margin: 0 0 24px; padding: 5px; border-radius: 999px; background: #fff; box-shadow: 0 0 0 1px var(--line) inset; overflow-x: auto; scrollbar-width: none; }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab { flex: none; min-height: 44px; padding: 0 22px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-size: 15px; font-weight: 700; color: var(--muted); cursor: pointer; transition: background-color 0.2s var(--ease), color 0.2s var(--ease); }
+    .tab:hover { color: var(--navy); }
+    .tab[aria-selected="true"] { background: var(--navy); color: #fff; }
+    .tab:focus-visible { outline: 3px solid #9fb3d9; outline-offset: 2px; }
+    .panel + .panel { margin-top: 32px; }
+    .panel:focus-visible { outline: none; }
+    .panel-title { margin: 0 0 14px; font-size: 22px; }
+    .tabs-on .panel + .panel { margin-top: 0; }
+    .tabs-on .panel-title { display: none; }
+    .tabs-on .panel[hidden] { display: none; }
+    .tabs-on .panel.switched .feat { animation: panel-in 0.35s var(--ease) both; }
+    .tabs-on .panel.switched .feat:nth-child(2) { animation-delay: 0.04s; }
+    .tabs-on .panel.switched .feat:nth-child(3) { animation-delay: 0.08s; }
+    .tabs-on .panel.switched .feat:nth-child(4) { animation-delay: 0.12s; }
+    @keyframes panel-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    .role-grid { display: grid; gap: 16px; }
+    .role-grid .plan-tag { align-self: flex-start; margin-top: 14px; }
+    .mini-rate { flex-direction: column; gap: 8px; }
+    .mini-rate small { font-size: 13px; font-weight: 700; color: var(--ink); }
+    .mini-rate span { display: flex; gap: 6px; color: var(--gold); }
+    .mini-rate svg { width: 26px; height: 26px; }
+    .mini-funnel small { margin-top: 2px; font-size: 11px; color: var(--muted); }
+
+    /* Цепочка «как всё связано» */
+    .eco { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 0; margin: 28px 0 0; padding: 0; list-style: none; font-size: 14px; font-weight: 650; color: var(--ink); }
+    .eco li { display: flex; align-items: center; white-space: nowrap; }
+    .eco li:not(:last-child)::after { content: ""; width: 22px; height: 2px; margin: 0 8px; border-radius: 2px; background: var(--gold); }
+    .eco li:last-child { color: var(--navy); font-weight: 750; }
+
+    /* Отличия */
+    .diff-grid { display: grid; gap: 16px; }
+    .diff { display: flex; flex-direction: column; padding: 24px; border-radius: var(--r-lg); background: #fff; box-shadow: 0 0 0 1px var(--line) inset; }
+    .diff p { margin: 0; color: var(--muted); font-size: 15.5px; }
+    .diff p a { color: var(--navy); font-weight: 700; }
+    .diff .mini { height: 132px; }
+    .diff-dark { background: var(--navy-900); color: #c9d3e6; box-shadow: var(--shadow-lg); }
+    .diff-dark h3 { color: #fff; }
+    .diff-dark p { color: #b8c5df; }
+    .diff-dark .mini { background: rgba(255, 255, 255, 0.06); }
+    /* NFC + QR */
+    .mini-nfc { gap: 16px; }
+    .nfc-card { position: relative; display: grid; place-items: center; width: 62px; height: 92px; border-radius: 10px; background: #fff; box-shadow: 0 0 0 1px var(--line) inset, 0 8px 18px rgba(10, 42, 92, 0.12); color: var(--navy); }
+    .nfc-card svg { width: 30px; height: 30px; }
+    .nfc-card i { position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 50%; border: 2px solid var(--gold); opacity: 0; animation: nfc-pulse 2.4s ease-out infinite; }
+    @keyframes nfc-pulse { 0% { opacity: 0.9; transform: scale(0.5); } 100% { opacity: 0; transform: scale(1.6); } }
+    .nfc-or { font-size: 12px; font-weight: 700; color: var(--muted); }
+    .nfc-qr { width: 58px; height: 58px; padding: 0; border-radius: 4px; background: #fff; box-shadow: 0 0 0 6px #fff, 0 0 0 7px var(--line); }
+    /* Звёзды: 1–3 и 4–5 */
+    .mini-split { flex-direction: column; align-items: stretch; gap: 10px; padding: 14px 18px; }
+    .mini-split .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.08); }
+    .mini-split .st { display: flex; gap: 3px; color: #6f7f9f; }
+    .mini-split .st.on { color: var(--gold); }
+    .mini-split .st svg { width: 15px; height: 15px; }
+    .mini-split em { display: flex; gap: 5px; font-style: normal; font-size: 12px; font-weight: 700; color: #fff; }
+    .mini-split em svg { width: 20px; height: 20px; }
+    /* Экосистема */
+    .mini-eco { flex-wrap: wrap; align-content: center; gap: 6px; }
+    .mini-eco i { padding: 6px 11px; border-radius: 99px; background: #fff; box-shadow: 0 0 0 1px var(--line) inset; font-style: normal; font-size: 12px; }
+    .mini-eco i:first-child { background: var(--navy); color: #fff; box-shadow: none; }
+
+    /* Подключение */
+    .start-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 36px; }
+
+    /* Всплывающее окно с заявкой: не перекрывает страницу, закрывается одним нажатием */
+    .pop {
+      position: fixed; z-index: 40; right: 20px; bottom: 20px; width: min(380px, calc(100% - 24px));
+      padding: 24px 22px 20px; border-radius: var(--r-lg); background: #fff; box-shadow: var(--shadow-lg), 0 0 0 1px var(--line);
+      transform: translateY(16px); opacity: 0; transition: transform 0.35s var(--ease), opacity 0.35s var(--ease);
+    }
+    .pop.show { transform: none; opacity: 1; }
+    .pop[hidden], .pop [hidden] { display: none; }
+    .pop h3 { margin: 0 40px 6px 0; font-size: 20px; }
+    .pop > p { margin: 0 0 16px; font-size: 14.5px; color: var(--muted); }
+    .pop > p b { color: var(--ink); }
+    .pop-x { position: absolute; top: 12px; right: 12px; display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 50%; background: var(--soft); color: var(--muted); font-size: 22px; line-height: 1; cursor: pointer; }
+    .pop-x:hover { color: var(--ink); }
+    .pop form { display: grid; gap: 10px; }
+    .pop input[type="text"], .pop input[type="tel"] { width: 100%; min-height: 46px; padding: 0 14px; border: 0; border-radius: 12px; background: var(--soft); box-shadow: 0 0 0 1px var(--line) inset; font: inherit; font-size: 16px; color: var(--ink); }
+    .pop input:focus { outline: none; box-shadow: 0 0 0 2px var(--navy) inset; background: #fff; }
+    .pop-consent { display: flex; gap: 10px; align-items: flex-start; font-size: 12.5px; line-height: 1.45; color: var(--muted); cursor: pointer; }
+    .pop-consent input { flex: none; width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--navy); }
+    .pop-consent a { color: var(--navy); }
+    .pop .btn { width: 100%; min-height: 50px; }
+    .pop-err { margin: 0; font-size: 13px; color: #b42318; }
+    .pop-trap { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+    .pop-done { margin: 4px 0 2px; font-size: 15px; color: var(--text); }
+    @media (max-width: 560px) { .pop { right: 12px; bottom: 12px; padding: 20px 18px 16px; } }
+
     /* Мягкое появление при прокрутке (только если работает JS и пользователь не отключил анимации) */
     .js .reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.7s var(--ease), transform 0.7s var(--ease); transition-delay: var(--d, 0s); }
     .js .reveal.in { opacity: 1; transform: none; }
@@ -637,6 +735,9 @@
       .steps { grid-template-columns: repeat(3, 1fr); }
       .benefits { grid-template-columns: repeat(2, 1fr); }
       .feats { grid-template-columns: repeat(2, 1fr); }
+      .role-grid { grid-template-columns: repeat(2, 1fr); }
+      .diff-grid { grid-template-columns: repeat(2, 1fr); }
+      .diff { padding: 28px; }
       .formats { grid-template-columns: repeat(2, 1fr); }
       .format { padding: 24px; }
       .format-img { height: 340px; }
@@ -659,13 +760,15 @@
       .section-head { margin-bottom: 56px; }
       .benefits { grid-template-columns: repeat(3, 1fr); }
       .feats { grid-template-columns: repeat(3, 1fr); }
+      .role-grid { grid-template-columns: repeat(4, 1fr); }
       .stats-block { grid-template-columns: 0.9fr 1.1fr; gap: 56px; padding: 56px; margin-top: 72px; }
       .dash { padding: 26px; }
     }
     @media (max-width: 440px) {
-      .header .btn span { display: none; }
-      .header .btn { width: 42px; padding: 0; }
-      .actions .btn { width: 100%; }
+      .header .btn { padding: 0 16px; }
+      .h-actions { gap: 8px; }
+      .actions .btn, .start-cta .btn { width: 100%; }
+      .tab { padding: 0 16px; }
     }
     @media (min-width: 441px) and (max-width: 979px) { .scene-wrap { --s: 0.9; } }
     @media (prefers-reduced-motion: reduce) {
@@ -679,6 +782,7 @@
       .nfc i { opacity: 0.5; transform: scale(1); }
       .nfc i:nth-child(2) { opacity: 0.3; transform: scale(1.4); }
       .nfc i:nth-child(3) { opacity: 0.15; transform: scale(1.8); }
+      .nfc-card i { opacity: 0.5; transform: scale(1.2); }
     }
   </style>
 </head>
@@ -724,14 +828,17 @@
       </a>
       <nav class="nav" aria-label="Разделы">
         <a href="#how">Как работает</a>
-        <a href="#features">Возможности</a>
+        <a href="#roles">Возможности</a>
+        <a href="#diff">Отличия</a>
         <a href="#pricing">Цены</a>
-        <a href="#faq">Вопросы</a>
+        <a href="#start">Подключение</a>
       </nav>
-      <a class="btn btn-primary" href="/order/" aria-label="Рассчитать и заказать">
-        <svg aria-hidden="true"><use href="#i-calc"/></svg>
-        <span>Заказать</span>
-      </a>
+      <div class="h-actions">
+        <a class="h-social" href="https://t.me/tapreviewru" target="_blank" rel="noopener" aria-label="Наш канал в Telegram">
+          <svg aria-hidden="true"><use href="#i-tg"/></svg>
+        </a>
+        <a class="btn btn-primary" href="/order/">Подключить</a>
+      </div>
     </div>
   </header>
 
@@ -741,17 +848,15 @@
       <div class="wrap">
         <div>
           <p class="ref-banner" id="ref-banner" hidden>🎁 Вы пришли по приглашению — <b>первый месяц подписки в подарок</b></p>
-          <p class="eyebrow reveal"><span class="dot" aria-hidden="true"></span>Карты с NFC и QR-кодом для отзывов</p>
+          <p class="eyebrow reveal"><span class="dot" aria-hidden="true"></span>NFC-карта: отзывы, подарки, сервис</p>
           <h1 class="reveal" style="--d:.05s">Отзывы <span class="accent">в одно</span> касание</h1>
           <p class="lead reveal" style="--d:.1s">
             Гость прикладывает телефон к карте и ставит оценку. Довольные сразу попадают в форму отзыва на
             <b>Яндекс Картах, 2ГИС или Google</b>, а недовольные пишут <b>вам</b> — пока они ещё в зале.
+            А ещё карта выдаёт подарки, копит баллы и зовёт официанта.
           </p>
           <div class="actions reveal" style="--d:.15s">
-            <a class="btn btn-primary" href="/order/">
-              <svg aria-hidden="true"><use href="#i-calc"/></svg>
-              Заказать карту
-            </a>
+            <a class="btn btn-primary" href="/order/">Подключить</a>
             <a class="btn btn-gold" href="/b/yarik">Посмотреть пример</a>
           </div>
           <!-- ЦЕНЫ (прайс 4.11.2026): подписка за заведение Start 490 / Plus 990 / Pro 1 990 ₽/мес, подключение 1 490 / 3 490 / 5 990 ₽
@@ -850,106 +955,148 @@
       </div>
     </section>
 
-    <!-- ---------- возможности: 6 плиток, подробности по нажатию ---------- -->
-    <section class="section-soft" id="features">
+    <!-- ---------- возможности: вкладки «для кого» ---------- -->
+    <section class="section-soft" id="roles">
       <div class="wrap">
         <div class="section-head reveal">
           <p class="kicker">Возможности</p>
-          <h2>Всё, что получает заведение</h2>
-          <p>Для кафе, ресторанов, барбершопов, салонов, магазинов, автосервисов и отелей. Гостю не нужно ничего скачивать и регистрироваться.</p>
+          <h2>Одна карта — целая система</h2>
+          <p>Отзывы, подарки, баллы, меню и сервис в зале работают вместе. Посмотрите, что карта делает для каждого.</p>
         </div>
 
-        <div class="feats">
-          <article class="feat reveal">
-            <div class="mini mini-tg" aria-hidden="true"><b>😟 Гость поставил ★★</b><span>«Долго ждали заказ»</span><em>📞 Просит перезвонить</em></div>
-            <h3>Жалобы — вам, а не на карты</h3>
-            <p>Недовольный гость пишет вам в Telegram, пока он ещё в зале.</p>
-            <details class="feat-more">
-              <summary>Подробнее</summary>
-              <ul>
-                <li>Причина одним касанием: «Долго ждали», «Обслуживание», «Чистота»</li>
-                <li>Гость может попросить перезвонить</li>
-                <li>Не разобрали за 2 часа — бот напомнит</li>
-                <li>В статистике видно, на что жалуются чаще</li>
-              </ul>
-            </details>
+        <div class="tabs reveal" role="tablist" aria-label="Для кого">
+          <button class="tab" role="tab" id="tab-guest" aria-controls="panel-guest" aria-selected="true">Гостю</button>
+          <button class="tab" role="tab" id="tab-staff" aria-controls="panel-staff" aria-selected="false" tabindex="-1">Персоналу</button>
+          <button class="tab" role="tab" id="tab-owner" aria-controls="panel-owner" aria-selected="false" tabindex="-1">Владельцу</button>
+        </div>
+
+        <div class="panel" role="tabpanel" id="panel-guest" aria-labelledby="tab-guest" tabindex="0">
+          <h3 class="panel-title">Гостю</h3>
+          <div class="role-grid">
+            <article class="feat">
+              <div class="mini mini-rate" aria-hidden="true"><small>Как вам у нас?</small><span><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg></span></div>
+              <h3>Отзыв за 10 секунд</h3>
+              <p>Касание, оценка — и форма отзыва на картах уже открыта. Без приложений и регистрации.</p>
+            </article>
+            <article class="feat">
+              <div class="mini mini-stamps" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><b>🎁</b><small>Ещё 1 штамп — и пицца в подарок</small></div>
+              <h3>Подарки и штампы</h3>
+              <p>Колесо подарков после оценки, штампы за визиты и особый подарок постоянным гостям.</p>
+            </article>
+            <article class="feat">
+              <div class="mini mini-points" aria-hidden="true"><b>Ваши баллы: 340</b><span class="pts-code">482 913</span><small>Покажите код персоналу</small></div>
+              <h3>Баллы с каждого чека</h3>
+              <p>Гость показывает код, баллы копятся и потом списываются как скидка.</p>
+            </article>
+            <article class="feat">
+              <div class="mini mini-call" aria-hidden="true"><i class="on"><b>🙋</b>Официант</i><i><b>🧾</b>Счёт</i><i><b>📖</b>Меню</i></div>
+              <h3>Меню и официант со стола</h3>
+              <p>Меню с фото, заказ прямо со стола, «Позвать официанта» и «Попросить счёт».</p>
+              <p class="plan-tag">Модуль «Сервис в зале»</p>
+            </article>
+          </div>
+        </div>
+
+        <div class="panel" role="tabpanel" id="panel-staff" aria-labelledby="tab-staff" tabindex="0">
+          <h3 class="panel-title">Персоналу</h3>
+          <div class="role-grid">
+            <article class="feat">
+              <div class="mini mini-staffcall" aria-hidden="true"><span>Стол 5 · счёт на троих <i>Принял</i></span><span>Стол 2 · зовут официанта <i>Принял</i></span></div>
+              <h3>Вызовы со звуком</h3>
+              <p>Официант видит «Стол 5 — просят счёт» на своём телефоне и в чате смены. Не нужно ловить взгляд гостя.</p>
+              <p class="plan-tag">Модуль «Сервис в зале»</p>
+            </article>
+            <article class="feat">
+              <div class="mini mini-cart" aria-hidden="true"><span>Капучино × 2 <b>500 ₽</b></span><span>Чизкейк <b>290 ₽</b></span><span class="bar-total">Заказ, стол 7 <em>790 ₽</em></span></div>
+              <h3>Заказ со стола — сразу официанту</h3>
+              <p>Гость выбрал блюда в меню, официант получил готовый список. Меньше беготни и ошибок в заказе.</p>
+              <p class="plan-tag">Модуль «Сервис в зале»</p>
+            </article>
+            <article class="feat">
+              <div class="mini mini-staff" aria-hidden="true"><span>Анна <b>★ 4,9</b></span><span>Илья <b>★ 4,7</b></span></div>
+              <h3>Личные оценки и чаевые</h3>
+              <p>У официанта своя карта: оценки гостей засчитываются ему, а чаевые идут по его личной ссылке.</p>
+            </article>
+            <article class="feat">
+              <div class="mini mini-desk" aria-hidden="true"><span class="code">K7M-2QX</span><span class="ok">✓ Погашен: кофе в подарок</span></div>
+              <h3>Подарок — за 2 секунды</h3>
+              <p>Ввели 6 символов на ссылке-кассе — подарок погашен. Без кассового софта и планшета.</p>
+            </article>
+          </div>
+        </div>
+
+        <div class="panel" role="tabpanel" id="panel-owner" aria-labelledby="tab-owner" tabindex="0">
+          <h3 class="panel-title">Владельцу</h3>
+          <div class="role-grid">
+            <article class="feat">
+              <div class="mini mini-tg" aria-hidden="true"><b>😟 Гость поставил ★★</b><span>«Долго ждали заказ»</span><em>📞 Просит перезвонить</em></div>
+              <h3>Жалобы — вам первым</h3>
+              <p>Гость с оценкой 1–3 пишет вам в Telegram с причиной и может попросить перезвонить.</p>
+            </article>
+            <article class="feat">
+              <div class="mini mini-funnel" aria-hidden="true"><i style="width:100%"></i><i style="width:74%"></i><i class="g" style="width:46%"></i><i class="g" style="width:28%"></i><small>Открыли → оценили → к отзыву → за подарком</small></div>
+              <h3>Путь гостя в цифрах</h3>
+              <p>Сколько людей открыли карту, оценили, перешли к отзыву и вернулись за подарком. По каждой карте и точке.</p>
+            </article>
+            <article class="feat">
+              <div class="mini mini-urgent" aria-hidden="true"><b>🔥 Срочно: возможное отравление</b><span>Гость поставил ★★ · стол 5</span></div>
+              <h3>AI отмечает срочное</h3>
+              <p>Отравление, грубость, опасная ситуация — сразу с пометкой «Срочно». По понедельникам — разбор недели.</p>
+              <p class="plan-tag">Модуль «AI»</p>
+            </article>
+            <article class="feat">
+              <div class="mini mini-score" aria-hidden="true"><span class="ring"><b>87</b></span><span><b>Отлично</b><small>TapReview Score</small></span></div>
+              <h3>Отчёт в Telegram</h3>
+              <p>Итоги недели по понедельникам, итоги месяца и TapReview Score — без входа в кабинет.</p>
+            </article>
+          </div>
+        </div>
+
+        <ol class="eco reveal" aria-label="Как всё связано">
+          <li>Гость оценил</li>
+          <li>Получил подарок</li>
+          <li>Вернулся за ним</li>
+          <li>Копит баллы</li>
+          <li>Вы видите всё это в статистике</li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ---------- чем отличаемся ---------- -->
+    <section id="diff">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <p class="kicker">Отличия</p>
+          <h2>Не просто табличка с QR-кодом</h2>
+          <p>Табличку с QR для отзывов можно напечатать за вечер. Вот что TapReview даёт сверх неё.</p>
+        </div>
+        <div class="diff-grid">
+          <article class="diff reveal">
+            <div class="mini mini-nfc" aria-hidden="true">
+              <span class="nfc-card"><svg><use href="#i-nfc"/></svg><i></i></span>
+              <span class="nfc-or">или</span>
+              <svg class="nfc-qr" viewBox="0 0 21 21" aria-hidden="true"><path fill="#0a2a5c" d="M0 0h7v7H0zM2 2v3h3V2zM14 0h7v7h-7zm2 2v3h3V2zM0 14h7v7H0zm2 2v3h3v-3zM9 0h2v2H9zm0 3h3v2H9zm-1 3h2v3H8zm3 2h2v2h-2zM0 9h2v2H0zm3 0h3v2H3zm6 2h3v2H9zm5-2h2v2h-2zm3 0h4v2h-4zm-3 3h3v2h-3zm5 0h2v3h-2zM9 14h2v2H9zm3 1h2v2h-2zm-3 3h3v3H9zm6 0h2v3h-2zm3 2h3v1h-3zm-4-3h2v2h-2z"/></svg>
+            </div>
+            <h3>Касание вместо поиска камеры</h3>
+            <p>Внутри карты NFC-метка: гость просто прикладывает телефон. QR-код на той же карте — для телефонов без NFC.</p>
           </article>
-          <article class="feat reveal" style="--d:.06s">
-            <div class="mini mini-stamps" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><b>🎁</b><small>Ещё 1 штамп — и пицца в подарок</small></div>
-            <h3>Подарки, чтобы возвращались</h3>
-            <p>Колесо подарков, штампы, баллы и VIP-гости — без приложений.</p>
-            <details class="feat-more">
-              <summary>Подробнее</summary>
-              <ul>
-                <li>Колесо подарков: одноразовый код на следующий визит, кассир гасит его по ссылке</li>
-                <li>Штампы: собрал все — особый приз</li>
-                <li>Баллы с чека: 1 балл = 1 ₽ скидки</li>
-                <li>«С возвращением!» и VIP-гости со своим подарком</li>
-                <li>«Подарите другу»: подарок другу и пригласившему</li>
-                <li>Все подарки гостя — в Telegram, во всех заведениях</li>
-              </ul>
-            </details>
+          <article class="diff diff-dark reveal" style="--d:.06s">
+            <div class="mini mini-split" aria-hidden="true">
+              <span class="row"><span class="st"><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg></span><em>Сообщение вам</em></span>
+              <span class="row"><span class="st on"><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg></span><em><svg><use href="#i-yandex"/></svg><svg><use href="#i-twogis"/></svg><svg><use href="#i-google"/></svg></em></span>
+            </div>
+            <h3>1–3 — вам, 4–5 — на карты</h3>
+            <p>Недовольный гость сначала пишет вам, пока он ещё в зале. Довольный сразу попадает в форму отзыва. Кнопки площадок видны при любой оценке — так требуют правила Яндекс Карт и 2ГИС.</p>
           </article>
-          <article class="feat reveal" style="--d:.12s">
-            <div class="mini mini-score" aria-hidden="true"><span class="ring"><b>87</b></span><span><b>Отлично</b><small>TapReview Score</small></span></div>
-            <h3>Статистика и Telegram</h3>
-            <p>Видно, кто открыл, оценил и дошёл до отзыва. Отчёт — по понедельникам.</p>
-            <details class="feat-more">
-              <summary>Подробнее</summary>
-              <ul>
-                <li>Путь гостя: открыли → оценили → перешли к отзыву → пришли за подарком</li>
-                <li>По каждой карте и точке, несколько заведений в одной ссылке</li>
-                <li>TapReview Score 0–100 и подсказки, что улучшить</li>
-                <li>Итоги месяца 1-го числа</li>
-                <li>Команды в боте: подарки вкл/выкл, новость на странице</li>
-                <li>Отдельная ссылка-касса для персонала</li>
-              </ul>
-            </details>
+          <article class="diff reveal">
+            <div class="mini mini-eco" aria-hidden="true"><i>Отзывы</i><i>Подарки</i><i>Штампы</i><i>Баллы</i><i>VIP</i><i>Меню</i><i>Официант</i><i>Статистика</i></div>
+            <h3>Система, а не одна ссылка</h3>
+            <p>Подарки, штампы, баллы, VIP-гости, меню и вызов официанта — на одной карте. У гостя есть причина приложить её снова.</p>
           </article>
-          <article class="feat reveal">
-            <div class="mini mini-menu" aria-hidden="true"><span>Капучино <b>250 ₽</b></span><span>Чизкейк <em>РЕКОМЕНДУЕМ</em> <b>290 ₽</b></span></div>
-            <h3>Меню и страница заведения</h3>
-            <p>Меню, новости и кнопки записи — в оформлении вашего заведения.</p>
-            <details class="feat-more">
-              <summary>Подробнее</summary>
-              <ul>
-                <li>Меню с фото и ценами: вставили список текстом — готово</li>
-                <li>«Сейчас у нас»: новость, событие или акция с фото</li>
-                <li>Кнопки записи, доставки, чаевых и оплаты по СБП</li>
-                <li>Пять тем или «Свой дизайн» с фото зала и логотипом</li>
-                <li>По желанию — каталог и отзывы в Telegram</li>
-              </ul>
-            </details>
-          </article>
-          <article class="feat reveal" style="--d:.06s">
-            <div class="mini mini-call" aria-hidden="true"><i class="on"><b>🙋</b>Позвать официанта</i><i><b>🧾</b>Попросить счёт</i><i><b>💬</b>Нужна помощь</i></div>
-            <h3>Вызов официанта и заказ со стола</h3>
-            <p>Карта на столе — ещё и кнопка вызова. Оплата официанту, как обычно.</p>
-            <details class="feat-more">
-              <summary>Подробнее</summary>
-              <ul>
-                <li>«Позвать официанта», «Попросить счёт» (можно на 2–6 человек), «Нужна помощь»</li>
-                <li>Заказ из меню со стола и «К этому часто берут»</li>
-                <li>Вызовы со звуком на телефоне официанта и в чате смены</li>
-                <li>Личные карты официантов, их оценки и чаевые напрямую</li>
-              </ul>
-            </details>
-            <p class="plan-tag">Входит в Pro · к Plus — 490&nbsp;₽/мес</p>
-          </article>
-          <article class="feat reveal" style="--d:.12s">
-            <div class="mini mini-urgent" aria-hidden="true"><b>🔥 СРОЧНО: возможное отравление</b><span>😟 Гость поставил ★★ · стол 5</span></div>
-            <h3>AI-разбор отзывов</h3>
-            <p>AI отмечает срочное и раз в неделю говорит, что исправить.</p>
-            <details class="feat-more">
-              <summary>Подробнее</summary>
-              <ul>
-                <li>«🔥 Срочно»: отравление, грубость, опасная ситуация</li>
-                <li>Разбор недели по понедельникам: что хорошо, что мешает, что сделать</li>
-                <li>Ассистент отвечает на вопросы по вашим цифрам за 8 недель</li>
-                <li>YandexGPT, данные в России, телефоны гостей AI не получает</li>
-              </ul>
-            </details>
-            <p class="plan-tag">Входит в Pro · к Plus — 490&nbsp;₽/мес</p>
+          <article class="diff reveal" style="--d:.06s">
+            <div class="mini mini-ask" aria-hidden="true"><span class="q">Сколько стоит стрижка?</span><span class="a">Мужская — 1 500 ₽. Оставите номер? Администратор запишет вас.</span></div>
+            <h3>AI-администратор</h3>
+            <p>Отвечает вашим клиентам во ВКонтакте, Telegram и на сайте круглосуточно и собирает заявки. Это <a href="https://ai.tapreview.ru/" target="_blank" rel="noopener">TapReview AI</a> — отдельный продукт нашей экосистемы.</p>
           </article>
         </div>
       </div>
@@ -957,7 +1104,7 @@
 
     <!-- ---------- цены ---------- -->
     <!-- ЦЕНЫ: если меняете — поменяйте и строку «Подключение …» в первом экране -->
-    <section id="pricing">
+    <section class="section-soft" id="pricing">
       <div class="wrap">
         <div class="section-head reveal">
           <p class="kicker">Цены</p>
@@ -1019,6 +1166,39 @@
       </div>
     </section>
 
+    <!-- ---------- этапы подключения ---------- -->
+    <section id="start">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <p class="kicker">Подключение</p>
+          <h2>Четыре шага до первых отзывов</h2>
+          <p>Всё настраиваем сами. От вас — заявка и место для карт.</p>
+        </div>
+        <ol class="order reveal">
+          <li>
+            <h3>Заявка</h3>
+            <p>Оставьте <a href="/order/">заявку</a> или напишите в Telegram. Обсудим, сколько нужно карт и какие функции включить.</p>
+          </li>
+          <li>
+            <h3>Настраиваем страницу</h3>
+            <p>Находим ваши карточки на Яндекс Картах, 2ГИС и Google, оформляем страницу и присылаем ссылку на проверку.</p>
+          </li>
+          <li>
+            <h3>Печатаем карты</h3>
+            <p>Готовим NFC-карты с вашим QR-кодом — от 3 рабочих дней. Карты приходят уже настроенными.</p>
+          </li>
+          <li>
+            <h3>Ставите — и всё работает</h3>
+            <p>Карты на столы или к кассе. Статистика — по личной ссылке, отчёт — в Telegram по понедельникам.</p>
+          </li>
+        </ol>
+        <div class="start-cta reveal">
+          <a class="btn btn-primary" href="/order/">Подключить</a>
+          <a class="btn btn-ghost" href="https://t.me/tapreview_ru" target="_blank" rel="noopener"><svg aria-hidden="true"><use href="#i-tg"/></svg>Спросить в Telegram</a>
+        </div>
+      </div>
+    </section>
+
     <!-- ---------- вопросы: главные сразу, остальные под «Все вопросы» ---------- -->
     <section class="section-soft" id="faq">
       <div class="wrap">
@@ -1047,11 +1227,6 @@
             <summary>Вы собираете данные гостей?</summary>
             <p>Нет. Мы не спрашиваем имён и телефонов: постоянного гостя узнаём по обезличенной метке в браузере, IP-адреса не храним. Телефон появляется, только если недовольный гость сам попросит перезвонить, — и удаляется через 30 дней. Все данные хранятся на сервере в России.</p>
           </details>
-          <details>
-            <summary>Как проходит подключение?</summary>
-            <p>Посчитайте стоимость в <a href="/order/">калькуляторе</a> и отправьте расчёт нам в Telegram. Мы найдём ваши карточки на площадках, настроим страницу и пришлём ссылку на проверку. После оплаты передадим готовые карты — они уже работают: поставьте их на видное место и следите за статистикой.</p>
-          </details>
-
           <details class="faq-all">
             <summary>Все вопросы</summary>
             <div class="faq">
@@ -1124,10 +1299,7 @@
           <h2>Попробуйте TapReview в своём заведении</h2>
           <p>Посчитайте стоимость и напишите нам в Telegram <b>@tapreview_ru</b> — ответим на вопросы и подготовим карту под ваш бизнес.</p>
           <div class="actions">
-            <a class="btn btn-gold" href="/order/">
-              <svg aria-hidden="true"><use href="#i-calc"/></svg>
-              Рассчитать и заказать
-            </a>
+            <a class="btn btn-gold" href="/order/">Подключить</a>
             <a class="btn btn-ghost" href="https://t.me/tapreview_ru" target="_blank" rel="noopener">
               <svg aria-hidden="true"><use href="#i-tg"/></svg>
               Написать в Telegram
@@ -1150,7 +1322,142 @@
     </div>
   </footer>
 
+  <!-- Окно с короткой заявкой: появляется через 40 с, после закрытия не показывается 3 дня -->
+  <aside class="pop" id="pop" hidden aria-labelledby="pop-title">
+    <button class="pop-x" type="button" aria-label="Закрыть">×</button>
+    <h3 id="pop-title">Подключим бесплатно</h3>
+    <p>Первым 20 заведениям — <b>подключение и 5 карт бесплатно</b>. Оставьте контакт — расскажем, как это работает у вас.</p>
+    <form id="pop-form" novalidate>
+      <input type="text" name="name" placeholder="Как вас зовут" autocomplete="name" maxlength="80" aria-label="Как вас зовут">
+      <input type="text" name="business_name" placeholder="Название заведения" autocomplete="organization" maxlength="120" aria-label="Название заведения">
+      <input type="tel" name="contact" placeholder="Телефон или @telegram" autocomplete="tel" maxlength="60" aria-label="Телефон или Telegram">
+      <label class="pop-trap" aria-hidden="true">Сайт <input name="website" tabindex="-1" autocomplete="off"></label>
+      <label class="pop-consent">
+        <input type="checkbox" name="consent">
+        <span>Даю <a href="/consent/" target="_blank">согласие на обработку персональных данных</a> и ознакомлен(а) с <a href="/privacy/" target="_blank">политикой</a>.</span>
+      </label>
+      <p class="pop-err" id="pop-err" role="alert" hidden></p>
+      <button class="btn btn-primary" type="submit">Жду связи</button>
+    </form>
+    <p class="pop-done" id="pop-done" tabindex="-1" hidden></p>
+  </aside>
+
   <script>
+    // Вкладки «Гостю / Персоналу / Владельцу»: стрелки переключают, без JS видны все панели
+    (function () {
+      var tabs = Array.prototype.slice.call(document.querySelectorAll(".tab"));
+      if (!tabs.length) return;
+      document.documentElement.classList.add("tabs-on");
+      function select(tab, focus) {
+        tabs.forEach(function (t) {
+          var on = t === tab;
+          t.setAttribute("aria-selected", on ? "true" : "false");
+          t.tabIndex = on ? 0 : -1;
+          var panel = document.getElementById(t.getAttribute("aria-controls"));
+          panel.hidden = !on;
+          panel.classList.toggle("switched", on);
+        });
+        if (focus) tab.focus();
+      }
+      tabs.forEach(function (t, i) {
+        t.addEventListener("click", function () { select(t); });
+        t.addEventListener("keydown", function (e) {
+          var next = e.key === "ArrowRight" ? tabs[(i + 1) % tabs.length] : e.key === "ArrowLeft" ? tabs[(i - 1 + tabs.length) % tabs.length] : null;
+          if (next) { e.preventDefault(); select(next, true); }
+        });
+      });
+      select(tabs[0]);
+      tabs[0].closest("section").querySelectorAll(".panel").forEach(function (p) { p.classList.remove("switched"); });
+    })();
+
+    // Окно с заявкой. Заявка уходит в ту же форму, что и /order/ (Early Partner, 1 заведение, 5 карт — уточним при звонке)
+    (function () {
+      var KEY = "tr_pop";
+      var DELAY = 40000;
+      var PAUSE_DAYS = 3;
+      var pop = document.getElementById("pop");
+      var form = document.getElementById("pop-form");
+      var err = document.getElementById("pop-err");
+      var shownAt = 0;
+      var loadedAt = Date.now();
+      function saved() { try { return JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { return null; } }
+      function remember(state) { try { localStorage.setItem(KEY, JSON.stringify({ state: state, at: Date.now() })); } catch (e) {} }
+      var s = saved();
+      if (s && (s.state === "sent" || Date.now() - s.at < PAUSE_DAYS * 864e5)) return;
+      if (location.hash === "#nopop") return;
+
+      function show() {
+        var now = saved();
+        if (!pop.hidden || (now && now.at >= loadedAt)) return;
+        // Человек уже что-то печатает на странице — не мешаем
+        var a = document.activeElement;
+        if (a && /INPUT|TEXTAREA|SELECT/.test(a.tagName)) return setTimeout(show, 10000);
+        pop.hidden = false;
+        shownAt = Date.now();
+        requestAnimationFrame(function () { requestAnimationFrame(function () { pop.classList.add("show"); }); });
+      }
+      function close() {
+        pop.classList.remove("show");
+        setTimeout(function () { pop.hidden = true; }, 350);
+        if (!(saved() && saved().state === "sent")) remember("closed");
+      }
+      setTimeout(show, DELAY);
+      pop.querySelector(".pop-x").addEventListener("click", close);
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !pop.hidden) close(); });
+      // Пошёл заказывать сам — окно больше не нужно
+      document.querySelectorAll('a[href^="/order/"]').forEach(function (a) { a.addEventListener("click", function () { remember("closed"); }); });
+
+      function fail(text, field) { err.textContent = text; err.hidden = false; if (field) field.focus(); }
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        err.hidden = true;
+        var f = form.elements;
+        var contact = f.contact.value.trim();
+        var isTg = /^@|t\.me\/|[A-Za-z_]/.test(contact) && !/^\+?[\d\s()-]+$/.test(contact);
+        var digits = contact.replace(/\D/g, "");
+        if (!f.name.value.trim()) return fail("Укажите, как к вам обращаться.", f.name);
+        if (!f.business_name.value.trim()) return fail("Укажите название заведения.", f.business_name);
+        if (!contact) return fail("Укажите телефон или Telegram.", f.contact);
+        if (!isTg && digits.length < 10) return fail("Проверьте номер телефона.", f.contact);
+        if (!f.consent.checked) return fail("Отметьте согласие на обработку данных.", f.consent);
+        var ref = null;
+        try { ref = (JSON.parse(localStorage.getItem("tr_ref") || "null") || {}).slug || null; } catch (e2) {}
+        var payload = {
+          plan: "month", tariff: "standard", modules: [], early: true, custom_design: true, venues: 1, cards: 5,
+          name: f.name.value, business_name: f.business_name.value,
+          phone: isTg ? "" : contact, telegram: isTg ? contact : "",
+          city: "", consent: true, website: f.website.value,
+          comment: "Быстрая заявка из окна на главной — тариф и число карт уточнить" + (ref ? "\nПо приглашению: " + ref : ""),
+          elapsed: Date.now() - shownAt
+        };
+        var btn = form.querySelector("button[type=submit]");
+        btn.disabled = true;
+        btn.textContent = "Отправляем…";
+        fetch("/api/order", { method: "POST", headers: { "Content-Type": "text/plain;charset=UTF-8" }, body: JSON.stringify(payload) })
+          .then(function (r) {
+            return r.json().catch(function () { return {}; }).then(function (data) {
+              if (!r.ok) throw new Error(data.error || "Не удалось отправить заявку.");
+              return data;
+            });
+          })
+          .then(function () {
+            remember("sent");
+            form.hidden = true;
+            pop.querySelector("p").hidden = true;
+            document.getElementById("pop-title").textContent = "Спасибо!";
+            var done = document.getElementById("pop-done");
+            done.textContent = "Заявка у нас. Скоро свяжемся с вами.";
+            done.hidden = false;
+            done.focus();
+          })
+          .catch(function (error) {
+            fail((error && error.message) || "Не удалось отправить. Напишите нам в Telegram @tapreview_ru.");
+            btn.disabled = false;
+            btn.textContent = "Жду связи";
+          });
+      });
+    })();
+
     // Приглашение (?ref=SLUG из ссылки /r/SLUG): запоминаем на 60 дней — его увидит калькулятор /order/
     (function () {
       var KEY = "tr_ref";
