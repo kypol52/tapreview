@@ -830,7 +830,6 @@
         <a href="#how">Как работает</a>
         <a href="#roles">Возможности</a>
         <a href="#diff">Отличия</a>
-        <a href="#pricing">Цены</a>
         <a href="#start">Подключение</a>
       </nav>
       <div class="h-actions">
@@ -862,7 +861,7 @@
           <!-- ЦЕНЫ (прайс 4.11.2026): подписка за заведение Start 490 / Plus 990 / Pro 1 990 ₽/мес, подключение 1 490 / 3 490 / 5 990 ₽
                с пакетом 5 / 20 / 50 карт, карта сверх — 199 ₽, модули к Plus по 490 ₽, со 2-й точки −20%, год = 10 мес, первый месяц бесплатно.
                Early Partner: подключение бесплатно с 5 картами (сверх — 150 ₽) и дизайном, 490 ₽/мес полгода. Меняются здесь, в «Цены», order/index.html, src/tariffs.js и в оферте (п. 3.3–3.4) -->
-          <p class="hero-price reveal" style="--d:.2s">Первым 20 заведениям — <b>бесплатное подключение</b> с 5 картами и 490&nbsp;₽/мес · <b>первый месяц бесплатно</b> · <a href="#pricing">все цены</a></p>
+          <p class="hero-price reveal" style="--d:.2s">Первым 20 заведениям — <b>бесплатное подключение</b> с 5 картами и 490&nbsp;₽/мес · <b>первый месяц бесплатно</b> · <a href="/order/">посчитать стоимость</a></p>
           <ul class="hero-meta reveal" style="--d:.25s">
             <li><svg aria-hidden="true"><use href="#i-check"/></svg>Без приложений</li>
             <li><svg aria-hidden="true"><use href="#i-check"/></svg>Без сбора телефонов гостей</li>
@@ -1102,72 +1101,8 @@
       </div>
     </section>
 
-    <!-- ---------- цены ---------- -->
-    <!-- ЦЕНЫ: если меняете — поменяйте и строку «Подключение …» в первом экране -->
-    <section class="section-soft" id="pricing">
-      <div class="wrap">
-        <div class="section-head reveal">
-          <p class="kicker">Цены</p>
-          <h2>Подписка за заведение, карты — пакетом</h2>
-          <p>Платите за заведение, а не за каждую карту. Первый месяц подписки бесплатно.</p>
-        </div>
-
-        <div class="price-extra price-early reveal">
-          <div>
-            <h3>Early Partner — первые 20 заведений</h3>
-            <p>Подключение <b>бесплатно</b> с 5 картами и «Своим дизайном» (каждая карта сверх — 150&nbsp;₽), подписка <b>490&nbsp;₽ в месяц первые полгода</b> со всеми функциями Plus.</p>
-          </div>
-          <a class="btn btn-gold" href="/order/?early=1">Стать Early Partner</a>
-        </div>
-
-        <div class="plans">
-          <article class="plan reveal">
-            <h3>Start</h3>
-            <p class="plan-sub">Барбершоп, мастер, кофейня</p>
-            <p class="price"><strong>490&nbsp;₽</strong><span>в месяц за заведение</span></p>
-            <p class="price-note">подключение 1&nbsp;490&nbsp;₽ · до 5 карт</p>
-            <ul>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Кнопки Яндекс Карт, 2ГИС, Google</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Жалобы вам, а не на карты</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Статистика и отчёт в Telegram</li>
-            </ul>
-            <a class="btn btn-ghost" href="/order/?tariff=start">Выбрать Start</a>
-          </article>
-
-          <article class="plan plan-featured reveal" style="--d:.06s">
-            <span class="plan-badge">Чаще выбирают</span>
-            <h3>Plus</h3>
-            <p class="plan-sub">Кафе, салон, студия</p>
-            <p class="price"><strong>990&nbsp;₽</strong><span>в месяц за заведение</span></p>
-            <p class="price-note">подключение 3&nbsp;490&nbsp;₽ · до 20 карт</p>
-            <ul>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Всё, что в Start</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Подарки, штампы, баллы, VIP-гости</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Меню, новости, Score и итоги месяца</li>
-            </ul>
-            <a class="btn btn-gold" href="/order/?tariff=standard">Выбрать Plus</a>
-          </article>
-
-          <article class="plan reveal" style="--d:.12s">
-            <h3>Pro</h3>
-            <p class="plan-sub">Ресторан с залом</p>
-            <p class="price"><strong>1&nbsp;990&nbsp;₽</strong><span>в месяц за заведение</span></p>
-            <p class="price-note">подключение 5&nbsp;990&nbsp;₽ · до 50 карт</p>
-            <ul>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Всё, что в Plus</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>Вызов официанта и заказ со стола</li>
-              <li><svg aria-hidden="true"><use href="#i-check"/></svg>AI-разбор отзывов</li>
-            </ul>
-            <a class="btn btn-ghost" href="/order/?tariff=plus">Выбрать Pro</a>
-          </article>
-        </div>
-
-        <p class="price-line reveal">Карта сверх пакета — 199&nbsp;₽ разово · со второй точки −20% · год = 10 месяцев · «Свой дизайн» — 990&nbsp;₽ разово · без автосписаний · <a href="/order/">посчитать в калькуляторе</a></p>
-      </div>
-    </section>
-
     <!-- ---------- этапы подключения ---------- -->
-    <section id="start">
+    <section class="section-soft" id="start">
       <div class="wrap">
         <div class="section-head reveal">
           <p class="kicker">Подключение</p>
@@ -1200,7 +1135,7 @@
     </section>
 
     <!-- ---------- вопросы: главные сразу, остальные под «Все вопросы» ---------- -->
-    <section class="section-soft" id="faq">
+    <section id="faq">
       <div class="wrap">
         <div class="section-head reveal">
           <p class="kicker">Вопросы</p>
