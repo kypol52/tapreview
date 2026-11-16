@@ -52,7 +52,7 @@ import { tg, BOT_COMMANDS } from "./telegram.js";
 import { deleteRuOrder, validate as validateOrder, OrderError } from "./orders.js";
 import { bonusCounts } from "./bonus.js";
 import { refUrl, refStats } from "./referral.js";
-import { localAuthEnabled, verifyToken, handleLogin } from "./admin-auth.js";
+import { localAuthEnabled, verifyToken, verifyApiKey, handleLogin } from "./admin-auth.js";
 import { saveMedia, MEDIA_ID_RE } from "./media.js";
 import { billingState, formatDay } from "./billing.js";
 import { TARIFF_KEYS, MODULE_KEYS } from "./tariffs.js";
@@ -417,6 +417,14 @@ async function requireAdmin(request, env) {
   const token = header.startsWith("Bearer ") ? header.slice(7) : "";
   if (!token) {
     throw new HttpError(401, "Нужно войти");
+  }
+
+  // Ключ Claude: всё, кроме удаления
+  if (token.startsWith("tra_")) {
+    if (!(await verifyApiKey(env, token))) throw new HttpError(401, "Неверный ключ");
+    if (request.method === "DELETE") throw new HttpError(403, "Ключом нельзя удалять — удалите в админ-панели");
+    console.log(`Admin API key: ${request.method} ${new URL(request.url).pathname}`);
+    return { email: "claude@api" };
   }
 
   // Свой сервер: проверяем свой токен (src/admin-auth.js)

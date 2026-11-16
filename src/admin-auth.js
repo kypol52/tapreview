@@ -84,6 +84,18 @@ export async function verifyToken(env, token) {
   }
 }
 
+// Ключ для Claude (заводит заведения и группы через API). На сервере хранится только хеш:
+//   ADMIN_API_KEY_SHA256 — sha256 ключа в hex. Сам ключ «tra_…» лежит только на ПК владельца.
+// Ключ не может удалять (DELETE) — это проверяет requireAdmin в admin-api.js.
+export async function verifyApiKey(env, token) {
+  const expected = String(env.ADMIN_API_KEY_SHA256 || "").trim().toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(expected) || !/^tra_[A-Za-z0-9_-]{40,100}$/.test(token)) return false;
+  const actual = [...new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode(token)))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  let diff = 0;
+  for (let i = 0; i < 64; i++) diff |= actual.charCodeAt(i) ^ expected.charCodeAt(i);
+  return diff === 0;
+}
+
 function reply(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
