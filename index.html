@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>TapReview — отзывы в одно касание</title>
-  <meta name="description" content="NFC и QR-карты для отзывов на Яндекс Картах, 2ГИС и Google. Оценка гостя, сообщения недовольных — вам, колесо подарков, штампы и VIP-гости, статистика и итоги месяца.">
+  <title>TapReview — целая система в одном касании: отзывы, меню, чаевые</title>
+  <meta name="description" content="Цифровой сервис для кафе и ресторанов: одна NFC-карта на столе — отзывы на Яндекс Картах, 2ГИС и Google, меню, вызов официанта, чаевые, оплата счёта, подарки, баллы и статистика.">
   <meta name="theme-color" content="#0a2a5c">
   <link rel="canonical" href="https://tapreview.ru/">
   <meta name="yandex-verification" content="caca6cdee28712ba">
@@ -13,8 +13,8 @@
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://tapreview.ru/">
-  <meta property="og:title" content="TapReview — отзывы в одно касание">
-  <meta property="og:description" content="NFC и QR-карты для отзывов на Яндекс Картах, 2ГИС и Google — плюс подарки, штампы и статистика для заведения.">
+  <meta property="og:title" content="TapReview — целая система в одном касании">
+  <meta property="og:description" content="Цифровой сервис для бизнеса: одна NFC-карта — отзывы, меню, чаевые, оплата счёта, подарки и статистика.">
   <meta property="og:image" content="https://tapreview.ru/assets/og.png">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="preload" href="/fonts/montserrat-var-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
@@ -146,22 +146,18 @@
         radial-gradient(60% 55% at 85% 20%, rgba(10, 42, 92, 0.07), transparent 70%),
         radial-gradient(40% 40% at 70% 70%, rgba(229, 170, 12, 0.07), transparent 70%);
     }
-    .hero .wrap { display: grid; gap: 48px; align-items: center; }
-    .eyebrow {
-      display: inline-flex; align-items: center; gap: 10px; margin: 0 0 22px; padding: 7px 14px 7px 10px;
-      border-radius: 999px; background: #fff; box-shadow: 0 0 0 1px var(--line) inset, var(--shadow-sm);
-      color: var(--navy); font-size: 13px; font-weight: 650;
-    }
-    .eyebrow .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 4px var(--gold-50); }
+    /* Сверху на всю ширину — лозунг; под ним описание сервиса и сцена с телефоном */
+    .hero-grid { display: grid; gap: 40px; align-items: center; margin-top: 30px; }
     h1 {
-      margin: 0; color: var(--ink);
-      font-size: clamp(40px, 10.5vw, 72px); line-height: 1.02; font-weight: 750; letter-spacing: -0.035em;
+      margin: 0; color: var(--ink); text-wrap: balance;
+      font-size: clamp(34px, 8.6vw, 80px); line-height: 1.04; font-weight: 750; letter-spacing: -0.035em;
     }
     h1 .accent {
       color: var(--navy); white-space: nowrap;
       background: linear-gradient(transparent 84%, rgba(229, 170, 12, 0.85) 84%, rgba(229, 170, 12, 0.85) 96%, transparent 96%);
     }
-    .lead { margin: 22px 0 32px; max-width: 540px; font-size: clamp(17px, 2.2vw, 19px); line-height: 1.6; color: var(--muted); }
+    .hero-sub { margin: 0; color: var(--navy); font-size: clamp(22px, 3vw, 28px); line-height: 1.2; font-weight: 750; letter-spacing: -0.02em; }
+    .lead { margin: 14px 0 30px; max-width: 540px; font-size: clamp(17px, 2.2vw, 19px); line-height: 1.6; color: var(--muted); }
     .lead b { color: var(--text); font-weight: 650; }
     .actions { display: flex; flex-wrap: wrap; gap: 12px; }
     .hero-meta { display: flex; flex-wrap: wrap; gap: 10px 22px; margin: 28px 0 0; padding: 0; list-style: none; font-size: 14px; font-weight: 600; color: var(--text); }
@@ -176,7 +172,7 @@
     /* ---------- Сцена: карта в акриловой подставке на стойке + телефон с NFC-касанием ----------
        Сцена рисуется в «своих» 480×540 px и масштабируется под ширину экрана (--s). */
     .visual { position: relative; display: flex; justify-content: center; min-width: 0; padding: 0 0 8px; }
-    .hero .wrap > * { min-width: 0; }
+    .hero-grid > * { min-width: 0; }
     .scene-wrap { --s: 0.68; width: 100%; height: calc(540px * var(--s)); display: flex; justify-content: center; }
     .scene { position: relative; flex: none; width: 480px; height: 540px; transform: scale(var(--s)); transform-origin: top center; }
 
@@ -237,19 +233,57 @@
     .s-idle span { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 50%; background: var(--soft); color: var(--navy); }
     .s-idle svg { width: 26px; height: 26px; }
 
-    /* Анимация: телефон подносят к карте → волны NFC → открывается страница отзывов (цикл 6 с) */
-    @keyframes tap-phone {
-      0%, 12% { transform: translate(0, 0) rotate(7deg); }
-      32% { transform: translate(-78px, 36px) rotate(-12deg); }
-      36% { transform: translate(-73px, 33px) rotate(-12deg) scale(0.985); }
-      48% { transform: translate(-78px, 36px) rotate(-12deg); }
-      68%, 100% { transform: translate(0, 0) rotate(7deg); }
+    /* Страница заведения после касания: оценка + «Ещё у нас» (как настоящая /b/, без блока «Отзыв в Telegram») */
+    .s-rate {
+      position: absolute; z-index: 1; inset: 34px 0 0; display: flex; flex-direction: column; align-items: center;
+      padding: 4px 12px 0; background: #fff; text-align: center;
     }
-    @keyframes tap-idle { 0%, 34% { opacity: 1; } 42%, 92% { opacity: 0; } 100% { opacity: 1; } }
-    @keyframes tap-ring { 0%, 33% { opacity: 0; transform: scale(0.25); } 35% { opacity: 0.95; } 58%, 100% { opacity: 0; transform: scale(1.9); } }
-    .phone { animation: tap-phone 6s var(--ease) infinite; }
-    .s-idle { animation: tap-idle 6s linear infinite; }
-    .nfc i { animation: tap-ring 6s ease-out infinite; }
+    .r-name { margin: 0 0 2px; font-family: "Playfair Display", Georgia, serif; font-size: 20px; font-weight: 600; line-height: 1.15; color: var(--ink); }
+    .s-rate .s-welcome { margin-top: 5px; }
+    .r-chip { margin: 4px 0 0; padding: 3px 8px; border-radius: 99px; background: var(--soft); box-shadow: 0 0 0 1px var(--line) inset; font-size: 8px; font-weight: 650; color: var(--ink); }
+    .s-rate .s-line { margin: 8px auto; }
+    .r-waiter { margin: 0; padding: 2px 7px; border-radius: 99px; background: var(--soft); box-shadow: 0 0 0 1px var(--line) inset; font-size: 7.5px; font-weight: 700; color: var(--ink); }
+    .r-q { margin: 9px 0 1px; font-size: 14px; font-weight: 500; color: var(--ink); }
+    .r-sub { margin: 0; font-size: 8px; color: #8a91a1; }
+    .r-stars { display: flex; gap: 7px; margin: 8px 0 2px; }
+    .r-stars span { position: relative; display: block; width: 22px; height: 22px; color: #e3e7ee; }
+    .r-stars svg { display: block; width: 100%; height: 100%; }
+    .r-ends { display: flex; justify-content: space-between; width: 100%; padding: 0 10px; font-size: 7px; color: #8a91a1; }
+    .r-link { margin: 7px 0 9px; font-size: 8px; color: #5b6475; text-decoration: underline; text-underline-offset: 2px; }
+    .r-more { margin: 0 0 5px; font-size: 6.5px; font-weight: 750; letter-spacing: 0.16em; text-transform: uppercase; color: #8a91a1; }
+    .r-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; width: 100%; }
+    .r-grid span {
+      display: flex; align-items: center; justify-content: center; gap: 4px; padding: 7px 4px; border-radius: 9px;
+      background: var(--soft); box-shadow: 0 0 0 1px var(--line) inset; font-size: 8px; font-weight: 650; color: var(--ink); white-space: nowrap;
+    }
+    .r-grid svg { width: 10px; height: 10px; flex: none; color: var(--gold-600); }
+    /* Палец нажимает пятую звезду */
+    .r-tap { position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%; background: rgba(10, 42, 92, 0.2); opacity: 0; }
+
+    /* Анимация (цикл 10 с): телефон подносят к карте → волны NFC → страница заведения →
+       гость жмёт 5 звёзд → «Спасибо за высокую оценку» с кнопками карт и подарком */
+    @keyframes tap-phone {
+      0%, 7% { transform: translate(0, 0) rotate(7deg); }
+      19% { transform: translate(-78px, 36px) rotate(-12deg); }
+      21.5% { transform: translate(-73px, 33px) rotate(-12deg) scale(0.985); }
+      29% { transform: translate(-78px, 36px) rotate(-12deg); }
+      41%, 100% { transform: translate(0, 0) rotate(7deg); }
+    }
+    @keyframes tap-idle { 0%, 20% { opacity: 1; } 25%, 96% { opacity: 0; } 100% { opacity: 1; } }
+    @keyframes tap-ring { 0%, 19.5% { opacity: 0; transform: scale(0.25); } 21% { opacity: 0.95; } 35%, 100% { opacity: 0; transform: scale(1.9); } }
+    @keyframes tap-rate { 0%, 68% { opacity: 1; } 73%, 96% { opacity: 0; } 100% { opacity: 1; } }
+    @keyframes tap-star { 0%, 55% { color: #e3e7ee; } 56.5%, 97% { color: var(--gold); } 100% { color: #e3e7ee; } }
+    @keyframes tap-touch { 0%, 51% { opacity: 0; transform: scale(0.4); } 53.5% { opacity: 1; transform: scale(0.85); } 60%, 100% { opacity: 0; transform: scale(1.5); } }
+    .phone { animation: tap-phone 10s var(--ease) infinite; }
+    .s-idle { animation: tap-idle 10s linear infinite; }
+    .nfc i { animation: tap-ring 10s ease-out infinite; }
+    .s-rate { animation: tap-rate 10s linear infinite; }
+    .r-stars span { animation: tap-star 10s linear infinite; }
+    .r-stars span:nth-child(2) { animation-delay: 0.06s; }
+    .r-stars span:nth-child(3) { animation-delay: 0.12s; }
+    .r-stars span:nth-child(4) { animation-delay: 0.18s; }
+    .r-stars span:nth-child(5) { animation-delay: 0.24s; }
+    .r-tap { animation: tap-touch 10s ease-out infinite; }
     .nfc i:nth-child(2) { animation-delay: 0.18s; }
     .nfc i:nth-child(3) { animation-delay: 0.36s; }
     /* Боковые кнопки */
@@ -753,9 +787,9 @@
     }
     @media (min-width: 980px) {
       .nav { display: flex; }
-      .hero { padding: 64px 0 96px; }
-      .hero .wrap { grid-template-columns: 1.08fr 0.92fr; gap: 40px; }
-      .scene-wrap { --s: 1.08; }
+      .hero { padding: 56px 0 80px; }
+      .hero-grid { grid-template-columns: 1.08fr 0.92fr; gap: 40px; margin-top: 8px; }
+      .scene-wrap { --s: 1; }
       section { padding: 112px 0; }
       .section-head { margin-bottom: 56px; }
       .benefits { grid-template-columns: repeat(3, 1fr); }
@@ -845,27 +879,26 @@
     <!-- ---------- первый экран ---------- -->
     <div class="hero">
       <div class="wrap">
+        <p class="ref-banner" id="ref-banner" hidden>🎁 Вы пришли по приглашению — <b>первый месяц подписки в подарок</b></p>
+        <h1 class="reveal">TapReview — целая система <span class="accent">в одном касании</span></h1>
+      </div>
+      <div class="wrap hero-grid">
         <div>
-          <p class="ref-banner" id="ref-banner" hidden>🎁 Вы пришли по приглашению — <b>первый месяц подписки в подарок</b></p>
-          <p class="eyebrow reveal"><span class="dot" aria-hidden="true"></span>NFC-карта: отзывы, подарки, сервис</p>
-          <h1 class="reveal" style="--d:.05s">Отзывы <span class="accent">в одно</span> касание</h1>
+          <p class="hero-sub reveal" style="--d:.05s">Цифровой сервис для бизнеса</p>
           <p class="lead reveal" style="--d:.1s">
-            Гость прикладывает телефон к карте и ставит оценку. Довольные сразу попадают в форму отзыва на
-            <b>Яндекс Картах, 2ГИС или Google</b>, а недовольные пишут <b>вам</b> — пока они ещё в зале.
-            А ещё карта выдаёт подарки, копит баллы и зовёт официанта.
+            Одна NFC-карта на столе. Гость прикладывает телефон — и оставляет отзыв, открывает меню, зовёт официанта,
+            оплачивает счёт и благодарит чаевыми. Довольные попадают в форму отзыва на <b>Яндекс Картах, 2ГИС и Google</b>,
+            недовольные пишут <b>вам</b>. Подарки и баллы возвращают гостей снова.
           </p>
           <div class="actions reveal" style="--d:.15s">
             <a class="btn btn-primary" href="/order/">Подключить</a>
             <a class="btn btn-gold" href="/b/yarik">Посмотреть пример</a>
           </div>
-          <!-- ЦЕНЫ (прайс 4.11.2026): подписка за заведение Start 490 / Plus 990 / Pro 1 990 ₽/мес, подключение 1 490 / 3 490 / 5 990 ₽
-               с пакетом 5 / 20 / 50 карт, карта сверх — 199 ₽, модули к Plus по 490 ₽, со 2-й точки −20%, год = 10 мес, первый месяц бесплатно.
-               Early Partner: подключение бесплатно с 5 картами (сверх — 150 ₽) и дизайном, 490 ₽/мес полгода. Меняются здесь, в «Цены», order/index.html, src/tariffs.js и в оферте (п. 3.3–3.4) -->
-          <p class="hero-price reveal" style="--d:.2s">Первым 20 заведениям — <b>бесплатное подключение</b> с 5 картами и 490&nbsp;₽/мес · <b>первый месяц бесплатно</b> · <a href="/order/">посчитать стоимость</a></p>
-          <ul class="hero-meta reveal" style="--d:.25s">
-            <li><svg aria-hidden="true"><use href="#i-check"/></svg>Без приложений</li>
-            <li><svg aria-hidden="true"><use href="#i-check"/></svg>Без сбора телефонов гостей</li>
-            <li><svg aria-hidden="true"><use href="#i-check"/></svg>Статистика и отчёты в Telegram</li>
+          <!-- ЦЕНЫ: сейчас подключаем бесплатно, строку с ценами убрали по просьбе партнёра (16.11.2026).
+               Прайс по-прежнему в order/index.html, src/tariffs.js и в оферте (п. 3.3–3.4) -->
+          <ul class="hero-meta reveal" style="--d:.2s">
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg>Без приложения</li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg>Статистика и отчёты</li>
           </ul>
         </div>
 
@@ -884,6 +917,26 @@
             <div class="screen">
               <div class="s-island"></div>
               <div class="s-idle"><span><svg><use href="#i-nfc"/></svg></span>Поднесите к карте</div>
+              <div class="s-rate">
+                <p class="r-name">Утро</p>
+                <p class="s-tag">Кофейня</p>
+                <p class="s-welcome">С возвращением! 3-й раз 👋</p>
+                <p class="r-chip">🎁 Мои штампы и подарки</p>
+                <div class="s-line"></div>
+                <p class="r-waiter">Вас обслуживает: Анна</p>
+                <p class="r-q">Как вам у нас?</p>
+                <p class="r-sub">Оцените визит — это одно касание.</p>
+                <div class="r-stars"><span><svg><use href="#i-star"/></svg></span><span><svg><use href="#i-star"/></svg></span><span><svg><use href="#i-star"/></svg></span><span><svg><use href="#i-star"/></svg></span><span><svg><use href="#i-star"/></svg><i class="r-tap"></i></span></div>
+                <div class="r-ends"><span>Плохо</span><span>Отлично</span></div>
+                <p class="r-link">Сразу оставить отзыв на картах →</p>
+                <p class="r-more">Ещё у нас</p>
+                <div class="r-grid">
+                  <span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10 17V7.5h3.2a2.6 2.6 0 0 1 0 5.2H8.5M8.5 15h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Чаевые</span>
+                  <span><svg viewBox="0 0 24 24"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 21V3c-2 1-3.5 4-3.5 8h3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Меню</span>
+                  <span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M2.5 12h19M12 2.5c3 3.2 3 15.8 0 19M12 2.5c-3 3.2-3 15.8 0 19" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>Наш сайт</span>
+                  <span><svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M2.5 10h19M6 15h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Оплатить счёт</span>
+                </div>
+              </div>
               <div class="s-status">
                 <span>9:41</span>
                 <span class="s-icons">
@@ -910,7 +963,7 @@
           </div>
           </div>
          </div>
-          <div class="tap-chip"><span><svg><use href="#i-nfc"/></svg></span>Приложили — и отзыв</div>
+          <div class="tap-chip"><span><svg><use href="#i-nfc"/></svg></span>Одно касание — отзыв, меню, чаевые</div>
         </div>
       </div>
     </div>
@@ -930,24 +983,24 @@
       <div class="wrap">
         <div class="section-head reveal">
           <p class="kicker">Как это работает</p>
-          <h2>Три шага — и гость уже пишет отзыв</h2>
-          <p>Не нужно искать заведение на карте, скачивать приложения или вводить ссылку.</p>
+          <h2>Одно касание — и всё под рукой</h2>
+          <p>Гостю не нужно скачивать приложение, искать заведение на карте или ловить взгляд официанта. Всё открывается с одной карты на столе.</p>
         </div>
         <ol class="steps">
           <li class="step reveal">
             <div class="step-num"><b>1</b>Касание</div>
             <h3>Прикладывает телефон</h3>
-            <p>Или наводит камеру на QR-код. Открывается страница вашего заведения — на iPhone и Android, без приложений.</p>
+            <p>Или наводит камеру на QR-код. Открывается страница вашего заведения — на iPhone и Android, без приложения.</p>
           </li>
           <li class="step reveal" style="--d:.08s">
-            <div class="step-num"><b>2</b>Оценка</div>
-            <h3>Ставит оценку от 1 до 5</h3>
-            <p>Одно касание по звёздам. Если что-то понравилось особенно — отмечает: кухня, обслуживание, атмосфера.</p>
+            <div class="step-num"><b>2</b>Всё на одной странице</div>
+            <h3>Делает, что нужно</h3>
+            <p>Смотрит меню, зовёт официанта, оплачивает счёт, оставляет чаевые, забирает подарок и копит баллы.</p>
           </li>
           <li class="step reveal" style="--d:.16s">
-            <div class="step-num"><b>3</b>Отзыв или сообщение вам</div>
+            <div class="step-num"><b>3</b>Отзыв</div>
             <h3>4–5 — на карты, 1–3 — вам</h3>
-            <p>Довольный гость сразу открывает форму отзыва на Яндекс Картах, в 2ГИС или Google. Недовольный пишет вам в Telegram — и может попросить перезвонить.</p>
+            <p>Довольный гость сразу открывает форму отзыва на Яндекс Картах, в 2ГИС или Google. Недовольный пишет вам в Telegram — пока ещё в зале.</p>
           </li>
         </ol>
         <p class="how-note reveal">Кнопки площадок доступны при любой оценке, а подарок не зависит от отзыва — так требуют правила Яндекс Карт и 2ГИС. Мы не скрываем негатив, а даём вам шанс исправить ситуацию первым.</p>
@@ -1247,7 +1300,7 @@
 
   <footer class="footer">
     <div class="wrap">
-      <span>© 2026 TapReview · Отзывы в одно касание</span>
+      <span>© 2026 TapReview · Целая система в одном касании</span>
       <nav aria-label="Контакты">
         <a href="https://t.me/tapreview_ru" target="_blank" rel="noopener">Telegram @tapreview_ru ↗</a>
         <a href="https://t.me/tapreviewru" target="_blank" rel="noopener">Канал ↗</a>
