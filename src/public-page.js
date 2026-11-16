@@ -203,31 +203,33 @@ function hubBlock(business, { service = "", points = "" } = {}) {
 
   const label = (l) => escapeHtml(l.label || (EXTRA_LINKS[l.type] || EXTRA_LINKS.custom).label);
   const target = (l) => (l.own ? "" : ` target="_blank" rel="noopener nofollow"`);
-  const tilesHtml = tiles.length
-    ? `<div class="hub-tiles${tiles.length === 1 ? " hub-tiles-one" : ""}">${tiles.map((l) => `
-        <a class="hub-tile" href="${escapeHtml(l.url)}"${target(l)}>
-          <span class="hub-ico">${(EXTRA_LINKS[l.type] || EXTRA_LINKS.custom).icon}</span>
-          <span class="hub-label">${label(l)}</span>${HUB_GO}
-        </a>`).join("")}</div>`
-    : "";
-  const callHtml = service
-    ? `<details class="hub-call">
-        <summary class="hub-row"><span class="hub-ico">${HUB_HAND}</span><span class="hub-label">Вызов официанта</span>${HUB_GO}</summary>
+  // Вид зависит от числа функций: 1 — одна большая плитка, 2 — две большие плитки, 3 и больше — тонкие строки списком
+  const items = [...tiles, ...(service ? [{ call: true }] : []), ...rows];
+  const big = items.length <= 2;
+  const itemHtml = (l) => {
+    const cls = big ? "hub-tile" : "hub-row";
+    if (l.call) {
+      return `<details class="hub-call">
+        <summary class="${cls}"><span class="hub-ico">${HUB_HAND}</span><span class="hub-label">Вызов официанта</span>${HUB_GO}</summary>
         <div class="hub-call-body">${service}</div>
-      </details>`
-    : "";
-  const rowsHtml = rows.map((l) => `
-      <a class="hub-row" href="${escapeHtml(l.url)}"${target(l)}>
+      </details>`;
+    }
+    return `
+      <a class="${cls}" href="${escapeHtml(l.url)}"${target(l)}>
         <span class="hub-ico">${(EXTRA_LINKS[l.type] || EXTRA_LINKS.custom).icon}</span>
-        <span class="hub-label">${label(l)}</span>${l.own ? HUB_GO : HUB_OUT}
-      </a>`).join("");
-  const split = (tilesHtml || callHtml) && (rowsHtml || points) ? `<div class="hub-split"></div>` : "";
+        <span class="hub-label">${label(l)}</span>${big || l.own ? HUB_GO : HUB_OUT}
+      </a>`;
+  };
+  const itemsHtml = !items.length
+    ? ""
+    : big
+      ? `<div class="hub-tiles${items.length === 1 ? " hub-tiles-one" : ""}">${items.map(itemHtml).join("")}</div>`
+      : items.map(itemHtml).join("");
+  const split = itemsHtml && points ? `<div class="hub-split"></div>` : "";
   return `
     <nav class="hub" aria-label="Ещё в заведении">
-      ${tilesHtml}
-      ${callHtml}
+      ${itemsHtml}
       ${split}
-      ${rowsHtml}
       ${points}
     </nav>`;
 }
@@ -1365,6 +1367,8 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
     .hub { display: grid; gap: 10px; margin-top: 26px; text-align: left; }
     .hub-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .hub-tiles-one { grid-template-columns: 1fr; }
+    .hub-tiles .hub-call[open] { grid-column: 1 / -1; }
+    .hub-call > summary.hub-tile { list-style: none; }
     .hub-tile, .hub-row {
       display: flex; align-items: center; gap: 12px; border-radius: 16px; border: 1px solid var(--btn-border);
       background: var(--btn-bg); color: var(--btn-text); text-decoration: none; cursor: pointer;
