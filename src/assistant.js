@@ -237,11 +237,15 @@ export async function handleAsk(request, env, token) {
     const body = `${head(business.name)}
   <main class="wrap">
     <style>
-      .ask-form{display:grid;gap:10px}.ask-form textarea{padding:12px;border-radius:14px;border:1px solid #d6dbe5;font:inherit;font-size:16px}
-      .ask-form>button{padding:14px;border-radius:999px;border:0;background:#0a2a5c;color:#fff;font:inherit;font-weight:700;cursor:pointer}
-      .ask-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.ask-chip{padding:8px 12px;border-radius:999px;border:1px solid #d6dbe5;background:#f5f7fb;font:inherit;font-size:13px;cursor:pointer;text-align:left}
-      .ask-a{margin-top:14px;padding:14px;border-radius:14px;background:#f2f6ff;line-height:1.5}.ask-q{margin:0 0 8px;font-weight:700}
-      .ask-h{margin-top:8px;padding:10px 12px;border-radius:12px;background:#f5f7fb}.ask-h summary{cursor:pointer;font-weight:600}
+      /* Крупный тёмный текст: страницу открывают с телефона */
+      .ask-form{display:grid;gap:10px}.ask-form textarea{padding:14px;border-radius:14px;border:1.5px solid #c3cad8;font:inherit;font-size:17px;line-height:1.45;color:#0f1728}
+      .ask-form textarea::placeholder{color:#5b6475;opacity:1}
+      .ask-form>button{padding:16px;border-radius:999px;border:0;background:#0a2a5c;color:#fff;font:inherit;font-size:17px;font-weight:700;cursor:pointer}
+      .ask-chips{display:grid;gap:8px;margin-top:14px}.ask-chip{padding:12px 14px;border-radius:14px;border:1.5px solid #c3cad8;background:#f5f7fb;color:#0f1728;font:inherit;font-size:16px;font-weight:600;line-height:1.35;cursor:pointer;text-align:left}
+      .ask-chip:active{background:#e8edf6}
+      .ask-a{margin-top:14px;padding:16px;border-radius:14px;background:#f2f6ff;color:#0f1728;font-size:16.5px;line-height:1.55}.ask-q{margin:0 0 8px;font-weight:700}
+      .ask-h{margin-top:8px;padding:12px 14px;border-radius:12px;background:#f5f7fb;font-size:16px;color:#0f1728}.ask-h summary{cursor:pointer;font-weight:600}
+      .ask-note{font-size:15px;line-height:1.55;color:#3f4757}
     </style>
     <section class="panel">
       <form class="ask-form" method="post" action="/s/${token}/ask">
@@ -253,7 +257,7 @@ export async function handleAsk(request, env, token) {
       ${result}
     </section>
     ${past ? `<section class="panel"><h2>Недавние вопросы</h2>${past}</section>` : ""}
-    <section class="note"><p>Ассистент видит только обезличенные цифры и тексты жалоб без телефонов и почты. Числа в ответе — из ваших данных:
+    <section class="note ask-note"><p>Ассистент видит только обезличенные цифры и тексты жалоб без телефонов и почты. Числа в ответе — из ваших данных:
       если модель пытается назвать число, которого в данных нет, мы его убираем. Ответ готовится 10–20 секунд.</p></section>
   </main>`;
     return html(200, "Спросить AI", body);
