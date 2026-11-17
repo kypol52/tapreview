@@ -1363,7 +1363,7 @@
     </div>
   </footer>
 
-  <!-- Окно с короткой заявкой: появляется через 10 с, после закрытия не показывается 3 дня -->
+  <!-- Окно с короткой заявкой: появляется через 10 с при каждом открытии страницы, пропадает насовсем только после отправленной заявки -->
   <aside class="pop" id="pop" hidden aria-labelledby="pop-title">
     <button class="pop-x" type="button" aria-label="Закрыть">×</button>
     <h3 id="pop-title">Подключим бесплатно</h3>
@@ -1421,7 +1421,6 @@
     (function () {
       var KEY = "tr_pop";
       var DELAY = 10000;
-      var PAUSE_DAYS = 3;
       var pop = document.getElementById("pop");
       var form = document.getElementById("pop-form");
       var err = document.getElementById("pop-err");
@@ -1433,7 +1432,8 @@
       var force = location.hash === "#pop";
       if (force) { try { localStorage.removeItem(KEY); } catch (e) {} DELAY = 800; }
       var s = saved();
-      if (s && (s.state === "sent" || Date.now() - s.at < PAUSE_DAYS * 864e5)) return;
+      // Окно показывается при каждом открытии страницы; не показываем только тем, кто уже оставил заявку
+      if (s && s.state === "sent") return;
       if (location.hash === "#nopop") return;
 
       function show() {
