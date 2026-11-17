@@ -218,6 +218,14 @@ say "HTTPS (Caddy)"
 IP="$(curl -4 -fsS https://ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')"
 TEST_HOST="${IP//./-}.sslip.io"
 cat > /etc/caddy/Caddyfile <<CADDY
+# Без HTTP/3 (QUIC по UDP): брандмауэр открывает только 443/tcp, а у части операторов РФ UDP-трафик режется —
+# телефоны (особенно iPhone) пытались идти по HTTP/3 и страница карты иногда не открывалась без VPN
+{
+	servers {
+		protocols h1 h2
+	}
+}
+
 # ${TEST_HOST} — временный адрес для проверки до переключения домена
 ${DOMAIN}, www.${DOMAIN}, ${TEST_HOST} {
 	@www host www.${DOMAIN}
