@@ -1363,7 +1363,7 @@
     </div>
   </footer>
 
-  <!-- Окно с короткой заявкой: появляется через 40 с, после закрытия не показывается 3 дня -->
+  <!-- Окно с короткой заявкой: появляется через 10 с, после закрытия не показывается 3 дня -->
   <aside class="pop" id="pop" hidden aria-labelledby="pop-title">
     <button class="pop-x" type="button" aria-label="Закрыть">×</button>
     <h3 id="pop-title">Подключим бесплатно</h3>
@@ -1420,7 +1420,7 @@
     // Окно с заявкой. Заявка уходит в ту же форму, что и /order/ (Early Partner, 1 заведение, 5 карт — уточним при звонке)
     (function () {
       var KEY = "tr_pop";
-      var DELAY = 40000;
+      var DELAY = 10000;
       var PAUSE_DAYS = 3;
       var pop = document.getElementById("pop");
       var form = document.getElementById("pop-form");
