@@ -9,7 +9,7 @@ import { billingState } from "./billing.js";
 import { tg } from "./telegram.js";
 import { LIKES } from "./rating.js";
 import { has } from "./tariffs.js";
-import { computeScore, scoreContext, activeDaysIn, daysBetween, scoreHtml, SCORE_CSS } from "./score.js";
+import { computeScore, scoreContext, activeDaysIn, daysBetween, scoreHtml, SCORE_CSS, MIN_VIEWS } from "./score.js";
 
 const MSK = 3 * 3600 * 1000;
 const MONTHS = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
@@ -107,7 +107,7 @@ export async function handleWrapped(request, env, token) {
       score = {
         cur: computeScore(data, opts(month.from, end)),
         prev: computeScore(prev, opts(prevMonth.from, prevMonth.to)),
-        hasPrev: Number(prev.views) > 0
+        hasPrev: Number(prev.views) >= MIN_VIEWS
       };
     }
 
@@ -250,7 +250,7 @@ function wrappedBody({ token, title, month, prevMonth, data, prev, nav, score, i
   if (score && (views || totalClicks)) {
     cards.push(scoreHtml(score.cur, {
       prevTotal: score.hasPrev ? score.prev.total : null,
-      note: score.hasPrev ? `За ${MONTHS[prevMonth.m - 1]} было ${score.prev.total}.` : "Как заведение работает с гостями: отзывы, оценки, жалобы, возвраты."
+      note: score.hasPrev ? `За ${MONTHS[prevMonth.m - 1]} было ${score.prev.total}.` : ""
     }).replace('class="panel sc"', 'class="wr-card sc"'));
   }
 
@@ -338,7 +338,7 @@ export async function monthlyWrapped(env, now = Date.now()) {
       texts.set(b.id,
         `✨ <b>Итоги ${MONTHS_GEN[month.m - 1]}</b> · ${escTg(b.name)}\n\n` +
         `👀 Открыли страницу: <b>${num(data.views)}</b>\n⭐ Перешли оставить отзыв: <b>${num(clicks)}</b>${avg}${back}` +
-        (score ? `\n📈 TapReview Score: <b>${score.total}</b> из 100 — ${score.level.toLowerCase()}` : "") + link);
+        (score && score.total !== null ? `\n📈 TapReview Score: <b>${score.total}</b> из 100 — ${score.level.toLowerCase()}` : "") + link);
     } catch (error) {
       console.error(`Monthly wrapped ${b.id}: ${error.message}`);
     }
