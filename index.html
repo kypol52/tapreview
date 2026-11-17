@@ -1429,6 +1429,9 @@
       var loadedAt = Date.now();
       function saved() { try { return JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { return null; } }
       function remember(state) { try { localStorage.setItem(KEY, JSON.stringify({ state: state, at: Date.now() })); } catch (e) {} }
+      // tapreview.ru/#pop — показать окно сразу, без учёта «уже закрывал» (проверить, как оно выглядит)
+      var force = location.hash === "#pop";
+      if (force) { try { localStorage.removeItem(KEY); } catch (e) {} DELAY = 800; }
       var s = saved();
       if (s && (s.state === "sent" || Date.now() - s.at < PAUSE_DAYS * 864e5)) return;
       if (location.hash === "#nopop") return;
