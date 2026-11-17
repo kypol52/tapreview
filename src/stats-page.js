@@ -29,9 +29,9 @@ const TABS = [
   { key: "month", label: "30 дней" }
 ];
 const SOURCES = [
-  { key: "nfc", label: "NFC — приложили телефон" },
-  { key: "qr", label: "QR-код" },
-  { key: "direct", label: "По ссылке" }
+  { key: "nfc", label: "Приложили телефон к карте" },
+  { key: "qr", label: "Отсканировали QR-код на карте" },
+  { key: "direct", label: "По ссылке, не с карты" }
 ];
 
 export async function handleStatsPage(request, env, ctx, token) {
@@ -592,17 +592,24 @@ function renderBody(view, daily, page) {
     );
   }
   if (!empty) {
+    // Почти всё «по ссылке» — обычно это владелец или персонал проверяли страницу, а не гости с карты
+    const fromCard = (cur.nfc || 0) + (cur.qr || 0);
+    const sourceNote = cur.views && (cur.direct || 0) / cur.views > 0.5
+      ? "Больше половины открытий — по ссылке, а не с карты. Обычно это вы или персонал проверяли страницу. Гости с карты попадают в первые две строки."
+      : `С карты открыли ${num(fromCard)} ${plural(fromCard, "раз", "раза", "раз")} из ${num(cur.views)}. Числа — сколько раз открыли, а не сколько было людей.`;
     sections += barsSection(
-      "Откуда открыли страницу",
+      "Как открыли страницу",
       SOURCES.map((s) => ({ label: s.label, value: cur[s.key] })),
       cur.views,
-      "bar-navy"
+      "bar-navy",
+      sourceNote
     );
     sections += barsSection(
       "Куда перешли оставить отзыв",
       PLATFORMS.map((pl) => ({ label: pl.label, value: cur[pl.key], icon: ICONS[pl.key] })),
       cur.clicks,
-      "bar-gold"
+      "bar-gold",
+      "Сколько раз нажали кнопку площадки. Сам отзыв гость пишет уже там — опубликован ли он, видно на Яндекс Картах, в 2ГИС и Google."
     );
   } else {
     sections += `<section class="panel"><p class="empty">За этот период переходов не было.</p></section>`;
@@ -665,9 +672,9 @@ function renderBody(view, daily, page) {
         Один и тот же человек считается не чаще раза в 30 минут, роботы не считаются.</p>
       <p><b>Перешли к отзыву</b> — сколько раз нажали кнопку Яндекс Карт, Google или 2ГИС.
         Сам отзыв человек пишет уже на площадке, поэтому опубликованные отзывы здесь не считаются.</p>
-      ${page.score ? `<p><b>TapReview Score</b> — от 0 до 100 за последние 30 дней: отзывы (30 баллов — сколько открывших перешли к отзыву, цель 30%),
-        оценка гостей (20), ответ на жалобы (15), постоянные гости (15), регулярность — сколько дней карту открывали (10),
-        Telegram-бот и блок «Сейчас у нас» (10). 90+ — высший класс, 70+ — отлично, 40+ — хорошо.</p>` : ""}
+      ${page.score ? `<p><b>TapReview Score</b> — оценка от 0 до 100 за последние 30 дней. Больше всего весят переходы к отзыву (цель — 30% открытий)
+        и средняя оценка гостей, дальше — ответ недовольным, возвраты гостей, карты на виду каждый день и Telegram-бот.
+        Пункты, по которым пока мало данных, не считаются. Общая оценка появляется после 20 открытий карты. 90+ — высший класс, 70+ — отлично, 40+ — хорошо.</p>` : ""}
       ${view.kind === "card" ? "<p>На этой странице — только переходы с этой карты.</p>" : ""}
       <p>Сравнение — ${p.compare}.</p>
     </section>
@@ -829,6 +836,18 @@ export async function handleFeedbackResolve(request, env, token) {
   }
 }
 
+// Итог графика словами: владельцу проще прочитать фразу, чем сравнивать столбики
+function chartSummary(daily) {
+  const views = daily.reduce((s, d) => s + d.views, 0);
+  const clicks = daily.reduce((s, d) => s + d.clicks, 0);
+  if (!views) return `<p class="explain">Карту за этот период не открывали.</p>`;
+  const best = daily.reduce((a, d) => (d.views > a.views ? d : a), daily[0]);
+  const bestDay = new Date(`${best.day}T12:00:00Z`).toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+  const times = (n) => plural(n, "раз", "раза", "раз");
+  return `<p class="explain">Карту открыли <b>${num(views)} ${times(views)}</b>, к форме отзыва перешли <b>${num(clicks)} ${times(clicks)}</b>. ` +
+    `Больше всего открытий — ${esc(bestDay)} (${num(best.views)}).</p>`;
+}
+
 function chartSection(daily, period) {
   const max = Math.max(1, ...daily.map((d) => d.views), ...daily.map((d) => d.clicks));
   const month = period === "month";
@@ -863,7 +882,8 @@ function chartSection(daily, period) {
 
   return `<section class="panel">
       <h2>По дням</h2>
-      <div class="legend"><span><i class="dot dot-navy"></i>открыли страницу</span><span><i class="dot dot-gold"></i>перешли к отзыву</span></div>
+      ${chartSummary(daily)}
+      <div class="legend"><span><i class="dot dot-navy"></i>сколько раз открыли карту</span><span><i class="dot dot-gold"></i>сколько раз перешли к отзыву</span></div>
       <div class="chart${month ? " chart-month" : ""}" role="img" aria-label="График по дням">${cols}</div>
     </section>`;
 }
@@ -897,7 +917,7 @@ function funnelSection(cur, ratings, bonus) {
     <p class="hint funnel-hint">Проценты — от тех, кто открыл страницу.${redeemNote}</p></section>`;
 }
 
-function barsSection(title, rows, total, barClass) {
+function barsSection(title, rows, total, barClass, explain = "") {
   const items = rows
     .map((r) => {
       const share = total ? Math.round((r.value / total) * 100) : 0;
@@ -909,7 +929,7 @@ function barsSection(title, rows, total, barClass) {
         </li>`;
     })
     .join("");
-  return `<section class="panel"><h2>${esc(title)}</h2><ul class="rows">${items}</ul></section>`;
+  return `<section class="panel"><h2>${esc(title)}</h2>${explain ? `<p class="explain">${explain}</p>` : ""}<ul class="rows">${items}</ul></section>`;
 }
 
 // «Пригласите знакомых»: личная ссылка заведения + кнопки «Отправить» в Telegram и WhatsApp
@@ -1120,7 +1140,7 @@ const CSS = `
   .panel { margin-top: 12px; }
   .panel h2, .note h2 { margin: 0 0 12px; font-size: 16px; font-weight: 700; }
   .empty { margin: 0; color: var(--muted); text-align: center; }
-  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin: -4px 0 12px; font-size: 12px; color: var(--muted); }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0 0 12px; font-size: 13px; color: #4b5363; }
   .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
   .dot-navy { background: var(--navy); }
   .dot-gold { background: var(--gold); }
@@ -1244,6 +1264,8 @@ const CSS = `
   .desk-table td { padding: 8px 0; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
   .desk-table th + th, .desk-table td + td { text-align: right; padding-left: 12px; }
   .hint { margin: -6px 0 10px; font-size: 12px; color: var(--muted); }
+  .explain { margin: -4px 0 12px; font-size: 14px; line-height: 1.5; color: #3f4757; }
+  .explain b { color: var(--text); }
   .items { list-style: none; margin: 0; padding: 0; }
   .item { display: grid; grid-template-columns: 1fr 64px 64px 14px; align-items: center; column-gap: 8px;
     padding: 10px 0; color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; }
