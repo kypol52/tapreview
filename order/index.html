@@ -67,7 +67,8 @@
 
     /* Тариф */
     .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 5px; border-radius: 16px; background: var(--soft); }
-    .seg input { position: absolute; opacity: 0; pointer-events: none; }
+    .seg { position: relative; }
+    .seg input { position: absolute; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
     .seg label { position: relative; display: block; padding: 12px 10px; border-radius: 12px; text-align: center; cursor: pointer; transition: background 0.2s var(--ease), box-shadow 0.2s var(--ease); }
     .seg label b { display: block; font-size: 15px; color: var(--ink); }
     .seg label span { display: block; font-size: 12.5px; color: var(--muted); }
@@ -308,6 +309,14 @@
             <p class="panel-sub">Чтобы мы могли связаться и подтвердить заказ.</p>
 
             <div class="fields">
+              <div class="field">
+                <span id="role-label">Кто вы?</span>
+                <div class="seg seg-3" role="radiogroup" aria-labelledby="role-label">
+                  <input type="radio" name="role" id="role-owner" value="Владелец заведения" checked><label for="role-owner"><b>Владелец</b></label>
+                  <input type="radio" name="role" id="role-manager" value="Управляющий"><label for="role-manager"><b>Управляющий</b></label>
+                  <input type="radio" name="role" id="role-guest" value="Гость"><label for="role-guest"><b>Гость</b></label>
+                </div>
+              </div>
               <label class="field"><span>Ваше имя</span><input name="name" autocomplete="name" maxlength="80" required></label>
               <div class="pair">
                 <label class="field"><span>Телефон</span><input name="phone" type="tel" autocomplete="tel" maxlength="30" value="+7 " placeholder="+7 900 000-00-00"></label>
@@ -628,7 +637,7 @@
           city: f.city.value,
           consent: true,
           website: f.website.value,
-          comment: (f.comment.value ? f.comment.value + "\n" : "") + (REF ? "По приглашению: " + REF : ""),
+          comment: "Кто: " + (f.role.value || "не указал") + "\n" + (f.comment.value ? f.comment.value + "\n" : "") + (REF ? "По приглашению: " + REF : ""),
           elapsed: Date.now() - startedAt
         };
 

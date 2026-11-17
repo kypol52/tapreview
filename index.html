@@ -152,15 +152,13 @@
       margin: 0; color: var(--ink); text-wrap: balance;
       font-size: clamp(34px, 8.6vw, 80px); line-height: 1.04; font-weight: 750; letter-spacing: -0.035em;
     }
-    h1 .accent {
-      color: var(--navy); white-space: nowrap;
-      background: linear-gradient(transparent 84%, rgba(229, 170, 12, 0.85) 84%, rgba(229, 170, 12, 0.85) 96%, transparent 96%);
-    }
+    h1 .h1-brand { color: var(--navy); }
+    h1 .nb { white-space: nowrap; }
     .hero-sub { margin: 0; color: var(--navy); font-size: clamp(22px, 3vw, 28px); line-height: 1.2; font-weight: 750; letter-spacing: -0.02em; }
     .lead { margin: 14px 0 30px; max-width: 540px; font-size: clamp(17px, 2.2vw, 19px); line-height: 1.6; color: var(--muted); }
     .lead b { color: var(--text); font-weight: 650; }
     .actions { display: flex; flex-wrap: wrap; gap: 12px; }
-    .hero-meta { display: flex; flex-wrap: wrap; gap: 10px 22px; margin: 28px 0 0; padding: 0; list-style: none; font-size: 14px; font-weight: 600; color: var(--text); }
+    .hero-meta { display: grid; gap: 10px; margin: 28px 0 0; padding: 0; list-style: none; font-size: 14px; font-weight: 600; color: var(--text); }
     .hero-meta li { display: flex; align-items: center; gap: 8px; }
     .hero-meta svg { width: 18px; height: 18px; color: var(--gold-600); }
     .ref-banner { margin: 0 0 16px; padding: 10px 14px; border-radius: 14px; background: var(--gold-50); box-shadow: 0 0 0 1px #f0d48a inset; font-size: 14px; color: #6b4a00; }
@@ -176,29 +174,31 @@
     .scene-wrap { --s: 0.68; width: 100%; height: calc(540px * var(--s)); display: flex; justify-content: center; }
     .scene { position: relative; flex: none; width: 480px; height: 540px; transform: scale(var(--s)); transform-origin: top center; }
 
-    /* Стойка: светлое дерево, края растворяются в фоне */
+    /* Стол: тёмный орех с латунной кромкой, края растворяются в фоне */
     .counter {
       position: absolute; left: -40px; right: -40px; bottom: 0; height: 196px;
       -webkit-mask-image: linear-gradient(90deg, transparent, #000 16%, #000 84%, transparent);
       mask-image: linear-gradient(90deg, transparent, #000 16%, #000 84%, transparent);
     }
     .counter-top {
-      position: absolute; left: 0; right: 0; top: 0; bottom: 30px;
+      position: absolute; left: 0; right: 0; top: 0; bottom: 26px;
       clip-path: polygon(9% 0, 91% 0, 100% 100%, 0 100%);
       background:
-        repeating-linear-gradient(91deg, rgba(120, 78, 36, 0.045) 0 2px, transparent 2px 11px),
-        linear-gradient(180deg, #efe4d3 0%, #e4d3ba 100%);
+        repeating-linear-gradient(92deg, rgba(255, 220, 170, 0.035) 0 1px, transparent 1px 7px),
+        repeating-linear-gradient(88deg, rgba(0, 0, 0, 0.09) 0 2px, transparent 2px 17px),
+        linear-gradient(180deg, #5b3e2b 0%, #3f2a1d 100%);
     }
-    .counter-top::after { content: ""; position: absolute; inset: 0; background: radial-gradient(60% 70% at 40% 30%, rgba(255, 255, 255, 0.55), transparent 70%); }
+    /* Мягкий свет на столешнице и отражение карты */
+    .counter-top::after { content: ""; position: absolute; inset: 0; background: radial-gradient(55% 75% at 38% 22%, rgba(255, 226, 180, 0.28), transparent 70%); }
     .counter-edge {
-      position: absolute; left: 0; right: 0; bottom: 0; height: 30px;
-      background: linear-gradient(180deg, #d6c09f 0%, #c3a882 100%);
-      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 18px 30px -12px rgba(60, 40, 15, 0.25);
+      position: absolute; left: 0; right: 0; bottom: 0; height: 26px;
+      background: linear-gradient(180deg, #33221a 0%, #24180f 100%);
+      box-shadow: 0 2px 0 #c9a45c inset, 0 3px 0 rgba(255, 236, 190, 0.35) inset, 0 18px 30px -12px rgba(30, 18, 8, 0.4);
     }
 
     /* Подставка с картой */
     .stand { position: absolute; z-index: 2; left: 64px; bottom: 112px; width: 194px; transform: perspective(1100px) rotateY(16deg) rotateX(2deg); transform-origin: bottom center; }
-    .stand-shadow { position: absolute; left: -26px; right: -40px; bottom: -36px; height: 34px; border-radius: 50%; background: radial-gradient(closest-side, rgba(70, 45, 15, 0.32), transparent); filter: blur(2px); }
+    .stand-shadow { position: absolute; left: -26px; right: -40px; bottom: -36px; height: 34px; border-radius: 50%; background: radial-gradient(closest-side, rgba(10, 5, 0, 0.55), transparent); filter: blur(2px); }
     .card-img { position: relative; display: block; width: 100%; height: auto; border-radius: 12px; box-shadow: 0 2px 6px rgba(10, 42, 92, 0.12), 0 24px 40px -12px rgba(10, 42, 92, 0.3); }
     /* Акриловое стекло поверх карты: блик и тонкая кромка */
     .stand-glass {
@@ -701,6 +701,7 @@
     /* Отличия */
     .diff-grid { display: grid; gap: 16px; }
     .diff { display: flex; flex-direction: column; padding: 24px; border-radius: var(--r-lg); background: #fff; box-shadow: 0 0 0 1px var(--line) inset; }
+    .diff h3 { margin: 0 0 10px; color: var(--navy); font-size: 21px; font-weight: 800; letter-spacing: -0.015em; }
     .diff p { margin: 0; color: var(--muted); font-size: 15.5px; }
     .diff p a { color: var(--navy); font-weight: 700; }
     .diff .mini { height: 132px; }
@@ -725,9 +726,13 @@
     .mini-split em { display: flex; gap: 5px; font-style: normal; font-size: 12px; font-weight: 700; color: #fff; }
     .mini-split em svg { width: 20px; height: 20px; }
     /* Экосистема */
-    .mini-eco { flex-wrap: wrap; align-content: center; gap: 6px; }
-    .mini-eco i { padding: 6px 11px; border-radius: 99px; background: #fff; box-shadow: 0 0 0 1px var(--line) inset; font-style: normal; font-size: 12px; }
-    .mini-eco i:first-child { background: var(--navy); color: #fff; box-shadow: none; }
+    /* «Система»: как экран гостя — плитки функций и подарок с баллами под ними */
+    .mini-hub { display: grid; grid-template-columns: 1fr 1fr; align-content: center; gap: 7px; padding: 12px 16px; }
+    .mini-hub span { display: flex; align-items: center; gap: 7px; padding: 7px 10px; border-radius: 11px; background: #fff; box-shadow: 0 0 0 1px var(--line) inset; font-size: 12.5px; font-weight: 650; white-space: nowrap; }
+    .mini-hub svg { flex: none; width: 15px; height: 15px; color: var(--gold-600); }
+    .mini-hub .wide { grid-column: 1 / -1; justify-content: space-between; background: var(--navy); color: #fff; box-shadow: none; }
+    .mini-hub .wide b { color: var(--gold); font-weight: 750; }
+    .mini-split .lbl { font-size: 12.5px; font-weight: 700; color: #fff; }
 
     /* Подключение */
     .start-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 36px; }
@@ -745,7 +750,28 @@
     .pop > p b { color: var(--ink); }
     .pop-x { position: absolute; top: 12px; right: 12px; display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 50%; background: var(--soft); color: var(--muted); font-size: 22px; line-height: 1; cursor: pointer; }
     .pop-x:hover { color: var(--ink); }
+    /* Итог «Почему TapReview»: тёмная полоса, чтобы читалась как вывод после деталей */
+    .why { background: var(--navy-900); color: #c9d3e6; }
+    .why .kicker { color: var(--gold); }
+    .why h2 { color: #fff; }
+    .why-head p:not(.kicker) { margin: 16px 0 0; font-size: 17px; line-height: 1.6; color: #b8c5df; }
+    .why-grid { display: grid; gap: 36px; }
+    .why-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+    .why-list li { padding: 18px 0 18px 22px; border-top: 1px solid rgba(255, 255, 255, 0.12); position: relative; }
+    .why-list li::before { content: ""; position: absolute; left: 0; top: 25px; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); }
+    .why-list h3 { margin: 0 0 4px; color: #fff; font-size: 18px; }
+    .why-list p { margin: 0; color: #b8c5df; font-size: 15.5px; line-height: 1.55; }
+    @media (min-width: 980px) {
+      .why-grid { grid-template-columns: 0.9fr 1.1fr; gap: 64px; align-items: start; }
+      .why-head { position: sticky; top: 100px; }
+    }
     .pop form { display: grid; gap: 10px; }
+    .pop-role { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; border: 0; }
+    .pop-role legend { width: 100%; margin: 0 0 6px; padding: 0; font-size: 13.5px; font-weight: 700; color: var(--ink); }
+    .pop-role label { position: relative; display: flex; align-items: center; padding: 8px 13px; border-radius: 99px; background: var(--soft); box-shadow: 0 0 0 1px var(--line) inset; font-size: 13.5px; font-weight: 650; color: var(--ink); cursor: pointer; }
+    .pop-role input { position: absolute; opacity: 0; pointer-events: none; }
+    .pop-role label:has(input:checked) { background: var(--navy); color: #fff; box-shadow: none; }
+    .pop-role label:has(input:focus-visible) { outline: 2px solid var(--navy); outline-offset: 2px; }
     .pop input[type="text"], .pop input[type="tel"] { width: 100%; min-height: 46px; padding: 0 14px; border: 0; border-radius: 12px; background: var(--soft); box-shadow: 0 0 0 1px var(--line) inset; font: inherit; font-size: 16px; color: var(--ink); }
     .pop input:focus { outline: none; box-shadow: 0 0 0 2px var(--navy) inset; background: #fff; }
     .pop-consent { display: flex; gap: 10px; align-items: flex-start; font-size: 12.5px; line-height: 1.45; color: var(--muted); cursor: pointer; }
@@ -880,15 +906,15 @@
     <div class="hero">
       <div class="wrap">
         <p class="ref-banner" id="ref-banner" hidden>🎁 Вы пришли по приглашению — <b>первый месяц подписки в подарок</b></p>
-        <h1 class="reveal">TapReview — целая система <span class="accent">в одном касании</span></h1>
+        <h1 class="reveal"><span class="h1-brand">TapReview</span> — целая система <span class="nb">в одном касании</span></h1>
       </div>
       <div class="wrap hero-grid">
         <div>
           <p class="hero-sub reveal" style="--d:.05s">Цифровой сервис для бизнеса</p>
           <p class="lead reveal" style="--d:.1s">
             Одна NFC-карта на столе. Гость прикладывает телефон — и оставляет отзыв, открывает меню, зовёт официанта,
-            оплачивает счёт и благодарит чаевыми. Довольные попадают в форму отзыва на <b>Яндекс Картах, 2ГИС и Google</b>,
-            недовольные пишут <b>вам</b>. Подарки и баллы возвращают гостей снова.
+            оплачивает счёт и благодарит чаевыми. Отзыв на <b>Яндекс Картах, 2ГИС и Google</b> — в одно касание,
+            а если что-то не так, гость может написать <b>прямо вам</b>. Подарки и баллы возвращают гостей снова.
           </p>
           <div class="actions reveal" style="--d:.15s">
             <a class="btn btn-primary" href="/order/">Подключить</a>
@@ -898,6 +924,7 @@
                Прайс по-прежнему в order/index.html, src/tariffs.js и в оферте (п. 3.3–3.4) -->
           <ul class="hero-meta reveal" style="--d:.2s">
             <li><svg aria-hidden="true"><use href="#i-check"/></svg>Без приложения</li>
+            <li><svg aria-hidden="true"><use href="#i-check"/></svg>Меню, чаевые и оплата со стола</li>
             <li><svg aria-hidden="true"><use href="#i-check"/></svg>Статистика и отчёты</li>
           </ul>
         </div>
@@ -938,7 +965,7 @@
                 </div>
               </div>
               <div class="s-status">
-                <span>9:41</span>
+                <span>13:37</span>
                 <span class="s-icons">
                   <svg viewBox="0 0 17 11"><rect x="0" y="7" width="3" height="4" rx="1" fill="currentColor"/><rect x="4.5" y="5" width="3" height="6" rx="1" fill="currentColor"/><rect x="9" y="2.5" width="3" height="8.5" rx="1" fill="currentColor"/><rect x="13.5" y="0" width="3" height="11" rx="1" fill="currentColor"/></svg>
                   <svg viewBox="0 0 25 12"><rect x="0.5" y="0.5" width="21" height="11" rx="3" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="16" height="8" rx="1.8" fill="currentColor"/><path d="M23 4v4a2 2 0 0 0 0-4z" fill="currentColor" opacity=".4"/></svg>
@@ -999,8 +1026,8 @@
           </li>
           <li class="step reveal" style="--d:.16s">
             <div class="step-num"><b>3</b>Отзыв</div>
-            <h3>4–5 — на карты, 1–3 — вам</h3>
-            <p>Довольный гость сразу открывает форму отзыва на Яндекс Картах, в 2ГИС или Google. Недовольный пишет вам в Telegram — пока ещё в зале.</p>
+            <h3>Оставляет отзыв или пишет вам</h3>
+            <p>Кнопки Яндекс Карт, 2ГИС и Google сразу открывают форму отзыва. Если что-то не понравилось, гость может написать вам в Telegram — и вы успеете всё исправить.</p>
           </li>
         </ol>
         <p class="how-note reveal">Кнопки площадок доступны при любой оценке, а подарок не зависит от отзыва — так требуют правила Яндекс Карт и 2ГИС. Мы не скрываем негатив, а даём вам шанс исправить ситуацию первым.</p>
@@ -1083,7 +1110,7 @@
             <article class="feat">
               <div class="mini mini-tg" aria-hidden="true"><b>😟 Гость поставил ★★</b><span>«Долго ждали заказ»</span><em>📞 Просит перезвонить</em></div>
               <h3>Жалобы — вам первым</h3>
-              <p>Гость с оценкой 1–3 пишет вам в Telegram с причиной и может попросить перезвонить.</p>
+              <p>Если гостю что-то не понравилось, он пишет вам в Telegram с причиной и может попросить перезвонить.</p>
             </article>
             <article class="feat">
               <div class="mini mini-funnel" aria-hidden="true"><i style="width:100%"></i><i style="width:74%"></i><i class="g" style="width:46%"></i><i class="g" style="width:28%"></i><small>Открыли → оценили → к отзыву → за подарком</small></div>
@@ -1134,16 +1161,22 @@
           </article>
           <article class="diff diff-dark reveal" style="--d:.06s">
             <div class="mini mini-split" aria-hidden="true">
-              <span class="row"><span class="st"><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg></span><em>Сообщение вам</em></span>
-              <span class="row"><span class="st on"><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg></span><em><svg><use href="#i-yandex"/></svg><svg><use href="#i-twogis"/></svg><svg><use href="#i-google"/></svg></em></span>
+              <span class="row"><span class="lbl">Отзыв на картах</span><em><svg><use href="#i-yandex"/></svg><svg><use href="#i-twogis"/></svg><svg><use href="#i-google"/></svg></em></span>
+              <span class="row"><span class="lbl">Написать владельцу</span><em><svg style="color:#2aabee"><use href="#i-tg"/></svg></em></span>
             </div>
-            <h3>1–3 — вам, 4–5 — на карты</h3>
-            <p>Недовольный гость сначала пишет вам, пока он ещё в зале. Довольный сразу попадает в форму отзыва. Кнопки площадок видны при любой оценке — так требуют правила Яндекс Карт и 2ГИС.</p>
+            <h3>Отзыв на картах — или сообщение вам</h3>
+            <p>Гость в одно касание открывает форму отзыва на Яндекс Картах, в 2ГИС или Google. А если что-то пошло не так, может сразу написать вам — и вы успеете всё исправить. Кнопки площадок видны всегда — по правилам Яндекс Карт и 2ГИС.</p>
           </article>
           <article class="diff reveal">
-            <div class="mini mini-eco" aria-hidden="true"><i>Отзывы</i><i>Подарки</i><i>Штампы</i><i>Баллы</i><i>VIP</i><i>Меню</i><i>Официант</i><i>Статистика</i></div>
+            <div class="mini mini-hub" aria-hidden="true">
+              <span><svg><use href="#i-star"/></svg>Отзыв</span>
+              <span><svg viewBox="0 0 24 24"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 21V3c-2 1-3.5 4-3.5 8h3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Меню</span>
+              <span><svg viewBox="0 0 24 24"><path d="M4 17h16M6 17a6 6 0 0 1 12 0M12 8V6M10.5 6h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Официант</span>
+              <span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 17V7.5h3.2a2.6 2.6 0 0 1 0 5.2H8.5M8.5 15h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Чаевые</span>
+              <span class="wide">🎁 Подарок на следующий визит<b>340 баллов</b></span>
+            </div>
             <h3>Система, а не одна ссылка</h3>
-            <p>Подарки, штампы, баллы, VIP-гости, меню и вызов официанта — на одной карте. У гостя есть причина приложить её снова.</p>
+            <p>Отзыв, меню, вызов официанта, чаевые, подарки, штампы и баллы — всё на одной карте. У гостя появляется причина приложить её снова.</p>
           </article>
           <article class="diff reveal" style="--d:.06s">
             <div class="mini mini-ask" aria-hidden="true"><span class="q">Сколько стоит стрижка?</span><span class="a">Мужская — 1 500 ₽. Оставите номер? Администратор запишет вас.</span></div>
@@ -1151,6 +1184,25 @@
             <p>Отвечает вашим клиентам во ВКонтакте, Telegram и на сайте круглосуточно и собирает заявки. Это <a href="https://ai.tapreview.ru/" target="_blank" rel="noopener">TapReview AI</a> — отдельный продукт нашей экосистемы.</p>
           </article>
         </div>
+      </div>
+    </section>
+
+    <!-- ---------- итог: почему TapReview (словами, без цифр — честных цифр пока нет) ---------- -->
+    <section class="why" id="why">
+      <div class="wrap why-grid">
+        <div class="why-head reveal">
+          <p class="kicker">Почему TapReview</p>
+          <h2>Одна карта, которая работает на вас каждый день</h2>
+          <p>Гость касается её телефоном — и сразу получает всё, что нужно в заведении. А вы получаете отзывы, постоянных гостей и понятную картину того, как идут дела.</p>
+        </div>
+        <ul class="why-list reveal" style="--d:.06s">
+          <li><h3>Больше отзывов на картах</h3><p>Гостю не нужно искать вас в Яндексе или 2ГИС: касание — и форма отзыва уже открыта.</p></li>
+          <li><h3>О проблемах вы узнаёте первым</h3><p>Если что-то пошло не так, гость может сразу написать вам — и вы успеете всё исправить.</p></li>
+          <li><h3>Гости возвращаются</h3><p>Подарки, штампы и баллы дают повод прийти снова, а постоянных гостей карта узнаёт сама.</p></li>
+          <li><h3>Быстрее обслуживание</h3><p>Меню, вызов официанта, счёт и чаевые — прямо со стола. Гостю не нужно ждать, а персоналу — бегать лишний раз.</p></li>
+          <li><h3>Всё видно в цифрах</h3><p>Статистика по каждой карте, точке и сотруднику, отчёты в Telegram без входа в кабинет.</p></li>
+          <li><h3>Просто начать</h3><p>Без приложения для гостя и без оборудования для вас. Подключение сейчас бесплатное, всё настраиваем сами.</p></li>
+        </ul>
       </div>
     </section>
 
@@ -1205,7 +1257,7 @@
           </details>
           <details>
             <summary>Вы скрываете плохие оценки?</summary>
-            <p>Нет. Гость с оценкой 1–3 видит форму сообщения владельцу, но кнопки Яндекс Карт, 2ГИС и Google доступны ему тоже — одной ссылкой. Мы ничего не фильтруем, а даём вам шанс узнать о проблеме первым и исправить её, пока гость ещё рядом.</p>
+            <p>Нет. Кнопки Яндекс Карт, 2ГИС и Google доступны каждому гостю при любой оценке. Если гостю что-то не понравилось, ему дополнительно предлагаем написать владельцу — так вы узнаёте о проблеме первым и можете её исправить. Мы ничего не фильтруем.</p>
           </details>
           <details>
             <summary>Подарки гостям — это законно для площадок?</summary>
@@ -1213,7 +1265,7 @@
           </details>
           <details>
             <summary>Вы собираете данные гостей?</summary>
-            <p>Нет. Мы не спрашиваем имён и телефонов: постоянного гостя узнаём по обезличенной метке в браузере, IP-адреса не храним. Телефон появляется, только если недовольный гость сам попросит перезвонить, — и удаляется через 30 дней. Все данные хранятся на сервере в России.</p>
+            <p>Нет. Мы не спрашиваем имён и телефонов: постоянного гостя узнаём по обезличенной метке в браузере, IP-адреса не храним. Телефон появляется, только если гость сам попросит перезвонить, — и удаляется через 30 дней. Все данные хранятся на сервере в России.</p>
           </details>
           <details class="faq-all">
             <summary>Все вопросы</summary>
@@ -1315,8 +1367,14 @@
   <aside class="pop" id="pop" hidden aria-labelledby="pop-title">
     <button class="pop-x" type="button" aria-label="Закрыть">×</button>
     <h3 id="pop-title">Подключим бесплатно</h3>
-    <p>Первым 20 заведениям — <b>подключение и 5 карт бесплатно</b>. Оставьте контакт — расскажем, как это работает у вас.</p>
+    <p>Оставьте контакт — <b>покажем TapReview вживую</b> и подберём решение под ваше заведение. Подключение сейчас бесплатное.</p>
     <form id="pop-form" novalidate>
+      <fieldset class="pop-role">
+        <legend>Кто вы?</legend>
+        <label><input type="radio" name="role" value="Владелец заведения" checked> Владелец</label>
+        <label><input type="radio" name="role" value="Управляющий"> Управляющий</label>
+        <label><input type="radio" name="role" value="Гость"> Гость</label>
+      </fieldset>
       <input type="text" name="name" placeholder="Как вас зовут" autocomplete="name" maxlength="80" aria-label="Как вас зовут">
       <input type="text" name="business_name" placeholder="Название заведения" autocomplete="organization" maxlength="120" aria-label="Название заведения">
       <input type="tel" name="contact" placeholder="Телефон или @telegram" autocomplete="tel" maxlength="60" aria-label="Телефон или Telegram">
@@ -1326,7 +1384,7 @@
         <span>Даю <a href="/consent/" target="_blank">согласие на обработку персональных данных</a> и ознакомлен(а) с <a href="/privacy/" target="_blank">политикой</a>.</span>
       </label>
       <p class="pop-err" id="pop-err" role="alert" hidden></p>
-      <button class="btn btn-primary" type="submit">Жду связи</button>
+      <button class="btn btn-primary" type="submit">Получить демо</button>
     </form>
     <p class="pop-done" id="pop-done" tabindex="-1" hidden></p>
   </aside>
@@ -1416,7 +1474,7 @@
           name: f.name.value, business_name: f.business_name.value,
           phone: isTg ? "" : contact, telegram: isTg ? contact : "",
           city: "", consent: true, website: f.website.value,
-          comment: "Быстрая заявка из окна на главной — тариф и число карт уточнить" + (ref ? "\nПо приглашению: " + ref : ""),
+          comment: "Быстрая заявка из окна на главной — тариф и число карт уточнить\nКто: " + (f.role.value || "не указал") + (ref ? "\nПо приглашению: " + ref : ""),
           elapsed: Date.now() - shownAt
         };
         var btn = form.querySelector("button[type=submit]");
@@ -1442,8 +1500,14 @@
           .catch(function (error) {
             fail((error && error.message) || "Не удалось отправить. Напишите нам в Telegram @tapreview_ru.");
             btn.disabled = false;
-            btn.textContent = "Жду связи";
+            btn.textContent = "Получить демо";
           });
+      });
+      // Гость заявку на своё заведение не оставляет — просим назвать заведение, которому он рекомендует карту
+      form.querySelectorAll('input[name="role"]').forEach(function (r) {
+        r.addEventListener("change", function () {
+          form.elements.business_name.placeholder = form.elements.role.value === "Гость" ? "Какое заведение советуете" : "Название заведения";
+        });
       });
     })();
 
