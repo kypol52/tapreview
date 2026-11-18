@@ -409,6 +409,10 @@
     .feats { display: grid; gap: 16px; }
     .feat { display: flex; flex-direction: column; padding: 22px 22px 24px; border-radius: var(--r); background: #fff; box-shadow: 0 0 0 1px var(--line) inset; }
     .feat p { margin: 0; color: var(--muted); font-size: 15px; }
+    /* Настоящие скриншоты экранов в плитках «Возможности» */
+    .shot { margin: -6px -6px 18px; aspect-ratio: 4 / 3; border-radius: 14px; overflow: hidden; background: var(--soft);
+      box-shadow: 0 0 0 1px var(--line), 0 10px 22px rgba(10, 42, 92, 0.08); }
+    .shot img { display: block; width: 100%; height: 100%; object-fit: cover; }
     .mini {
       display: flex; align-items: center; justify-content: center; gap: 8px; height: 112px; margin-bottom: 20px; padding: 12px;
       border-radius: 16px; background: var(--soft); overflow: hidden; font-size: 12.5px; font-weight: 650; color: var(--ink);
@@ -1040,7 +1044,7 @@
         <div class="section-head reveal">
           <p class="kicker">Возможности</p>
           <h2>Одна карта — целая система</h2>
-          <p>Отзывы, подарки, баллы, меню и сервис в зале работают вместе. Посмотрите, что карта делает для каждого.</p>
+          <p>Отзывы, подарки, баллы, меню и сервис в зале работают вместе. Посмотрите, что карта делает для каждого — на скриншотах настоящие экраны TapReview на демо-кофейне.</p>
         </div>
 
         <div class="tabs reveal" role="tablist" aria-label="Для кого">
@@ -1053,22 +1057,22 @@
           <h3 class="panel-title">Гостю</h3>
           <div class="role-grid">
             <article class="feat">
-              <div class="mini mini-rate" aria-hidden="true"><small>Как вам у нас?</small><span><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg></span></div>
+              <figure class="shot"><img src="/assets/roles/g1-rate.jpg" width="600" height="450" alt="Экран гостя после касания карты: «Как вам у нас?» и пять звёзд" loading="lazy" decoding="async"></figure>
               <h3>Отзыв за 10 секунд</h3>
               <p>Касание, оценка — и форма отзыва на картах уже открыта. Без приложений и регистрации.</p>
             </article>
             <article class="feat">
-              <div class="mini mini-stamps" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><b>🎁</b><small>Ещё 1 штамп — и пицца в подарок</small></div>
+              <figure class="shot"><img src="/assets/roles/g2-wheel.jpg" width="600" height="450" alt="Колесо подарков на телефоне гостя остановилось на призе" loading="lazy" decoding="async"></figure>
               <h3>Подарки и штампы</h3>
               <p>Колесо подарков после оценки, штампы за визиты и особый подарок постоянным гостям.</p>
             </article>
             <article class="feat">
-              <div class="mini mini-points" aria-hidden="true"><b>Ваши баллы: 340</b><span class="pts-code">482 913</span><small>Покажите код персоналу</small></div>
+              <figure class="shot"><img src="/assets/roles/g3-points.jpg" width="600" height="450" alt="Экран баллов гостя: код для персонала и баланс 340 баллов" loading="lazy" decoding="async"></figure>
               <h3>Баллы с каждого чека</h3>
               <p>Гость показывает код, баллы копятся и потом списываются как скидка.</p>
             </article>
             <article class="feat">
-              <div class="mini mini-call" aria-hidden="true"><i class="on"><b>🙋</b>Официант</i><i><b>🧾</b>Счёт</i><i><b>📖</b>Меню</i></div>
+              <figure class="shot"><img src="/assets/roles/g4-table.jpg" width="600" height="450" alt="Карта на столе: кнопки «Позвать официанта», «Попросить счёт» и «Меню и заказ»" loading="lazy" decoding="async"></figure>
               <h3>Меню и официант со стола</h3>
               <p>Меню с фото, заказ прямо со стола, «Позвать официанта» и «Попросить счёт».</p>
               <p class="plan-tag">Модуль «Сервис в зале»</p>
@@ -1080,24 +1084,24 @@
           <h3 class="panel-title">Персоналу</h3>
           <div class="role-grid">
             <article class="feat">
-              <div class="mini mini-staffcall" aria-hidden="true"><span>Стол 5 · счёт на троих <i>Принял</i></span><span>Стол 2 · зовут официанта <i>Принял</i></span></div>
+              <figure class="shot"><img src="/assets/roles/s1-calls.jpg" width="600" height="450" alt="Телефон официанта: вызовы «Стол 5 — просят счёт» с кнопками «Принял» и «Готово»" loading="lazy" decoding="async"></figure>
               <h3>Вызовы со звуком</h3>
               <p>Официант видит «Стол 5 — просят счёт» на своём телефоне и в чате смены. Не нужно ловить взгляд гостя.</p>
               <p class="plan-tag">Модуль «Сервис в зале»</p>
             </article>
             <article class="feat">
-              <div class="mini mini-cart" aria-hidden="true"><span>Капучино × 2 <b>500 ₽</b></span><span>Чизкейк <b>290 ₽</b></span><span class="bar-total">Заказ, стол 7 <em>790 ₽</em></span></div>
+              <figure class="shot"><img src="/assets/roles/s2-order.jpg" width="600" height="450" alt="Заказ со стола 7 на телефоне официанта: капучино и чизкейк" loading="lazy" decoding="async"></figure>
               <h3>Заказ со стола — сразу официанту</h3>
               <p>Гость выбрал блюда в меню, официант получил готовый список. Меньше беготни и ошибок в заказе.</p>
               <p class="plan-tag">Модуль «Сервис в зале»</p>
             </article>
             <article class="feat">
-              <div class="mini mini-staff" aria-hidden="true"><span>Анна <b>★ 4,9</b></span><span>Илья <b>★ 4,7</b></span></div>
+              <figure class="shot"><img src="/assets/roles/s3-staff.jpg" width="600" height="450" alt="Статистика владельца: оценки официантов Анны и Ильи" loading="lazy" decoding="async"></figure>
               <h3>Личные оценки и чаевые</h3>
               <p>У официанта своя карта: оценки гостей засчитываются ему, а чаевые идут по его личной ссылке.</p>
             </article>
             <article class="feat">
-              <div class="mini mini-desk" aria-hidden="true"><span class="code">K7M-2QX</span><span class="ok">✓ Погашен: кофе в подарок</span></div>
+              <figure class="shot"><img src="/assets/roles/s4-desk.jpg" width="600" height="450" alt="Касса подарков: код введён, «Код погашен — можно выдавать подарок»" loading="lazy" decoding="async"></figure>
               <h3>Подарок — за 2 секунды</h3>
               <p>Ввели 6 символов на ссылке-кассе — подарок погашен. Без кассового софта и планшета.</p>
             </article>
@@ -1108,23 +1112,23 @@
           <h3 class="panel-title">Владельцу</h3>
           <div class="role-grid">
             <article class="feat">
-              <div class="mini mini-tg" aria-hidden="true"><b>😟 Гость поставил ★★</b><span>«Долго ждали заказ»</span><em>📞 Просит перезвонить</em></div>
+              <figure class="shot"><img src="/assets/roles/o1-complaints.jpg" width="600" height="450" alt="Сообщение недовольного гостя с причиной и номером для звонка" loading="lazy" decoding="async"></figure>
               <h3>Жалобы — вам первым</h3>
               <p>Если гостю что-то не понравилось, он пишет вам в Telegram с причиной и может попросить перезвонить.</p>
             </article>
             <article class="feat">
-              <div class="mini mini-funnel" aria-hidden="true"><i style="width:100%"></i><i style="width:74%"></i><i class="g" style="width:46%"></i><i class="g" style="width:28%"></i><small>Открыли → оценили → к отзыву → за подарком</small></div>
+              <figure class="shot"><img src="/assets/roles/o2-funnel.jpg" width="600" height="450" alt="Путь гостя: открыли страницу, оценили, перешли к отзыву, получили подарок" loading="lazy" decoding="async"></figure>
               <h3>Путь гостя в цифрах</h3>
               <p>Сколько людей открыли карту, оценили, перешли к отзыву и вернулись за подарком. По каждой карте и точке.</p>
             </article>
             <article class="feat">
-              <div class="mini mini-urgent" aria-hidden="true"><b>🔥 Срочно: возможное отравление</b><span>Гость поставил ★★ · стол 5</span></div>
+              <figure class="shot"><img src="/assets/roles/o3-ai.jpg" width="600" height="450" alt="AI-разбор: срочное сообщение о возможном отравлении" loading="lazy" decoding="async"></figure>
               <h3>AI отмечает срочное</h3>
               <p>Отравление, грубость, опасная ситуация — сразу с пометкой «Срочно». По понедельникам — разбор недели.</p>
               <p class="plan-tag">Модуль «AI»</p>
             </article>
             <article class="feat">
-              <div class="mini mini-score" aria-hidden="true"><span class="ring"><b>87</b></span><span><b>Отлично</b><small>TapReview Score</small></span></div>
+              <figure class="shot"><img src="/assets/roles/o4-score.jpg" width="600" height="450" alt="TapReview Score заведения: 71 из 100" loading="lazy" decoding="async"></figure>
               <h3>Отчёт в Telegram</h3>
               <p>Итоги недели по понедельникам, итоги месяца и TapReview Score — без входа в кабинет.</p>
             </article>
