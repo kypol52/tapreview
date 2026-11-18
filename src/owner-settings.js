@@ -9,13 +9,14 @@ import { db } from "./supabase.js";
 import { html, esc, notFound, TOKEN_RE } from "./stats-page.js";
 import { cleanMoment, cleanBonus, cleanExtraLinks, EXTRA_LINK_MAX } from "./admin-api.js";
 import { BONUS_COLUMNS, EXTRA_LINKS } from "./public-page.js";
+import { WHEEL_MAX, WHEEL_RECOMMENDED, WHEEL_ICONS, WHEEL_TONES } from "./bonus.js";
 import { saveMedia } from "./media.js";
 import { has, hasModule } from "./tariffs.js";
 import { listStaff, createStaff, updateStaff, setStaffCard, STAFF_MAX } from "./staff.js";
 import { cleanPoints } from "./points.js";
 import { loadMenu, saveMenuText, setAvailability, updateMenuItem, menuToText } from "./menu.js";
 
-const MAX_PRIZES = 8;
+const MAX_PRIZES = WHEEL_MAX;
 const MAX_BODY = 1200000; // фото уже сжато в браузере до ~300 КБ (≈ 400 КБ в base64)
 const SECTIONS = { moment: "«Сейчас у нас»", bonus: "Подарок для гостей", points: "Баллы", links: "Ссылки «Ещё у нас»", menu: "Меню", staff: "Сотрудники" };
 const NEW_STAFF_ROWS = 2;
@@ -160,13 +161,26 @@ function bonusPatch(form) {
 }
 
 function bonusFields(form) {
-  const prizes = [];
+  // Сектор: p — название, w — шанс, on — включён, pos — место на колесе, ic — значок, tn — цвет,
+  // d — описание, cd — свои условия, vd — свой срок (дней). Пустое название — строки нет.
+  const rows = [];
   for (let i = 0; i < MAX_PRIZES; i++) {
-    const label = String(form.get(`p${i}`) || "").trim();
+    const get = (k) => String(form.get(`${k}${i}`) || "").trim();
+    const label = get("p");
     if (!label) continue;
-    const w = String(form.get(`w${i}`) || "").trim();
-    prizes.push({ label, weight: w === "" ? 1 : Number(w) });
+    const w = get("w");
+    const pos = Number(get("pos"));
+    rows.push({
+      pos: Number.isFinite(pos) && pos > 0 ? pos : i + 1,
+      i,
+      prize: {
+        label, weight: w === "" ? 1 : Number(w), active: form.get(`on${i}`) === "1",
+        icon: get("ic") || "auto", tone: get("tn") || "auto",
+        description: get("d"), conditions: get("cd"), valid_days: get("vd")
+      }
+    });
   }
+  const prizes = rows.sort((a, b) => a.pos - b.pos || a.i - b.i).map((r) => r.prize);
   return {
     bonus_mode: String(form.get("bonus_mode") || "off"),
     discount_text: String(form.get("gift") || ""),
@@ -322,10 +336,29 @@ function bonusSection(b, hidden, msg) {
   const mode = ["off", "fixed", "wheel"].includes(b.bonus_mode) ? b.bonus_mode : "off";
   const opt = (value, label) => `<option value="${value}"${mode === value ? " selected" : ""}>${label}</option>`;
   const prizes = Array.isArray(b.bonus_prizes) ? b.bonus_prizes : [];
+  const active = prizes.filter((p) => p && p.label && p.active !== false).length;
+  const select = (name, list, value) =>
+    `<select name="${name}">${Object.entries(list).map(([k, v]) => `<option value="${k}"${(value || "auto") === k ? " selected" : ""}>${esc(v)}</option>`).join("")}</select>`;
   const rows = Array.from({ length: MAX_PRIZES }, (_, i) => {
     const p = prizes[i] || {};
-    return `<div class="set-prize"><input name="p${i}" maxlength="30" value="${esc(p.label || "")}" placeholder="${i === 0 ? "Капучино" : i === 1 ? "Скидка 10%" : "Приз " + (i + 1)}" aria-label="Приз ${i + 1}">
-      <input name="w${i}" type="number" min="1" max="1000" inputmode="numeric" value="${p.label ? esc(String(p.weight ?? 1)) : ""}" placeholder="шанс" aria-label="Шанс приза ${i + 1}"></div>`;
+    const on = !p.label || p.active !== false;
+    return `<div class="set-prize-card">
+      <div class="set-prize"><input name="p${i}" maxlength="30" value="${esc(p.label || "")}" placeholder="${i === 0 ? "Капучино" : i === 1 ? "Скидка 10%" : "Приз " + (i + 1)}" aria-label="Приз ${i + 1}">
+        <input name="w${i}" type="number" min="1" max="1000" inputmode="numeric" value="${p.label ? esc(String(p.weight ?? 1)) : ""}" placeholder="шанс" aria-label="Шанс приза ${i + 1}"></div>
+      <div class="set-prize-line">
+        <label class="set-check"><input type="checkbox" name="on${i}" value="1"${on ? " checked" : ""}> Включён</label>
+        <label class="set-pos">Место<input name="pos${i}" type="number" min="1" max="${MAX_PRIZES}" inputmode="numeric" value="${i + 1}"></label>
+      </div>
+      <details class="set-more"><summary>Ещё настройки: значок, цвет, описание, условия</summary>
+        <div class="set-two">
+          <label>Значок${select(`ic${i}`, WHEEL_ICONS, p.icon)}</label>
+          <label>Цвет сектора${select(`tn${i}`, WHEEL_TONES, p.tone)}</label>
+        </div>
+        <label>Описание (видно в карточке подарка)<input name="d${i}" maxlength="80" value="${esc(p.description || "")}" placeholder="Любой объём, на любом молоке"></label>
+        <label>Свои условия (пусто — общие)<input name="cd${i}" maxlength="120" value="${esc(p.conditions || "")}" placeholder="Только в будни до 12:00"></label>
+        <label>Свой срок действия, дней (пусто — общий)<input name="vd${i}" type="number" min="1" max="365" inputmode="numeric" value="${esc(String(p.valid_days ?? ""))}"></label>
+      </details>
+    </div>`;
   }).join("");
   const n = (name, value, min, max) =>
     `<input name="${name}" type="number" min="${min}" max="${max}" inputmode="numeric" value="${esc(String(value ?? ""))}">`;
@@ -338,10 +371,17 @@ function bonusSection(b, hidden, msg) {
         ${hidden}<input type="hidden" name="section" value="bonus">
         <label>Режим<select name="bonus_mode">${opt("off", "Выключен")}${opt("fixed", "Один подарок для всех")}${opt("wheel", "Колесо подарков")}</select></label>
         <label>Подарок (для режима «один для всех»)<input name="gift" maxlength="60" value="${esc(b.discount_text || "")}" placeholder="Скидка 10% на следующий визит"></label>
-        <fieldset class="set-prizes"><legend>Призы колеса и шансы (2–8 призов)</legend>
-          <p class="set-hint">Шанс — во сколько раз чаще выпадает приз. Капучино 3 и шот 1 — капучино в 3 раза чаще. Пустые строки не учитываются.</p>
+        <fieldset class="set-prizes"><legend>Призы колеса и шансы (2–${MAX_PRIZES} призов)</legend>
+          <p class="set-hint">Шанс — во сколько раз чаще выпадает приз. Капучино 3 и шот 1 — капучино в 3 раза чаще. Пустые строки не учитываются.
+            «Место» — порядок секторов по часовой стрелке. Выключенный приз остаётся в списке, но на колесе его нет.</p>
+          ${active > WHEEL_RECOMMENDED ? `<p class="set-hint"><b>Сейчас ${active} призов.</b> Надписи на колесе становятся мельче — лучше всего читается до ${WHEEL_RECOMMENDED}.</p>` : ""}
+          <style>.set-prize-card{padding:10px 0;border-bottom:1px solid #eef0f4}.set-prize-card:last-of-type{border-bottom:0}
+            .set-prize-line{display:flex;align-items:center;gap:14px;margin-top:6px}.set-pos{display:flex;align-items:center;gap:6px;font-size:13px}
+            .set-pos input{width:64px}.set-more{margin-top:6px}.set-more summary{cursor:pointer;font-size:13px;color:#4b5563}
+            .set-more[open]{display:grid;gap:8px}</style>
           ${rows}
         </fieldset>
+        ${b.slug && mode === "wheel" ? `<a class="set-preview" href="/bonus?b=${esc(b.slug)}&amp;s=qr&amp;preview=1" target="_blank" rel="noopener">Посмотреть колесо, как видит гость ↗</a>` : ""}
         <label>Условия (видят гость и кассир)<input name="conditions" maxlength="200" value="${esc(b.bonus_conditions || "")}" placeholder="При заказе от 500 ₽, один код на чек"></label>
         <div class="set-two">
           <label>Начнёт действовать через, дней${n("from_days", b.bonus_from_days ?? 1, 0, 30)}</label>

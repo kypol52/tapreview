@@ -50,7 +50,7 @@
 import { db } from "./supabase.js";
 import { tg, BOT_COMMANDS } from "./telegram.js";
 import { deleteRuOrder, validate as validateOrder, OrderError } from "./orders.js";
-import { bonusCounts } from "./bonus.js";
+import { bonusCounts, WHEEL_MAX, WHEEL_ICONS, WHEEL_TONES } from "./bonus.js";
 import { refUrl, refStats } from "./referral.js";
 import { localAuthEnabled, verifyToken, verifyApiKey, handleLogin } from "./admin-auth.js";
 import { saveMedia, MEDIA_ID_RE } from "./media.js";
@@ -863,7 +863,9 @@ function cleanRefId(value) {
 function cleanBonus(input) {
   const mode = ["off", "fixed", "wheel"].includes(input.bonus_mode) ? input.bonus_mode : "off";
   const prizes = Array.isArray(input.bonus_prizes) ? input.bonus_prizes : [];
-  if (prizes.length > 8) throw new HttpError(400, "Колесо: не больше 8 призов");
+  if (prizes.length > WHEEL_MAX) throw new HttpError(400, `Колесо: не больше ${WHEEL_MAX} призов (включая выключенные)`);
+  // Сектор колеса (bonus.js normalizePrize): название и шанс — обязательно; значок, цвет, описание,
+  // свои условия и срок — по желанию. Выключенный приз хранится, но на колесе его нет.
   const cleanPrizes = prizes.map((p, i) => {
     const label = cleanText(p && p.label, 30, `Приз ${i + 1}`);
     const weight = Number(p && p.weight);
@@ -871,9 +873,27 @@ function cleanBonus(input) {
     if (!Number.isInteger(weight) || weight < 1 || weight > 1000) {
       throw new HttpError(400, `Приз «${label}»: шанс — целое число от 1 до 1000`);
     }
-    return { label, weight };
+    const icon = p.icon === undefined || p.icon === null || p.icon === "" ? "auto" : String(p.icon);
+    if (!WHEEL_ICONS[icon]) throw new HttpError(400, `Приз «${label}»: неизвестный значок`);
+    const tone = p.tone === undefined || p.tone === null || p.tone === "" ? "auto" : String(p.tone);
+    if (!WHEEL_TONES[tone]) throw new HttpError(400, `Приз «${label}»: неизвестный цвет сектора`);
+    let validDays = null;
+    if (p.valid_days !== undefined && p.valid_days !== null && p.valid_days !== "") {
+      validDays = Number(p.valid_days);
+      if (!Number.isInteger(validDays) || validDays < 1 || validDays > 365) {
+        throw new HttpError(400, `Приз «${label}»: срок действия — целое число дней от 1 до 365 (или пусто — как у всех)`);
+      }
+    }
+    const out = { label, weight, active: p.active !== false && p.active !== "0" && p.active !== "false", icon, tone };
+    const description = cleanText(p.description, 80, `Описание приза «${label}»`);
+    const conditions = cleanText(p.conditions, 120, `Условия приза «${label}»`);
+    if (description) out.description = description;
+    if (conditions) out.conditions = conditions;
+    if (validDays) out.valid_days = validDays;
+    return out;
   });
-  if (mode === "wheel" && cleanPrizes.length < 2) throw new HttpError(400, "Для колеса нужно хотя бы 2 приза");
+  const activePrizes = cleanPrizes.filter((p) => p.active);
+  if (mode === "wheel" && activePrizes.length < 2) throw new HttpError(400, "Для колеса нужно хотя бы 2 включённых приза");
   if (mode === "fixed" && !cleanText(input.discount_text, 120, "Подарок")) {
     throw new HttpError(400, "Напишите, какой подарок получает гость");
   }

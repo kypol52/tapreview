@@ -2093,6 +2093,9 @@ function fillBonus(business) {
   $("f-bonus-stats").textContent = "";
   showBonusMode();
   updatePrizeShares();
+  // Предпросмотр показывает сохранённое колесо этого заведения
+  $("f-wheel-preview").hidden = !(business && business.slug && business.bonus_mode === "wheel");
+  if (business && business.slug) $("f-wheel-preview").href = `/bonus?b=${encodeURIComponent(business.slug)}&s=qr&preview=1`;
   if (business && business.bonus_mode && business.bonus_mode !== "off") loadBonusStats(business);
   loadStaffLinks(business);
 }
@@ -2418,6 +2421,30 @@ function prizeRow(prize) {
   weight.title = "Вес: чем больше, тем чаще выпадает";
   weight.addEventListener("input", updatePrizeShares);
   const share = el("span", "prize-share", "");
+  // Включён / выключен: выключенный приз хранится, но на колесе его нет
+  const onWrap = el("label", "prize-on");
+  const on = el("input");
+  on.type = "checkbox";
+  on.className = "prize-active";
+  on.checked = prize.active !== false;
+  on.title = "Приз на колесе";
+  on.addEventListener("change", updatePrizeShares);
+  onWrap.append(on, el("span", "", "вкл"));
+  const move = (dir) => {
+    const sibling = dir < 0 ? row.previousElementSibling : row.nextElementSibling;
+    if (!sibling) return;
+    if (dir < 0) sibling.before(row);
+    else sibling.after(row);
+    updatePrizeShares();
+  };
+  const up = el("button", "sl-chip-x prize-move", "↑");
+  up.type = "button";
+  up.title = "Выше (раньше по часовой стрелке)";
+  up.addEventListener("click", () => move(-1));
+  const down = el("button", "sl-chip-x prize-move", "↓");
+  down.type = "button";
+  down.title = "Ниже";
+  down.addEventListener("click", () => move(1));
   const remove = el("button", "sl-chip-x", "✕");
   remove.type = "button";
   remove.title = "Убрать приз";
@@ -2425,29 +2452,100 @@ function prizeRow(prize) {
     row.remove();
     updatePrizeShares();
   });
-  row.append(label, weight, share, remove);
+  const top = el("div", "prize-top");
+  top.append(label, weight, share, onWrap, up, down, remove);
+
+  // Ещё: значок, цвет сектора, описание, свои условия и срок
+  const more = el("details", "prize-more");
+  more.append(el("summary", "", "Значок, цвет, описание, условия"));
+  const select = (cls, list, value) => {
+    const s = el("select", cls);
+    for (const [key, text] of Object.entries(list)) {
+      const o = el("option", "", text);
+      o.value = key;
+      s.append(o);
+    }
+    s.value = list[value] ? value : "auto";
+    return s;
+  };
+  const field = (title, input) => {
+    const wrap = el("label", "prize-field");
+    wrap.append(el("span", "", title), input);
+    return wrap;
+  };
+  const text = (cls, max, value, placeholder) => {
+    const i = el("input", cls);
+    i.type = "text";
+    i.maxLength = max;
+    i.value = value || "";
+    i.placeholder = placeholder;
+    return i;
+  };
+  const days = el("input", "prize-days");
+  days.type = "number";
+  days.min = "1";
+  days.max = "365";
+  days.step = "1";
+  days.placeholder = "как у всех";
+  days.value = prize.valid_days ? String(prize.valid_days) : "";
+  more.append(
+    field("Значок", select("prize-icon", PRIZE_ICONS, prize.icon)),
+    field("Цвет сектора", select("prize-tone", PRIZE_TONES, prize.tone)),
+    field("Описание (в карточке подарка)", text("prize-desc", 80, prize.description, "Любой объём, на любом молоке")),
+    field("Свои условия (пусто — общие)", text("prize-cond", 120, prize.conditions, "Только в будни до 12:00")),
+    field("Свой срок действия, дней", days)
+  );
+  row.append(top, more);
   return row;
 }
+
+// Те же списки, что в src/bonus.js (WHEEL_ICONS / WHEEL_TONES) — сервер проверяет значения
+const PRIZE_ICONS = { auto: "Авто — по названию", coffee: "Чашка", discount: "Скидка", drink: "Напиток", dessert: "Десерт", gift: "Подарок", chef: "От шефа", star: "Звезда" };
+const PRIZE_TONES = { auto: "Авто — чередовать", navy: "Глубокий синий", midnight: "Тёмно-синий", cream: "Кремовый", gold: "Светлое золото" };
+const PRIZES_MAX = 8;
+const PRIZES_RECOMMENDED = 6;
 
 function readPrizes() {
   if ($("f-bonus-mode").value !== "wheel") return [];
   return [...$("f-prizes").children]
-    .map((row) => ({
-      label: row.querySelector(".prize-label").value.trim(),
-      weight: Number(row.querySelector(".prize-weight").value)
-    }))
+    .map((row) => {
+      const q = (s) => row.querySelector(s);
+      const p = {
+        label: q(".prize-label").value.trim(),
+        weight: Number(q(".prize-weight").value),
+        active: q(".prize-active").checked,
+        icon: q(".prize-icon").value,
+        tone: q(".prize-tone").value
+      };
+      const desc = q(".prize-desc").value.trim();
+      const cond = q(".prize-cond").value.trim();
+      const days = q(".prize-days").value.trim();
+      if (desc) p.description = desc;
+      if (cond) p.conditions = cond;
+      if (days) p.valid_days = Number(days);
+      return p;
+    })
     .filter((p) => p.label);
 }
 
-// Рядом с весом показываем шанс в процентах — так понятнее
+// Рядом с весом показываем шанс в процентах (среди включённых) — так понятнее
 function updatePrizeShares() {
   const rows = [...$("f-prizes").children];
-  const total = rows.reduce((sum, row) => sum + (Number(row.querySelector(".prize-weight").value) || 0), 0);
+  const isOn = (row) => row.querySelector(".prize-active").checked;
+  const total = rows.reduce((sum, row) => sum + (isOn(row) ? Number(row.querySelector(".prize-weight").value) || 0 : 0), 0);
   for (const row of rows) {
     const w = Number(row.querySelector(".prize-weight").value) || 0;
-    row.querySelector(".prize-share").textContent = total ? `${Math.round((w / total) * 100)}%` : "";
+    row.querySelector(".prize-share").textContent = !isOn(row) ? "выкл" : total ? `${Math.round((w / total) * 100)}%` : "";
+    row.classList.toggle("is-off", !isOn(row));
   }
-  $("f-prize-add").hidden = rows.length >= 8;
+  $("f-prize-add").hidden = rows.length >= PRIZES_MAX;
+  const active = rows.filter(isOn).length;
+  const note = $("f-prizes-note");
+  if (note) {
+    note.textContent = active > PRIZES_RECOMMENDED
+      ? `Включено ${active} призов — надписи на колесе мельче. Лучше всего читается до ${PRIZES_RECOMMENDED}.`
+      : `Включено ${active} из ${rows.length}. Порядок в списке — порядок секторов по часовой стрелке.`;
+  }
 }
 
 async function loadBonusStats(business) {

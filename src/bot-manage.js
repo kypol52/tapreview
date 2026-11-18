@@ -73,7 +73,7 @@ export async function handleManage(env, chat, text) {
 
   if (name === "gifts_on") {
     if (business.bonus_mode !== "off") return `🎁 Подарки в ${q(business.name)} уже включены (${bonusText(business)}).`;
-    const prizes = Array.isArray(business.bonus_prizes) ? business.bonus_prizes.filter((p) => p && p.label) : [];
+    const prizes = Array.isArray(business.bonus_prizes) ? business.bonus_prizes.filter((p) => p && p.label && p.active !== false) : [];
     const mode = prizes.length >= 2 ? "wheel" : business.discount_text ? "fixed" : null;
     if (!mode) {
       return "Сначала задайте подарок: призы колеса или один подарок для всех — во вкладке «⚙ Настройки» на странице статистики.";
@@ -143,7 +143,7 @@ function suffix(list, business) {
 
 function bonusText(b) {
   if (b.bonus_mode === "wheel") {
-    const n = (Array.isArray(b.bonus_prizes) ? b.bonus_prizes : []).length;
+    const n = (Array.isArray(b.bonus_prizes) ? b.bonus_prizes : []).filter((p) => p && p.active !== false).length;
     return `колесо, ${n} ${n % 10 === 1 && n % 100 !== 11 ? "приз" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? "приза" : "призов"}`;
   }
   return `«${esc(b.discount_text || "подарок")}»`;
