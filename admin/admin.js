@@ -1060,6 +1060,8 @@ function openEditor(business) {
   fillBonus(business);
   $("f-xlinks").replaceChildren(...((business && business.extra_links) || []).map(xlinkRow));
   updateXlinkAdd();
+  $("f-wifi-name").value = business ? business.wifi_name || "" : "";
+  $("f-wifi-password").value = business ? business.wifi_password || "" : "";
   $("f-rating-first").checked = business ? business.rating_first !== false : true;
   $("f-active").checked = business ? business.is_active : true;
   // Новое заведение: первый месяц бесплатно (оплачено до = сегодня + 1 месяц) и базовая цена 169 ₽ (до 10 карт)
@@ -1611,6 +1613,8 @@ function readForm() {
     theme: (document.querySelector('input[name="f-theme"]:checked') || {}).value || "classic",
     design: readDesign(),
     extra_links: readXlinks(),
+    wifi_name: $("f-wifi-name").value,
+    wifi_password: $("f-wifi-password").value,
     rating_first: $("f-rating-first").checked,
     tariff: $("f-tariff").value,
     modules: [...($("f-mod-service").checked ? ["service"] : []), ...($("f-mod-ai").checked ? ["ai"] : [])],

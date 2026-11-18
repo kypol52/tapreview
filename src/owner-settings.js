@@ -10,6 +10,7 @@ import { html, esc, notFound, TOKEN_RE } from "./stats-page.js";
 import { cleanMoment, cleanBonus, cleanExtraLinks, EXTRA_LINK_MAX } from "./admin-api.js";
 import { BONUS_COLUMNS, EXTRA_LINKS } from "./public-page.js";
 import { WHEEL_MAX, WHEEL_RECOMMENDED, WHEEL_ICONS, WHEEL_TONES } from "./bonus.js";
+import { cleanWifi, WIFI_COLUMNS } from "./wifi.js";
 import { saveMedia } from "./media.js";
 import { has, hasModule } from "./tariffs.js";
 import { listStaff, createStaff, updateStaff, setStaffCard, STAFF_MAX } from "./staff.js";
@@ -18,7 +19,7 @@ import { loadMenu, saveMenuText, setAvailability, updateMenuItem, menuToText } f
 
 const MAX_PRIZES = WHEEL_MAX;
 const MAX_BODY = 1200000; // фото уже сжато в браузере до ~300 КБ (≈ 400 КБ в base64)
-const SECTIONS = { moment: "«Сейчас у нас»", bonus: "Подарок для гостей", points: "Баллы", links: "Ссылки «Ещё у нас»", menu: "Меню", staff: "Сотрудники" };
+const SECTIONS = { moment: "«Сейчас у нас»", bonus: "Подарок для гостей", points: "Баллы", links: "Ссылки «Ещё у нас»", wifi: "Wi-Fi", menu: "Меню", staff: "Сотрудники" };
 const NEW_STAFF_ROWS = 2;
 
 export async function handleOwnerSettings(request, env, token) {
@@ -43,7 +44,7 @@ export async function handleOwnerSettings(request, env, token) {
       return html(200, "Настройки", chooserBody(token, venues));
     }
     // BONUS_COLUMNS включает и настройки баллов (points.js)
-    const rows = await db(env, `businesses?id=eq.${id}&select=id,name,slug,discount_text,moment,extra_links,modules,${BONUS_COLUMNS}`);
+    const rows = await db(env, `businesses?id=eq.${id}&select=id,name,slug,discount_text,moment,extra_links,modules,${WIFI_COLUMNS},${BONUS_COLUMNS}`);
     if (!rows.length) return notFound();
     const business = rows[0];
     // «Сервис в зале» (staff.js): сотрудники и их личные карты
@@ -89,6 +90,7 @@ export async function handleOwnerSettings(request, env, token) {
         patch = cleanPoints(Object.fromEntries(form));
       }
       else if (section === "links") patch = linksPatch(form);
+      else if (section === "wifi") patch = cleanWifi({ wifi_name: form.get("wifi_name"), wifi_password: form.get("wifi_password") });
       else if (section === "staff") {
         if (!hasModule(business, "service")) throw new Error("Сотрудники — в модуле «Сервис в зале». Чтобы подключить, напишите в TapReview");
         await saveTeam(env, id, form);
@@ -244,6 +246,7 @@ function draftFrom(section, form, business) {
     return { ...b, bonus_prizes: b.bonus_prizes };
   }
   if (section === "links") return { extra_links: linkFields(form) };
+  if (section === "wifi") return { wifi_name: String(form.get("wifi_name") || ""), wifi_password: String(form.get("wifi_password") || "") };
   return {};
 }
 
@@ -293,6 +296,7 @@ function settingsBody(token, multi, b, { ok = null, error = null, team = null, m
       <p class="set-hint">Колесо подарков, штампы, VIP-гости и «Подарите другу» — в тарифе Plus. Чтобы подключить, напишите в TapReview.</p></section>`}
     ${has(b, "gifts") ? pointsSettingsSection(b, hidden, flash("points")) : ""}
     ${linksSection(b, hidden, flash("links"))}
+    ${wifiSection(b, hidden, flash("wifi"))}
     ${menu ? menuSection(token, b, menu, hidden, flash("menu"), menuDraft) : ""}
     ${team ? staffSettingsSection(team, hidden, flash("staff")) : ""}
     ${multi ? `<a class="back back-dark" href="/s/${token}">← Статистика</a>` : ""}
@@ -445,6 +449,25 @@ function linksSection(b, hidden, msg) {
       <form class="set-form" method="post" action="">
         ${hidden}<input type="hidden" name="section" value="links">
         ${rows}
+        <button class="set-save" type="submit">Сохранить</button>
+      </form>
+    </section>`;
+}
+
+function wifiSection(b, hidden, msg) {
+  return `
+    <section class="panel" id="wifi">
+      <h2>Wi-Fi для гостей</h2>
+      <p class="set-hint">Кнопка «Wi-Fi» на главном экране карты: название сети, пароль и «Скопировать пароль». Пароль видит только гость,
+        который приложил телефон к карте или отсканировал QR в заведении, — по пересланной ссылке его нет. Чтобы убрать кнопку, сотрите название сети.</p>
+      ${msg}
+      <form class="set-form" method="post" action="">
+        ${hidden}<input type="hidden" name="section" value="wifi">
+        <div class="set-two">
+          <label>Название сети<input name="wifi_name" maxlength="32" autocomplete="off" value="${esc(b.wifi_name || "")}" placeholder="Zerno_Guest"></label>
+          <label>Пароль (пусто — без пароля)<input name="wifi_password" maxlength="63" autocomplete="off" spellcheck="false" value="${esc(b.wifi_password || "")}" placeholder="coffee2026"></label>
+        </div>
+        <p class="set-hint">Сменили пароль на роутере — поменяйте и здесь: на всех картах он обновится сразу.</p>
         <button class="set-save" type="submit">Сохранить</button>
       </form>
     </section>`;

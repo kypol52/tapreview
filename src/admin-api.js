@@ -61,6 +61,7 @@ import { listStaff, createStaff, updateStaff, setStaffCard, StaffError } from ".
 import { feeMonths } from "./pay.js";
 
 import { cleanPoints, PointsError } from "./points.js";
+import { cleanWifi, WifiError } from "./wifi.js";
 import { aiConfigured, monthUsage, aiPing } from "./ai.js";
 import { loadMenu, saveMenuText, menuToText, MenuError } from "./menu.js";
 
@@ -93,7 +94,7 @@ const ADMIN_COLUMNS =
   "paid_until,monthly_price,billing_note," +
   "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions,bonus_daily_limit," +
   "stamps_goal,stamps_prize,friend_gift,friend_reward,vip_visits,vip_gift,sorry_gift," +
-  "referred_by,ref_reward_at,theme,design,extra_links,rating_first,moment,tariff,modules,pay_on," +
+  "referred_by,ref_reward_at,theme,design,extra_links,rating_first,moment,tariff,modules,pay_on,wifi_name,wifi_password," +
   "points_on,points_percent,points_max_share,points_expire_days,points_max_check," +
   "catalog_visible,catalog_since,catalog_consent_at,description,city,photos,app_button,lat,lon," +
   "created_at,updated_at";
@@ -754,6 +755,8 @@ function validateBusiness(input) {
     theme: ["classic", "dark", "coffee", "fresh", "rose", "custom"].includes(input.theme) ? input.theme : "classic",
     design: cleanDesign(input.design),
     extra_links: cleanExtraLinks(input.extra_links),
+    // Wi-Fi на странице карты (wifi.js, миграция 052)
+    ...wifiFields(input),
     rating_first: input.rating_first !== false,
     tariff: TARIFF_KEYS.includes(input.tariff) ? input.tariff : "standard",
     // Баллы лояльности (points.js, миграция 045)
@@ -850,6 +853,15 @@ function cleanMoment(value) {
     from,
     to
   };
+}
+
+function wifiFields(input) {
+  try {
+    return cleanWifi(input);
+  } catch (error) {
+    if (error instanceof WifiError) throw new HttpError(400, error.message);
+    throw error;
+  }
 }
 
 function cleanRefId(value) {

@@ -19,6 +19,7 @@ import { staffOfCard, withStaffTips } from "./staff.js";
 import { pointsBlock, POINTS_CSS } from "./points.js";
 import { hasMenu } from "./menu.js";
 import { tapOf, tapCookie } from "./tap.js";
+import { wifiItem, wifiVisible, WIFI_CSS, WIFI_SCRIPT } from "./wifi.js";
 
 const SLUG_RE = /^[A-Za-z0-9_-]{3,64}$/;
 const COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
@@ -85,7 +86,7 @@ export const BONUS_COLUMNS =
 const BUSINESS_COLUMNS =
   "id,slug,name,tagline,category,logo_url,brand_color,google_url,yandex_url,twogis_url," +
   "discount_code,discount_text,paid_until,theme,design,extra_links,rating_first,moment," +
-  "catalog_visible,app_button,modules,pay_on," + BONUS_COLUMNS;
+  "catalog_visible,app_button,modules,pay_on,wifi_name,wifi_password," + BONUS_COLUMNS;
 
 // Ссылки заведения под кнопками отзывов (миграция 020): меню, каталог, услуги…
 // Значки — тонкие линии в цвете текста темы, чтобы не спорить с логотипами площадок
@@ -199,15 +200,18 @@ function hubBlock(business, { service = "", points = "" } = {}) {
   const tiles = [...payTiles, ...links.filter((l) => l.type === "tips")];
   const rows = links.filter((l) => l.type !== "pay" && l.type !== "tips");
   if (business.menuUrl && !rows.some((l) => l.type === "menu")) rows.unshift({ type: "menu", url: business.menuUrl, own: true });
-  if (!tiles.length && !rows.length && !service && !points) return "";
+  // Wi-Fi (wifi.js): только гостю у карты
+  const wifi = Boolean(wifiItem(business));
+  if (!tiles.length && !rows.length && !service && !points && !wifi) return "";
 
   const label = (l) => escapeHtml(l.label || (EXTRA_LINKS[l.type] || EXTRA_LINKS.custom).label);
   const target = (l) => (l.own ? "" : ` target="_blank" rel="noopener nofollow"`);
   // Вид зависит от числа функций: 1 — одна большая плитка, 2 — две большие плитки, 3 и больше — тонкие строки списком
-  const items = [...tiles, ...(service ? [{ call: true }] : []), ...rows];
+  const items = [...tiles, ...(service ? [{ call: true }] : []), ...(wifi ? [{ wifi: true }] : []), ...rows];
   const big = items.length <= 2;
   const itemHtml = (l) => {
     const cls = big ? "hub-tile" : "hub-row";
+    if (l.wifi) return wifiItem(business, cls);
     if (l.call) {
       return `<details class="hub-call">
         <summary class="${cls}"><span class="hub-ico">${HUB_HAND}</span><span class="hub-label">Вызов официанта</span>${HUB_GO}</summary>
@@ -256,10 +260,12 @@ export async function handleBusinessPage(request, env, ctx, slug) {
 
   if (isExpired(business.paid_until)) return pausedResponse(business);
   const guest = isBot(request) ? null : await guestOf(request, env, business, source);
-  // Своё меню (menu.js) — кнопка «Меню» вместо внешней ссылки
-  const withMenu = has(business, "menu") && (await hasMenu(env, business.id))
-    ? { ...business, menuUrl: `/menu/${business.slug}${source !== "direct" ? `?s=${source}` : ""}` }
-    : business;
+  // Своё меню (menu.js) — кнопка «Меню» вместо внешней ссылки; Wi-Fi — только гостю у карты (wifi.js)
+  const withMenu = {
+    ...business,
+    wifiOn: wifiVisible({ bot: isBot(request), tap, source }),
+    ...(has(business, "menu") && (await hasMenu(env, business.id)) ? { menuUrl: `/menu/${business.slug}${source !== "direct" ? `?s=${source}` : ""}` } : {})
+  };
   // Оценка 1–3 и подарок-извинение (миграция 050): код выдаём сразу — он будет над формой
   if (business.rating_first && flow.score && flow.score <= 3 && tap) flow.sorry = await sorryCode(request, env, business, { source: tap }).catch((e) => { console.error(`Подарок-извинение: ${e.message}`); return null; });
   return withTap(withGuestCookie(businessPage(withMenu, source, null, flow, guest), guest), request, env, business, source, flow);
@@ -415,6 +421,8 @@ export async function handleCardPage(request, env, ctx, rawCode) {
   if (business.rating_first && has(business, "rating") && flow.score && !flow.sent && !flow.all && tap) {
     ctx.waitUntil(logRating(request, env, { businessId: business.id, cardId: card.id, score: flow.score, source: tap, likes: flow.likes, staffId: staff ? staff.id : null }));
   }
+  // Wi-Fi заведения (wifi.js) — только гостю у карты
+  business = { ...business, wifiOn: wifiVisible({ bot: isBot(request), tap, source }) };
 
   if (isExpired(business.paid_until)) return pausedResponse(business);
   const guest = isBot(request) ? null : await guestOf(request, env, business, source);
@@ -700,6 +708,7 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
     return ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline: taglineBase, wallet, discount, design, appLink, service, pointsHtml });
   }
 
+  const wifi = wifiItem(business);
   const actions = buttons
     ? `<p class="lead">Пожалуйста, поделитесь впечатлением о&nbsp;нашем заведении.</p>
        <div class="stars" role="img" aria-label="Пять звёзд">${STAR.repeat(5)}</div>
@@ -712,7 +721,8 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
     accent,
     theme: business.theme,
     design,
-    extraCss: service ? SERVICE_CSS : "",
+    extraCss: (service ? SERVICE_CSS : "") + (wifi ? WIFI_CSS : ""),
+    script: wifi ? WIFI_SCRIPT : "",
     // «Карта как реклама»: гость-владелец бизнеса переходит на наш сайт, а заведение получает рекомендацию
     footer: { href: `/r/${business.slug}?s=card`, text: "Хочу такую карту" },
     body: `
@@ -726,6 +736,7 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
       ${appBlock(appLink)}
       ${momentBlock(business)}
       ${extraLinksBlock(business)}
+      ${wifi ? `<nav class="hub" aria-label="Wi-Fi">${wifi}</nav>` : ""}
       ${pointsHtml}
       ${discount}`
   });
@@ -884,6 +895,7 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
   // Переходник (плитки, вызов, меню) — только на главном экране. После оценки вместо повтора — одна кнопка назад,
   // чтобы гость не путался в двух наборах кнопок. Тот же адрес без оценки, с меткой источника (NFC/QR)
   const hub = hubBlock(business, { service, points: rated ? "" : pointsHtml });
+  const wifiShown = !rated && hub.includes("hub-wifi");
   const backHome = hub
     ? `<a class="hub-back" href="${link({})}" aria-label="Вернуться на главную" title="На главную"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>`
     : "";
@@ -899,9 +911,9 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
     theme: business.theme,
     design,
     // Оценка 1–3: подарок появляется позже (22 с), чтобы гость сначала спокойно написал владельцу
-    extraCss: (score && score <= 3 ? ".bonus, .perks-late { animation-delay: 22s; }" : "") + (service ? SERVICE_CSS : ""),
-    // Скрипт только на шаге формы 1–3
-    script: score && score <= 3 && !sent && !all ? FB_SCRIPT : "",
+    extraCss: (score && score <= 3 ? ".bonus, .perks-late { animation-delay: 22s; }" : "") + (service ? SERVICE_CSS : "") + (wifiShown ? WIFI_CSS : ""),
+    // Скрипт: на шаге формы 1–3 — форма; на главном экране с Wi-Fi — кнопка «Скопировать пароль»
+    script: score && score <= 3 && !sent && !all ? FB_SCRIPT : wifiShown ? WIFI_SCRIPT : "",
     footer: { href: `/r/${business.slug}?s=card`, text: "Хочу такую карту" },
     body: `
       ${rated ? backHome : ""}

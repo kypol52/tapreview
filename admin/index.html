@@ -604,6 +604,21 @@
       </fieldset>
 
       <fieldset data-panel="page" class="billing">
+        <legend>Wi-Fi для гостей</legend>
+        <p class="muted field-hint">Кнопка «Wi-Fi» на главном экране карты: название сети, пароль и «Скопировать пароль». Видит только гость, который приложил телефон к карте или отсканировал QR, — не по пересланной ссылке. Пусто — кнопки нет.</p>
+        <div class="grid-2">
+          <label class="field">
+            <span>Название сети</span>
+            <input id="f-wifi-name" type="text" maxlength="32" autocomplete="off" placeholder="Zerno_Guest">
+          </label>
+          <label class="field">
+            <span>Пароль (пусто — сеть без пароля)</span>
+            <input id="f-wifi-password" type="text" maxlength="63" autocomplete="off" spellcheck="false" placeholder="coffee2026">
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset data-panel="page" class="billing">
         <legend>Меню на странице (тариф Plus и Pro)</legend>
         <p class="muted field-hint">Строка с # — раздел, дальше «Название — цена». * в начале — «рекомендуем», после | — описание.
           С карты стола и модулем «Сервис в зале» гость может заказать из меню — заказ увидит персонал рядом с вызовами.</p>
