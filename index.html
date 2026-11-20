@@ -749,6 +749,20 @@
     .mini-hub .wide { grid-column: 1 / -1; justify-content: space-between; background: var(--navy); color: #fff; box-shadow: none; }
     .mini-hub .wide b { color: var(--gold); font-weight: 750; }
     .mini-split .lbl { font-size: 12.5px; font-weight: 700; color: #fff; }
+    /* Большие карточки «Отличий»: система и AI-администратор */
+    .diff-big .mini { height: auto; min-height: 168px; }
+    .diff-big .mini-hub { padding: 16px; }
+    .diff-big .mini-ask { padding: 16px 18px; gap: 8px; justify-content: center; }
+    .diff-dark .mini-ask .a { background: rgba(255, 255, 255, 0.92); color: var(--ink); box-shadow: none; }
+    .mini-ask .lead-pill { align-self: center; margin-top: 4px; padding: 6px 12px; border-radius: 999px; background: var(--gold); color: var(--navy-900); font-size: 11.5px; font-weight: 750; }
+    .diff-list { margin: 16px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; font-size: 15px; color: var(--ink); }
+    .diff-list li { display: flex; gap: 10px; }
+    .diff-list li::before { content: ""; flex: none; width: 6px; height: 6px; margin-top: 9px; border-radius: 50%; background: var(--gold); }
+    .diff-dark .diff-list { color: #e3e9f4; }
+    .diff-dark p a { color: var(--gold); }
+    .diff-big .mini-hub .wide { white-space: normal; gap: 10px; }
+    .diff-big .mini-hub .wide b { white-space: nowrap; }
+    .diff .diff-foot { margin-top: auto; padding-top: 18px; font-size: 14.5px; }
 
     /* Подключение */
     .start-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 36px; }
@@ -961,7 +975,7 @@
           <p class="lead reveal" style="--d:.1s">
             Одна NFC-карта на столе. Гость прикладывает телефон — и оставляет отзыв, открывает меню, зовёт официанта,
             оплачивает счёт и благодарит чаевыми. Отзыв на <b>Яндекс Картах, 2ГИС и Google</b> — в одно касание,
-            а если что-то не так, гость может написать <b>прямо вам</b>. Подарки и баллы возвращают гостей снова.
+            а если что-то не так, гость может написать <b>прямо вам</b>. Настраиваемая система лояльности мотивирует гостей возвращаться снова.
           </p>
           <div class="actions reveal" style="--d:.15s">
             <a class="btn btn-primary" href="/order/">Подключить</a>
@@ -1058,17 +1072,17 @@
         <div class="section-head reveal">
           <p class="kicker">Как это работает</p>
           <h2>Одно касание — и всё под рукой</h2>
-          <p>Гостю не нужно скачивать приложение, искать заведение на карте или ловить взгляд официанта. Всё открывается с одной карты на столе.</p>
+          <p>Гостю не нужно скачивать приложение, искать заведение на карте или ловить взгляд официанта. Все возможности открываются благодаря одной смарт-карте на столе.</p>
         </div>
         <ol class="steps">
           <li class="step reveal">
             <div class="step-num"><b>1</b>Касание</div>
-            <h3>Прикладывает телефон</h3>
-            <p>Или наводит камеру на QR-код. Открывается страница вашего заведения — на iPhone и Android, без приложения.</p>
+            <h3>Прикладывает телефон или сканирует QR-код</h3>
+            <p>Открывается страница вашего заведения — на iPhone и Android, без приложения.</p>
           </li>
           <li class="step reveal" style="--d:.08s">
             <div class="step-num"><b>2</b>Всё на одной странице</div>
-            <h3>Делает, что нужно</h3>
+            <h3>Гость выбирает, что ему нужно</h3>
             <p>Смотрит меню, зовёт официанта, оплачивает счёт, оставляет чаевые, забирает подарок и копит баллы.</p>
           </li>
           <li class="step reveal" style="--d:.16s">
@@ -1131,16 +1145,16 @@
   </g>
 </svg></figure>
               <h3>Подарки и штампы</h3>
-              <p>Колесо подарков после оценки, штампы за визиты и особый подарок постоянным гостям.</p>
+              <p>Колесо подарков, штампы за визиты и особый подарок постоянным гостям.</p>
             </article>
             <article class="feat">
               <figure class="shot"><img src="/assets/roles/g3-points.jpg?v=3" width="600" height="450" alt="Экран баллов гостя: код для персонала и баланс 340 баллов" loading="lazy" decoding="async"></figure>
               <h3>Баллы с каждого чека</h3>
-              <p>Гость показывает код, баллы копятся и потом списываются как скидка.</p>
+              <p>Гость показывает код персоналу, баллы копятся и потом списываются как скидка.</p>
             </article>
             <article class="feat">
               <figure class="shot"><img src="/assets/roles/g4-table.jpg?v=3" width="600" height="450" alt="Карта на столе: кнопки «Позвать официанта», «Попросить счёт» и «Меню и заказ»" loading="lazy" decoding="async"></figure>
-              <h3>Меню и официант со стола</h3>
+              <h3>Все возможности прямо со стола</h3>
               <p>Меню с фото, заказ прямо со стола, «Позвать официанта» и «Попросить счёт».</p>
               <p class="plan-tag">Модуль «Сервис в зале»</p>
             </article>
@@ -1180,7 +1194,7 @@
           <div class="role-grid">
             <article class="feat">
               <figure class="shot"><img src="/assets/roles/o1-complaints.jpg?v=3" width="600" height="450" alt="Сообщение недовольного гостя с причиной и номером для звонка" loading="lazy" decoding="async"></figure>
-              <h3>Жалобы — вам первым</h3>
+              <h3>Жалобы в первую очередь поступают вам</h3>
               <p>Если гостю что-то не понравилось, он пишет вам в Telegram с причиной и может попросить перезвонить.</p>
             </article>
             <article class="feat">
@@ -1203,9 +1217,10 @@
         </div>
 
         <ol class="eco reveal" aria-label="Как всё связано">
-          <li>Гость оценил</li>
+          <li>Гость приложил карту</li>
+          <li>Открыл меню или позвал официанта</li>
           <li>Получил подарок</li>
-          <li>Вернулся за ним</li>
+          <li>Вернулся снова</li>
           <li>Копит баллы</li>
           <li>Вы видите всё это в статистике</li>
         </ol>
@@ -1218,41 +1233,49 @@
         <div class="section-head reveal">
           <p class="kicker">Отличия</p>
           <h2>Не просто табличка с QR-кодом</h2>
-          <p>Табличку с QR для отзывов можно напечатать за вечер. Вот что TapReview даёт сверх неё.</p>
+          <p>Табличку с QR можно напечатать за вечер. TapReview — это система вокруг одной карты и AI-администратор, который отвечает вашим клиентам.</p>
         </div>
         <div class="diff-grid">
-          <article class="diff reveal">
-            <div class="mini mini-nfc" aria-hidden="true">
-              <span class="nfc-card"><svg><use href="#i-nfc"/></svg><i></i></span>
-              <span class="nfc-or">или</span>
-              <svg class="nfc-qr" viewBox="0 0 21 21" aria-hidden="true"><path fill="#0a2a5c" d="M0 0h7v7H0zM2 2v3h3V2zM14 0h7v7h-7zm2 2v3h3V2zM0 14h7v7H0zm2 2v3h3v-3zM9 0h2v2H9zm0 3h3v2H9zm-1 3h2v3H8zm3 2h2v2h-2zM0 9h2v2H0zm3 0h3v2H3zm6 2h3v2H9zm5-2h2v2h-2zm3 0h4v2h-4zm-3 3h3v2h-3zm5 0h2v3h-2zM9 14h2v2H9zm3 1h2v2h-2zm-3 3h3v3H9zm6 0h2v3h-2zm3 2h3v1h-3zm-4-3h2v2h-2z"/></svg>
-            </div>
-            <h3>Касание вместо поиска камеры</h3>
-            <p>Внутри карты NFC-метка: гость просто прикладывает телефон. QR-код на той же карте — для телефонов без NFC.</p>
-          </article>
-          <article class="diff diff-dark reveal" style="--d:.06s">
-            <div class="mini mini-split" aria-hidden="true">
-              <span class="row"><span class="lbl">Отзыв на картах</span><em><svg><use href="#i-yandex"/></svg><svg><use href="#i-twogis"/></svg><svg><use href="#i-google"/></svg></em></span>
-              <span class="row"><span class="lbl">Написать владельцу</span><em><svg style="color:#2aabee"><use href="#i-tg"/></svg></em></span>
-            </div>
-            <h3>Отзыв на картах — или сообщение вам</h3>
-            <p>Гость в одно касание открывает форму отзыва на Яндекс Картах, в 2ГИС или Google. А если что-то пошло не так, может сразу написать вам — и вы успеете всё исправить. Кнопки площадок видны всегда — по правилам Яндекс Карт и 2ГИС.</p>
-          </article>
-          <article class="diff reveal">
+          <article class="diff diff-big reveal">
             <div class="mini mini-hub" aria-hidden="true">
               <span><svg><use href="#i-star"/></svg>Отзыв</span>
-              <span><svg viewBox="0 0 24 24"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 21V3c-2 1-3.5 4-3.5 8h3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Меню</span>
+              <span><svg viewBox="0 0 24 24"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 21V3c-2 1-3.5 4-3.5 8h3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Меню и заказ</span>
               <span><svg viewBox="0 0 24 24"><path d="M4 17h16M6 17a6 6 0 0 1 12 0M12 8V6M10.5 6h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Официант</span>
               <span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 17V7.5h3.2a2.6 2.6 0 0 1 0 5.2H8.5M8.5 15h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Чаевые</span>
-              <span class="wide">🎁 Подарок на следующий визит<b>340 баллов</b></span>
+              <span><svg viewBox="0 0 24 24"><path d="M2.5 9a14 14 0 0 1 19 0M5.5 12.5a9.5 9.5 0 0 1 13 0M8.8 16a4.8 4.8 0 0 1 6.4 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="19.3" r="1.3" fill="currentColor"/></svg>Wi-Fi</span>
+              <span><svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2.5 10h19M6 15h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Оплата счёта</span>
+              <span class="wide">Подарок на следующий визит<b>340 баллов</b></span>
             </div>
             <h3>Система, а не одна ссылка</h3>
-            <p>Отзыв, меню, вызов официанта, чаевые, подарки, штампы и баллы — всё на одной карте. У гостя появляется причина приложить её снова.</p>
+            <p>Одна карта открывает всё, что нужно гостю в заведении. Набор кнопок вы настраиваете под себя, а ссылки меняются без перепечатки карт.</p>
+            <ul class="diff-list">
+              <li>Отзыв на Яндекс Картах, в 2ГИС и Google</li>
+              <li>Меню с фото и заказ прямо со стола</li>
+              <li>Вызов официанта и просьба принести счёт</li>
+              <li>Чаевые по личной ссылке официанта</li>
+              <li>Подарки, штампы и баллы для постоянных гостей</li>
+              <li>Wi-Fi, сайт, бронь, доставка — любые ваши ссылки</li>
+              <li>Статистика по каждой карте и каждому залу</li>
+            </ul>
+            <p class="diff-foot">У гостя появляется причина приложить карту снова — не только ради отзыва.</p>
           </article>
-          <article class="diff reveal" style="--d:.06s">
-            <div class="mini mini-ask" aria-hidden="true"><span class="q">Сколько стоит стрижка?</span><span class="a">Мужская — 1 500 ₽. Оставите номер? Администратор запишет вас.</span></div>
+          <article class="diff diff-big diff-dark reveal" style="--d:.06s">
+            <div class="mini mini-ask" aria-hidden="true">
+              <span class="q">Сколько стоит стрижка?</span>
+              <span class="a">Мужская — 1 500 ₽. Записать вас? Подскажите имя и телефон.</span>
+              <span class="q">Ирина, 8 912 000-00-12</span>
+              <span class="lead-pill">Новая заявка → администратору</span>
+            </div>
             <h3>AI-администратор</h3>
-            <p>Отвечает вашим клиентам во ВКонтакте, Telegram и на сайте круглосуточно и собирает заявки. Это <a href="https://ai.tapreview.ru/" target="_blank" rel="noopener">TapReview AI</a> — отдельный продукт нашей экосистемы.</p>
+            <p>Отвечает вашим клиентам круглосуточно — в Telegram, во ВКонтакте и в чате на сайте. Знает цены, меню и часы работы из базы знаний, которую вы заполняете сами.</p>
+            <ul class="diff-list">
+              <li>Отвечает за секунды, даже ночью и в выходные</li>
+              <li>Берёт цены только из вашей базы и не придумывает их</li>
+              <li>Собирает заявки: имя и телефон клиента сразу приходят вам</li>
+              <li>Сложный вопрос передаёт сотруднику</li>
+              <li>Все диалоги и заявки — в одном кабинете</li>
+            </ul>
+            <p class="diff-foot"><a href="https://ai.tapreview.ru/" target="_blank" rel="noopener">TapReview AI</a> — отдельный продукт нашей экосистемы.</p>
           </article>
         </div>
       </div>
