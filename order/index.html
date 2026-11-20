@@ -233,7 +233,7 @@
 
     <div class="layout">
       <div>
-        <form id="order-form" novalidate>
+        <form id="order-form" class="ym-hide-content" novalidate>
           <section class="panel" aria-labelledby="calc-title">
             <h2 id="calc-title">Расчёт</h2>
             <p class="panel-sub">Подписка — за заведение, карты — разовая покупка: в подключение входит пакет карт (Start — 5, Plus — 20, Pro — 50), каждая карта сверх пакета — 199 ₽. Со второй точки подписка на 20% дешевле. Первый месяц подписки бесплатно.</p>
@@ -659,6 +659,7 @@
           .then(function (data) {
             form.hidden = true;
             document.getElementById("mbar").hidden = true;
+            if (window.trGoal) trGoal("lead");
             var done = document.getElementById("done");
             if (data.id) document.getElementById("done-title").textContent = "Заявка №" + data.id + " отправлена!";            done.hidden = false;
             done.focus();
@@ -672,5 +673,6 @@
       });
     })();
   </script>
+  <script src="/assets/consent.js" defer></script>
 </body>
 </html>
