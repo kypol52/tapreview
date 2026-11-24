@@ -797,7 +797,7 @@
     .diff .diff-foot { margin-top: auto; padding-top: 12px; font-size: 14.5px; }
 
     /* Подключение */
-    .start-heading .start-subtitle {
+    .section-head.start-heading p.start-subtitle {
       font-family: "Playfair Display", Georgia, serif;
       font-size: clamp(23px, 3vw, 32px); font-weight: 600; line-height: 1.25; color: var(--navy);
     }
@@ -984,8 +984,9 @@
     }
     @media (max-width: 359px) {
       .header .wrap { padding-inline: 12px; }
-      .header .logo { gap: 6px; }
-      .header .logo-mark { width: 32px; height: 32px; }
+      .header .logo { gap: 6px; font-size: 15px; }
+      .header .logo-mark { width: 30px; height: 30px; }
+      .header .btn { padding-inline: 8px; font-size: 13px; }
     }
     @media (min-width: 441px) and (max-width: 979px) { .scene-wrap { --s: 0.9; } }
     @media (prefers-reduced-motion: reduce) {
