@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, follow">
+  <meta name="theme-color" content="#f7f3ea">
+  <title>Тёплое зерно — демо TapReview</title>
+  <link rel="icon" href="/assets/favicon.png">
+  <style>
+    @font-face {
+      font-family: Montserrat; src: url("/fonts/montserrat-var-cyrillic.woff2") format("woff2");
+      font-weight: 100 900; font-display: swap;
+      unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+    }
+    @font-face {
+      font-family: Montserrat; src: url("/fonts/montserrat-var-latin.woff2") format("woff2");
+      font-weight: 100 900; font-display: swap;
+      unicode-range: U+0000-00FF, U+2000-206F, U+20BD;
+    }
+    @font-face {
+      font-family: Playfair; src: url("/fonts/playfair-display-600-cyrillic.woff2") format("woff2");
+      font-weight: 600; font-display: swap;
+    }
+    :root {
+      color-scheme: light; --paper: #f7f3ea; --surface: #fffdf8; --ink: #242920;
+      --muted: #555c4d; --line: #ded8cb; --green: #263f32; --light-green: #e7ece1;
+      --gold: #f5dfb0; --radius: 20px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 500 1rem/1.55 Montserrat, system-ui, sans-serif; }
+    button, textarea { font: inherit; }
+    button, a { touch-action: manipulation; }
+    button { cursor: pointer; }
+    button:disabled { cursor: default; opacity: .55; }
+    :focus-visible { outline: 3px solid #765616; outline-offset: 3px; }
+    .shell { width: min(1080px, 100%); margin-inline: auto; padding-inline: clamp(16px, 4vw, 36px); }
+    .top { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding-block: 12px; }
+    .top a { color: var(--green); font-weight: 750; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; }
+    .demo-label { font-size: .84rem; font-weight: 700; color: var(--muted); text-align: right; }
+    .hero { padding: clamp(24px, 5vw, 56px); background: var(--green); border-radius: 28px; color: var(--surface); }
+    .table { display: inline-block; margin: 0 0 12px; padding: 5px 12px; border-radius: 100px; background: var(--gold); color: #49330d; font-size: .84rem; font-weight: 750; }
+    h1, h2, h3, p { margin: 0; }
+    h1 { font: 600 clamp(2.35rem, 7vw, 5.4rem)/1.05 Playfair, Georgia, serif; text-wrap: balance; }
+    .hero p:last-child { margin-top: 14px; max-width: 58ch; color: #e4ece0; }
+    .notice { margin-block: 15px 22px; color: var(--muted); font-size: .9rem; }
+    .layout { display: grid; gap: 22px; align-items: start; }
+    @media (min-width: 790px) { .layout { grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); } }
+    .panel, .ticket { min-width: 0; padding: clamp(16px, 3vw, 26px); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+    h2 { font-size: clamp(1.32rem, 4vw, 1.65rem); line-height: 1.23; letter-spacing: -.03em; }
+    h3 { font-size: 1rem; line-height: 1.3; }
+    .menu-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .cart-link { display: inline-flex; align-items: center; min-height: 44px; color: var(--green); font-size: .9rem; font-weight: 700; }
+    .filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 6px; }
+    .filter, .button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 13px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--green); font-size: .89rem; font-weight: 720; text-align: center; }
+    .filter[aria-pressed="true"], .primary { border-color: var(--green); background: var(--green); color: white; }
+    .menu-list, .ticket-list, .events { margin: 0; padding: 0; list-style: none; }
+    .dish, .ticket-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 13px; border-bottom: 1px solid var(--line); }
+    .dish small { display: block; margin-top: 4px; color: var(--muted); }
+    .dish .button { flex: none; white-space: nowrap; }
+    .empty { padding: 12px 0; color: var(--muted); font-size: .92rem; }
+    .ticket-item { gap: 8px; flex-wrap: wrap; }
+    .ticket-item span { flex: 1 1 100px; }
+    .qty { display: inline-flex; gap: 6px; align-items: center; }
+    .qty button { width: 44px; height: 44px; padding: 0; }
+    .sum { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-block: 14px; }
+    .sum strong { white-space: nowrap; }
+    .ticket > .primary { width: 100%; }
+    .service { margin-top: 26px; }
+    .service h2 { margin-bottom: 12px; }
+    .actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+    .actions .button { min-height: 50px; }
+    .activity { margin-top: 24px; border-top: 1px solid var(--line); }
+    summary { min-height: 44px; align-content: center; cursor: pointer; font-weight: 700; color: var(--green); }
+    .events { color: var(--muted); font-size: .9rem; }
+    .events li { padding-block: 5px; border-bottom: 1px solid var(--line); }
+    .status { margin: 16px 0 0; color: var(--green); font-size: .92rem; font-weight: 650; }
+    .status:empty { display: none; }
+    .foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding-block: 24px; color: var(--muted); font-size: .86rem; }
+    dialog { width: min(460px, calc(100% - 24px)); max-height: calc(100dvh - 24px); overflow: auto; padding: clamp(16px, 5vw, 26px); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); }
+    dialog::backdrop { background: #14201780; }
+    .dialog-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
+    .close { width: 44px; flex: none; padding: 0; font-size: 1.32rem; }
+    .dialog-body > * + * { margin-top: 13px; }
+    .dialog-body textarea { width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: white; color: var(--ink); resize: vertical; }
+    .choices { display: flex; flex-wrap: wrap; gap: 8px; }
+    .choices .button { min-width: 44px; }
+    .note { color: var(--muted); font-size: .9rem; }
+    @media (max-width: 360px) { .dish .button { padding-inline: 8px; } .top { gap: 8px; } }
+  </style>
+</head>
+<body>
+  <header class="top shell">
+    <a href="/">← TapReview</a>
+    <span class="demo-label">Демо для гостя</span>
+  </header>
+  <main class="shell">
+    <div class="hero">
+      <p class="table">Столик №7</p>
+      <h1>Тёплое зерно</h1>
+      <p>Кофейня с завтраками весь день. Выберите блюда или закажите кофе к столику.</p>
+    </div>
+    <p class="notice">Кофейня вымышленная. Заказы, оплата и отзывы работают в демо-режиме.</p>
+    <noscript><p>Для пробного заказа и других действий включите JavaScript.</p></noscript>
+    <div class="layout">
+      <section class="panel" aria-labelledby="menu-title">
+        <div class="menu-head"><h2 id="menu-title">Меню</h2><a class="cart-link" href="#cart-title" id="cart-link">К заказу</a></div>
+        <div class="filters" id="filters" aria-label="Категории меню"></div>
+        <ul class="menu-list" id="menu"></ul>
+      </section>
+      <div>
+        <section class="ticket" aria-labelledby="cart-title">
+          <h2 id="cart-title">Ваш заказ</h2>
+          <div id="cart"></div>
+          <button class="button primary" id="order" type="button" disabled>Отправить заказ</button>
+          <p class="status" id="status" role="status" aria-atomic="true"></p>
+        </section>
+        <section class="service" aria-labelledby="service-title">
+          <h2 id="service-title">У столика</h2>
+          <div class="actions">
+            <button class="button" type="button" data-open="call">Позвать официанта</button>
+            <button class="button" type="button" data-open="bill">Счёт и чаевые</button>
+            <button class="button" type="button" data-open="review">Оставить отзыв</button>
+            <button class="button" type="button" data-open="loyalty">Баллы и подарок</button>
+            <button class="button" type="button" data-open="wifi">Wi‑Fi</button>
+          </div>
+        </section>
+      </div>
+    </div>
+    <details class="activity">
+      <summary>Что увидит команда кофейни</summary>
+      <ul class="events" id="events"></ul>
+    </details>
+    <footer class="foot">
+      <span>Гостевая страница на TapReview</span>
+      <button class="button" type="button" data-open="reset">Начать заново</button>
+    </footer>
+  </main>
+  <dialog id="dialog" aria-labelledby="dialog-title">
+    <div class="dialog-head">
+      <h2 id="dialog-title"></h2>
+      <form method="dialog"><button class="button close" aria-label="Закрыть">×</button></form>
+    </div>
+    <div class="dialog-body" id="dialog-body"></div>
+  </dialog>
+  <script src="demo.js" defer></script>
+</body>
+</html>
