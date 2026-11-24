@@ -158,6 +158,7 @@
     .hero-sub { margin: 0; color: var(--navy); font-size: clamp(22px, 3vw, 28px); line-height: 1.2; font-weight: 750; letter-spacing: -0.02em; }
     .lead { margin: 14px 0 30px; max-width: 540px; font-size: clamp(17px, 2.2vw, 19px); line-height: 1.6; color: var(--muted); }
     .lead b { color: var(--text); font-weight: 650; }
+    .hero-mobile-lead { display: none; }
     .actions { display: flex; flex-wrap: wrap; gap: 12px; }
     .hero-meta { display: grid; gap: 10px; margin: 28px 0 0; padding: 0; list-style: none; font-size: 14px; font-weight: 600; color: var(--text); }
     .hero-meta li { display: flex; align-items: center; gap: 8px; }
@@ -943,14 +944,21 @@
       section { padding-block: 58px; }
       .section-head { margin-bottom: 28px; }
       .section-head p:not(.kicker), .why-head p:not(.kicker) { font-size: 16px; }
-      .hero { padding-block: 28px 36px; }
-      .hero-grid { margin-top: 18px; gap: 20px; }
-      h1 { font-size: clamp(30px, 8.2vw, 54px); }
-      h1 .nb { white-space: normal; }
-      .hero-sub { font-size: 18px; }
-      .lead { margin: 10px 0 20px; font-size: 16px; }
-      .lead-extra { display: none; }
-      .hero-meta { margin-top: 20px; gap: 7px; }
+      .hero { display: grid; grid-template-columns: minmax(0, 1fr); padding-block: 12px 34px; }
+      .hero-grid { display: contents; }
+      .hero-grid > .visual { grid-row: 1; padding: 0; margin-bottom: 16px; }
+      .hero .scene-wrap { --s: 0.54; }
+      .hero .tap-chip { display: none; }
+      .hero .phone, .hero .s-idle, .hero .nfc i,
+      .hero .s-rate, .hero .r-stars span, .hero .r-tap {
+        animation-duration: 4.6s; animation-iteration-count: 1;
+      }
+      .hero-copy { padding-inline: 20px; }
+      .js .hero .reveal { opacity: 1; transform: none; transition: none; }
+      .hero h1 { font-size: clamp(29px, 7.6vw, 46px); }
+      .hero h1 .nb { white-space: normal; }
+      .hero .hero-sub, .hero .hero-desktop-lead, .hero .hero-meta { display: none; }
+      .hero .hero-mobile-lead { display: block; margin: 12px 0 20px; font-size: 16px; }
       .platforms .wrap { column-gap: 16px; }
       .platform { font-size: 14px; }
       .platform svg { width: 22px; height: 22px; }
@@ -969,7 +977,7 @@
       .footer nav a { display: inline-flex; align-items: center; min-height: 44px; }
     }
     @media (max-width: 440px) {
-      .scene-wrap { --s: 0.58; }
+      .hero .scene-wrap { --s: 0.46; }
       .header .btn { padding: 0 16px; }
       .h-actions { gap: 8px; }
       .actions .btn, .start-cta .btn { width: 100%; }
@@ -983,6 +991,7 @@
       .tab { padding: 0 12px; font-size: 14px; }
     }
     @media (max-width: 359px) {
+      .hero .scene-wrap { --s: 0.4; }
       .header .wrap { padding-inline: 12px; }
       .header .logo { gap: 6px; font-size: 15px; }
       .header .logo-mark { width: 30px; height: 30px; }
@@ -1079,14 +1088,15 @@
         <h1 class="reveal"><span class="h1-brand">TapReview</span> — целая система <span class="nb">в одном касании</span></h1>
       </div>
       <div class="wrap hero-grid">
-        <div>
+        <div class="hero-copy">
           <p class="hero-sub reveal" style="--d:.05s">Цифровой сервис для бизнеса</p>
-          <p class="lead reveal" style="--d:.1s">
+          <p class="lead hero-desktop-lead reveal" style="--d:.1s">
             Одна NFC-карта на столе. Гость прикладывает телефон — и оставляет отзыв, открывает меню, зовёт официанта,
             оплачивает счёт и благодарит чаевыми.
-            <span class="lead-extra">Отзыв на <b>Яндекс Картах, 2ГИС и Google</b> — в одно касание,
-            а если что-то не так, гость может написать <b>прямо вам</b>. Настраиваемая система лояльности мотивирует гостей возвращаться снова.</span>
+            Отзыв на <b>Яндекс Картах, 2ГИС и Google</b> — в одно касание,
+            а если что-то не так, гость может написать <b>прямо вам</b>. Настраиваемая система лояльности мотивирует гостей возвращаться снова.
           </p>
+          <p class="lead hero-mobile-lead">Одна NFC-карта на столе открывает меню, отзывы, оплату и бонусы для гостей.</p>
           <div class="actions reveal" style="--d:.15s">
             <a class="btn btn-primary" href="/order/">Подключить</a>
             <a class="btn btn-gold" href="/b/yarik">Посмотреть пример</a>
