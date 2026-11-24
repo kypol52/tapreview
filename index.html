@@ -804,8 +804,6 @@
     }
     .start-heading .start-phrase { margin-top: 10px; }
     .start-word { display: inline-block; min-width: 10ch; color: var(--navy); font-weight: 700; }
-    .start-motion { min-height: 44px; padding: 0 8px; border: 0; background: transparent; color: var(--navy); font: inherit; cursor: pointer; }
-    @media (prefers-reduced-motion: reduce) { .start-motion { display: none; } }
     .start-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 36px; }
 
     /* Всплывающее окно с заявкой: не перекрывает страницу, закрывается одним нажатием */
@@ -1444,7 +1442,6 @@
           <p class="start-phrase">
             <span class="sr-only">Это легко, быстро, практично и удобно.</span>
             <span aria-hidden="true">Это <span class="start-word">легко</span></span>
-            <button type="button" class="start-motion" hidden>Пауза</button>
           </p>
         </div>
         <ol class="order reveal">
@@ -1654,8 +1651,7 @@
     // Смена слов только пока блок виден и анимация разрешена.
     (function () {
       var word = document.querySelector(".start-word");
-      var toggle = document.querySelector(".start-motion");
-      if (!word || !toggle || !window.IntersectionObserver || !window.matchMedia) return;
+      if (!word || !window.IntersectionObserver || !window.matchMedia) return;
 
       var motion = window.matchMedia("(prefers-reduced-motion: reduce)");
       var words = [word.textContent, "быстро", "практично", "удобно"];
@@ -1663,7 +1659,6 @@
       var length = words[0].length;
       var erasing = true;
       var visible = false;
-      var paused = false;
       var timer;
 
       function tick() {
@@ -1683,21 +1678,15 @@
 
       function sync() {
         clearTimeout(timer);
-        toggle.hidden = motion.matches;
-        if (motion.matches || paused) {
+        if (motion.matches || !visible) {
           length = words[index].length;
           erasing = true;
           word.textContent = words[index];
-        } else if (visible) {
+        } else {
           timer = setTimeout(tick, 1300);
         }
       }
 
-      toggle.addEventListener("click", function () {
-        paused = !paused;
-        toggle.textContent = paused ? "Продолжить" : "Пауза";
-        sync();
-      });
       if (motion.addEventListener) motion.addEventListener("change", sync);
       new IntersectionObserver(function (entries) {
         visible = entries[0].isIntersecting;
