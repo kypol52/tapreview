@@ -33,7 +33,6 @@
   let state = initial();
   let tip = 0;
   let rating = 0;
-  let activeDialog = "";
 
   try {
     const saved = JSON.parse(sessionStorage.getItem(storageKey) || "null");
@@ -303,15 +302,8 @@
   };
 
   for (const control of document.querySelectorAll("[data-open]")) {
-    control.addEventListener("click", () => {
-      activeDialog = control.dataset.open;
-      dialogs[activeDialog]();
-    });
+    control.addEventListener("click", dialogs[control.dataset.open]);
   }
-  dialog.addEventListener("close", () => {
-    document.querySelector('[data-open="' + activeDialog + '"]')?.focus();
-    dialogBody.replaceChildren();
-  });
   orderButton.addEventListener("click", () => {
     const rows = entries(state.cart);
     if (!rows.length) return;
