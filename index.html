@@ -136,6 +136,7 @@
     .nav a:hover { color: var(--navy); }
     .header .btn { min-height: 42px; padding: 0 18px; font-size: 14px; }
     .header .btn svg { width: 18px; height: 18px; }
+    .mobile-menu { display: none; }
 
     /* ---------- первый экран ---------- */
     /* overflow-x: clip — декоративная стойка сцены не должна давать горизонтальную прокрутку на телефоне */
@@ -700,7 +701,18 @@
       .role-dots i { width: 6px; height: 6px; border-radius: 99px; background: #cfd6e3; transition: width 0.25s var(--ease), background 0.25s; }
       .role-dots i.on { width: 18px; background: var(--navy); }
     }
-    @media (min-width: 720px) { .role-dots { display: none; } }
+    .role-controls { display: none; }
+    @media (max-width: 719px) {
+      .role-controls { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 8px; }
+      .role-controls .role-dots { margin: 0; }
+      .role-controls button {
+        display: grid; place-items: center; width: 44px; height: 44px;
+        border: 1px solid var(--line-strong); border-radius: 50%; color: var(--navy);
+        background: var(--white); cursor: pointer;
+      }
+      .role-controls button:disabled { opacity: 0.4; cursor: default; }
+      .role-controls svg { width: 18px; height: 18px; }
+    }
     .role-grid .plan-tag { align-self: flex-start; margin-top: 14px; }
     .mini-rate { flex-direction: column; gap: 8px; }
     .mini-rate small { font-size: 13px; font-weight: 700; color: var(--ink); }
@@ -902,7 +914,62 @@
       .stats-block { grid-template-columns: 0.9fr 1.1fr; gap: 56px; padding: 56px; margin-top: 72px; }
       .dash { padding: 26px; }
     }
+    @media (max-width: 979px) {
+      .header .wrap { position: relative; gap: 8px; }
+      .header .btn { min-height: 44px; }
+      .header .h-social { display: none; }
+      .mobile-menu { display: block; }
+      .mobile-menu summary {
+        display: grid; place-items: center; width: 44px; height: 44px;
+        border: 1px solid var(--line-strong); border-radius: 50%;
+        color: var(--navy); background: var(--white); list-style: none; cursor: pointer;
+      }
+      .mobile-menu summary::-webkit-details-marker { display: none; }
+      .mobile-menu summary svg { width: 20px; height: 20px; }
+      .mobile-menu[open] summary { color: var(--white); background: var(--navy); }
+      .mobile-menu nav {
+        position: absolute; inset: 100% 12px auto; display: grid;
+        max-height: calc(100dvh - 80px); overflow-y: auto;
+        padding: 8px; border: 1px solid var(--line); border-radius: 16px;
+        background: var(--white); box-shadow: var(--shadow);
+      }
+      .mobile-menu a {
+        display: flex; align-items: center; min-height: 44px; padding: 8px 14px;
+        border-radius: 8px; color: var(--navy); font-weight: 650; text-decoration: none;
+      }
+      .mobile-menu a:focus-visible, .mobile-menu a:hover { background: var(--soft); }
+    }
+    @media (max-width: 719px) {
+      section { padding-block: 58px; }
+      .section-head { margin-bottom: 28px; }
+      .section-head p:not(.kicker), .why-head p:not(.kicker) { font-size: 16px; }
+      .hero { padding-block: 28px 36px; }
+      .hero-grid { margin-top: 18px; gap: 20px; }
+      h1 { font-size: clamp(30px, 8.2vw, 54px); }
+      h1 .nb { white-space: normal; }
+      .hero-sub { font-size: 18px; }
+      .lead { margin: 10px 0 20px; font-size: 16px; }
+      .lead-extra { display: none; }
+      .hero-meta { margin-top: 20px; gap: 7px; }
+      .platforms .wrap { column-gap: 16px; }
+      .platform { font-size: 14px; }
+      .platform svg { width: 22px; height: 22px; }
+      .tabs-on .tabs {
+        display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+        width: 100%; gap: 3px; overflow: visible;
+      }
+      .tabs-on .tab { padding-inline: 2px; font-size: clamp(12px, 3.4vw, 15px); }
+      .feat-more summary { min-height: 44px; }
+      .diff { padding: clamp(16px, 5vw, 24px); }
+      .diff-big .mini-hub { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 10px; }
+      .diff-big .mini-hub span { padding: 7px; white-space: normal; }
+      .order h3 { margin-top: 6px; }
+      .order p { font-size: 16px; }
+      .cta { padding: 38px 16px; }
+      .footer nav a { display: inline-flex; align-items: center; min-height: 44px; }
+    }
     @media (max-width: 440px) {
+      .scene-wrap { --s: 0.58; }
       .header .btn { padding: 0 16px; }
       .h-actions { gap: 8px; }
       .actions .btn, .start-cta .btn { width: 100%; }
@@ -916,8 +983,9 @@
       .tab { padding: 0 12px; font-size: 14px; }
     }
     @media (max-width: 359px) {
-      .h-social { display: none; } /* канал есть в подвале */
-      h1 { font-size: 30px; }
+      .header .wrap { padding-inline: 12px; }
+      .header .logo { gap: 6px; }
+      .header .logo-mark { width: 32px; height: 32px; }
     }
     @media (min-width: 441px) and (max-width: 979px) { .scene-wrap { --s: 0.9; } }
     @media (prefers-reduced-motion: reduce) {
@@ -986,6 +1054,18 @@
           <svg aria-hidden="true"><use href="#i-tg"/></svg>
         </a>
         <a class="btn btn-primary" href="/order/">Подключить</a>
+        <details class="mobile-menu">
+          <summary aria-label="Меню">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </summary>
+          <nav aria-label="Разделы мобильной версии">
+            <a href="#how">Как работает</a>
+            <a href="#roles">Возможности</a>
+            <a href="#diff">Отличия</a>
+            <a href="#start">Подключение</a>
+            <a href="#faq">Вопросы</a>
+          </nav>
+        </details>
       </div>
     </div>
   </header>
@@ -1002,8 +1082,9 @@
           <p class="hero-sub reveal" style="--d:.05s">Цифровой сервис для бизнеса</p>
           <p class="lead reveal" style="--d:.1s">
             Одна NFC-карта на столе. Гость прикладывает телефон — и оставляет отзыв, открывает меню, зовёт официанта,
-            оплачивает счёт и благодарит чаевыми. Отзыв на <b>Яндекс Картах, 2ГИС и Google</b> — в одно касание,
-            а если что-то не так, гость может написать <b>прямо вам</b>. Настраиваемая система лояльности мотивирует гостей возвращаться снова.
+            оплачивает счёт и благодарит чаевыми.
+            <span class="lead-extra">Отзыв на <b>Яндекс Картах, 2ГИС и Google</b> — в одно касание,
+            а если что-то не так, гость может написать <b>прямо вам</b>. Настраиваемая система лояльности мотивирует гостей возвращаться снова.</span>
           </p>
           <div class="actions reveal" style="--d:.15s">
             <a class="btn btn-primary" href="/order/">Подключить</a>
@@ -1531,6 +1612,34 @@
   </aside>
 
   <script>
+    // Закрываем меню после выбора раздела или нажатия Escape.
+    (function () {
+      var menu = document.querySelector(".mobile-menu");
+      var summary = menu.querySelector("summary");
+      menu.querySelector("nav").addEventListener("click", function (e) {
+        var link = e.target.closest("a");
+        if (!link) return;
+        menu.open = false;
+        var target = document.getElementById(link.hash.slice(1));
+        if (target) {
+          target.tabIndex = -1;
+          target.focus({ preventScroll: true });
+        }
+      });
+      document.addEventListener("keydown", function (e) {
+        if (e.key !== "Escape" || !menu.open) return;
+        menu.open = false;
+        summary.focus();
+      });
+      document.addEventListener("click", function (e) {
+        if (menu.open && !menu.contains(e.target)) menu.open = false;
+      });
+      var desktop = matchMedia("(min-width: 980px)");
+      if (desktop.addEventListener) desktop.addEventListener("change", function (e) {
+        if (e.matches) menu.open = false;
+      });
+    })();
+
     // Смена слов только пока блок виден и анимация разрешена.
     (function () {
       var word = document.querySelector(".start-word");
@@ -1617,12 +1726,33 @@
         dots.className = "role-dots";
         dots.setAttribute("aria-hidden", "true");
         cards.forEach(function () { dots.appendChild(document.createElement("i")); });
-        grid.after(dots);
+        var controls = document.createElement("div");
+        controls.className = "role-controls";
+        var index = 0;
+        function arrow(direction, label) {
+          var button = document.createElement("button");
+          button.type = "button";
+          button.setAttribute("aria-label", label);
+          button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' +
+            (direction < 0 ? 'm15 6-6 6 6 6' : 'm9 6 6 6-6 6') +
+            '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+          button.addEventListener("click", function () {
+            var target = Math.max(0, Math.min(cards.length - 1, index + direction));
+            var left = cards[target].offsetLeft - cards[0].offsetLeft;
+            grid.scrollTo({ left: left, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+          });
+          return button;
+        }
+        var previous = arrow(-1, "Предыдущая карточка");
+        var next = arrow(1, "Следующая карточка");
+        controls.append(previous, dots, next);
+        grid.after(controls);
         function mark() {
           var step = cards.length > 1 ? cards[1].offsetLeft - cards[0].offsetLeft : 0;
-          if (!step) step = 1;
-          var i = Math.max(0, Math.min(cards.length - 1, Math.round(grid.scrollLeft / step)));
-          dots.querySelectorAll("i").forEach(function (d, k) { d.classList.toggle("on", k === i); });
+          index = step ? Math.max(0, Math.min(cards.length - 1, Math.round(grid.scrollLeft / step))) : 0;
+          previous.disabled = index === 0;
+          next.disabled = index === cards.length - 1;
+          dots.querySelectorAll("i").forEach(function (d, k) { d.classList.toggle("on", k === index); });
         }
         grid.addEventListener("scroll", function () { requestAnimationFrame(mark); }, { passive: true });
         mark();
@@ -1664,7 +1794,7 @@
         setTimeout(function () { pop.hidden = true; }, 350);
         if (!(saved() && saved().state === "sent")) remember("closed");
       }
-      setTimeout(show, DELAY);
+      if (force || !matchMedia("(max-width: 719px)").matches) setTimeout(show, DELAY);
       pop.querySelector(".pop-x").addEventListener("click", close);
       // Телефон: плашка → форма (с этого момента считаем время заполнения)
       var phone = window.matchMedia("(max-width: 560px)");
