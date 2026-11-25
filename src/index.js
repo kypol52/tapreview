@@ -28,7 +28,7 @@
 //   /r/:slug             — ссылка-приглашение заведения: учёт перехода → главная с ?ref= (referral.js)
 // Все остальные адреса отдаются как обычные файлы (index.html, admin/, 404.html и т.д.).
 
-import { handleBusinessPage, handleCardPage, handleGroupPage, handleGo } from "./public-page.js";
+import { handleBusinessPage, handleCardPage, handleGroupPage, handleGo, handleGuestDemo } from "./public-page.js";
 import { handleApi } from "./admin-api.js";
 import { handleTelegramWebhook, handleTelegramRelay, weeklyReports } from "./telegram.js";
 import { handleStatsPage, handleBonusDesk, handleStaffDesk, handleFeedbackResolve } from "./stats-page.js";
@@ -66,6 +66,9 @@ export default {
       const shared = await handleShareProxy(request, env, url);
       if (shared) return shared;
     }
+
+    const guestDemo = url.pathname.match(/^\/b\/demo\/([a-z]+)\/?$/);
+    if (guestDemo && isRead) return handleGuestDemo(url, guestDemo[1]);
 
     // Cloudflare Worker без базы (после переезда в РФ): только посредник для Telegram и превью ссылок,
     // остальные адреса — на основной сайт

@@ -61,7 +61,7 @@ export async function balanceOf(env, businessId, key) {
 
 // ---------- Блок на странице с карты ----------
 
-export function pointsBlock(business, source, cardCode, balance) {
+export function pointsBlock(business, source, cardCode, balance, previewHref) {
   if (!pointsOn(business) || (source !== "nfc" && source !== "qr") || balance === null || balance === undefined) return "";
   const params = new URLSearchParams({ b: business.slug, s: source });
   if (cardCode) params.set("c", cardCode);
@@ -69,7 +69,7 @@ export function pointsBlock(business, source, cardCode, balance) {
   return `
     <section class="pts">
       <p class="pts-balance">💰 ${balance ? `У вас <b>${balance}</b> ${plural(balance, "балл", "балла", "баллов")}` : "Баллы с каждого чека"}</p>
-      <a class="pts-btn" href="/points?${escapeHtml(params.toString())}" rel="nofollow">Код для кассы</a>
+      <a class="pts-btn" href="${escapeHtml(previewHref || `/points?${params}`)}" rel="nofollow">Код для кассы</a>
     </section>`;
 }
 

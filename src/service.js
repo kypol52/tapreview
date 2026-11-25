@@ -51,12 +51,13 @@ export function callsOn(business, card, source) {
 
 // menu — у заведения есть меню (menu.js): под кнопками вызова — «Меню и заказ»
 // pay — включена оплата счёта (pay.js): вместо меню «одним / разделить» — одна кнопка «Счёт и оплата»
-export function serviceBlock(business, card, source, { menu = false, pay = false } = {}) {
+export function serviceBlock(business, card, source, { menu = false, pay = false, previewHref } = {}) {
   if (!callsOn(business, card, source)) return "";
   const menuLink = menu
     ? `<a class="svc-menu" href="${escapeHtml(`/menu/${business.slug}?c=${card.code}&s=${source}`)}">📖 Меню и заказ</a>`
     : "";
   const href = (kind, n) => {
+    if (previewHref) return escapeHtml(previewHref(kind, n));
     const p = new URLSearchParams({ c: card.code, t: kind, s: source });
     if (n) p.set("n", String(n));
     return escapeHtml(`/call?${p}`);

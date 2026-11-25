@@ -113,6 +113,10 @@
     .btn-primary:hover { background: var(--navy-700); transform: translateY(-1px); }
     .btn-ghost { background: #fff; color: var(--navy); box-shadow: 0 0 0 1.5px var(--line-strong) inset; }
     .btn-ghost:hover { box-shadow: 0 0 0 1.5px #b9c1d0 inset; transform: translateY(-1px); }
+    .guest-example { width: min(440px, calc(100% - 32px)); max-height: calc(100% - 32px); padding: 24px; border: 1px solid var(--line); border-radius: 20px; color: var(--ink); background: #fff; }
+    .guest-example::backdrop { background: rgba(6, 26, 58, .5); }
+    .guest-example h2 { margin: 0 32px 16px 0; font-size: 22px; }
+    .guest-example .btn { display: flex; width: 100%; min-height: 44px; margin-top: 8px; padding: 10px 16px; text-align: center; }
     .btn-gold { background: var(--gold); color: var(--navy-900); }
     .btn-gold:hover { background: #f0b519; transform: translateY(-1px); }
     .btn:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid #9fb3d9; outline-offset: 3px; border-radius: 10px; }
@@ -1097,7 +1101,7 @@
           <p class="lead hero-mobile-lead">Одна NFC-карта на столе открывает меню, отзывы, оплату и бонусы для гостей.</p>
           <div class="actions reveal" style="--d:.15s">
             <a class="btn btn-primary" href="/order/">Подключить</a>
-            <a class="btn btn-gold" href="/b/yarik">Посмотреть пример</a>
+            <button class="btn btn-gold" type="button" id="guest-example-open" aria-haspopup="dialog">Посмотреть пример</button>
           </div>
           <!-- ЦЕНЫ: сейчас подключаем бесплатно, строку с ценами убрали по просьбе партнёра (16.11.2026).
                Прайс по-прежнему в order/index.html, src/tariffs.js и в оферте (п. 3.3–3.4) -->
@@ -1589,6 +1593,14 @@
     </div>
   </footer>
 
+  <dialog class="guest-example" id="guest-example" aria-labelledby="guest-example-title">
+    <form method="dialog"><button class="pop-x" type="submit" aria-label="Закрыть">×</button></form>
+    <h2 id="guest-example-title">Выберите сферу бизнеса</h2>
+    <a class="btn btn-ghost" href="/b/demo/restaurant" autofocus>Ресторан, кафе или бар</a>
+    <a class="btn btn-ghost" href="/b/demo/beauty">Салон, барбершоп или массаж</a>
+    <a class="btn btn-ghost" href="/b/demo/reviews">Только отзывы — ПВЗ, магазин и другие</a>
+  </dialog>
+
   <!-- Окно с короткой заявкой: появляется через 10 с при каждом открытии страницы, пропадает насовсем только после отправленной заявки -->
   <aside class="pop" id="pop" hidden aria-labelledby="pop-title">
     <button class="pop-x" type="button" aria-label="Закрыть">×</button>
@@ -1620,6 +1632,12 @@
   </aside>
 
   <script>
+    (function () {
+      var picker = document.getElementById("guest-example");
+      document.getElementById("guest-example-open").addEventListener("click", function () { picker.showModal(); });
+      if (location.hash === "#guest-example") picker.showModal();
+    })();
+
     // Закрываем меню после выбора раздела или нажатия Escape.
     (function () {
       var menu = document.querySelector(".mobile-menu");

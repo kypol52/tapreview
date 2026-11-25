@@ -72,6 +72,7 @@
     .seg label { position: relative; display: block; padding: 12px 10px; border-radius: 12px; text-align: center; cursor: pointer; transition: background 0.2s var(--ease), box-shadow 0.2s var(--ease); }
     .seg label b { display: block; font-size: 15px; color: var(--ink); }
     .seg label span { display: block; font-size: 12.5px; color: var(--muted); }
+    #tariff-seg label .tariff-business { margin: 6px 0 4px; color: var(--navy); font-weight: 650; line-height: 1.35; }
     .seg input:checked + label { background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 40, 0.06), 0 4px 14px rgba(15, 23, 40, 0.08); }
     .seg input:focus-visible + label { outline: 3px solid #9fb3d9; outline-offset: 2px; }
     .seg label .save { display: inline-block; margin-left: 4px; padding: 1px 7px; border-radius: 99px; background: var(--gold); color: var(--navy-900); font-size: 11px; font-weight: 750; vertical-align: 1px; }
@@ -245,11 +246,23 @@
 
             <div class="seg seg-3" role="radiogroup" aria-label="Тариф" id="tariff-seg">
               <input type="radio" name="tariff" id="tariff-start" value="start">
-              <label for="tariff-start"><b>Start</b><span>490 ₽ · отзывы и жалобы вам</span></label>
+              <label for="tariff-start">
+                <b>Start</b>
+                <span class="tariff-business">Для барбершопов, массажных кабинетов и небольших салонов</span>
+                <span>490 ₽/мес. · отзывы и обратная связь</span>
+              </label>
               <input type="radio" name="tariff" id="tariff-standard" value="standard" checked>
-              <label for="tariff-standard"><b>Plus</b><span>990 ₽ · + меню, подарки, баллы</span></label>
+              <label for="tariff-standard">
+                <b>Plus</b>
+                <span class="tariff-business">Для кофеен, салонов с программой лояльности и спа</span>
+                <span>990 ₽/мес. · меню, подарки и баллы</span>
+              </label>
               <input type="radio" name="tariff" id="tariff-plus" value="plus">
-              <label for="tariff-plus"><b>Pro</b><span>1 990 ₽ · + вызов официанта, AI</span></label>
+              <label for="tariff-plus">
+                <b>Pro</b>
+                <span class="tariff-business">Для ресторанов, баров и кафе с официантами</span>
+                <span>1 990 ₽/мес. · вызов официанта и AI-разбор отзывов</span>
+              </label>
             </div>
 
             <div id="modules-box">

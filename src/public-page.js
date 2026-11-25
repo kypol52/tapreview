@@ -191,9 +191,9 @@ const HUB_GO = `<svg class="hub-go" viewBox="0 0 24 24" aria-hidden="true"><path
 const HUB_OUT = `<svg class="hub-go" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M9.5 14.5 15 9M10.5 9H15v4.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const HUB_HAND = LINK_ICON("M8 12.5V6a1.5 1.5 0 0 1 3 0v5M11 10.5V4.5a1.5 1.5 0 0 1 3 0v6M14 10.5V6a1.5 1.5 0 0 1 3 0v7.5c0 4-2.6 6.5-6.2 6.5-2.7 0-4.4-1.4-5.5-3.6L4 14a1.5 1.5 0 0 1 2.6-1.4L8 14.5");
 
-function hubBlock(business, { service = "", points = "" } = {}) {
+function hubBlock(business, { service = "", points = "", demo = false } = {}) {
   const links = has(business, "links")
-    ? (Array.isArray(business.extra_links) ? business.extra_links : []).filter((l) => l && isHttpsUrl(l.url))
+    ? (Array.isArray(business.extra_links) ? business.extra_links : []).filter((l) => l && (isHttpsUrl(l.url) || (demo && l.own && l.url.startsWith("/b/demo/"))))
     : [];
   // Своя оплата счёта по СБП (pay.js) заменяет ссылку заведения «Оплатить счёт»
   const payTiles = business.payUrl ? [{ type: "pay", url: business.payUrl, own: true }] : links.filter((l) => l.type === "pay");
@@ -239,6 +239,74 @@ function hubBlock(business, { service = "", points = "" } = {}) {
 }
 
 export const TELEGRAM_URL ="https://t.me/tapreviewru";
+
+const GUEST_DEMOS = {
+  restaurant: {
+    name: "Бистро «Двор»", category: "restaurant", tagline: "Ресторан · стол 7", tariff: "plus", rating_first: true
+  },
+  beauty: {
+    name: "Студия «Линия»", category: "beauty", tariff: "standard", rating_first: true, points_on: true
+  },
+  reviews: {
+    name: "Пункт выдачи", tagline: "Пример карты для отзывов", tariff: "start"
+  }
+};
+const GUEST_DEMO_SWITCH = `<p><a class="rate-public" href="/#guest-example">Выбрать другой пример</a></p>`;
+
+export function handleGuestDemo(url, category) {
+  if (!Object.hasOwn(GUEST_DEMOS, category)) return notFoundPage();
+
+  const path = `/b/demo/${category}`;
+  const href = (action, split) => `${path}?${new URLSearchParams(split ? { example: action, split } : { example: action })}`;
+  const business = {
+    ...GUEST_DEMOS[category],
+    theme: "classic",
+    yandex_url: href("review"),
+    twogis_url: href("review")
+  };
+
+  const examples = new Map([["review", ["Переход к отзыву", "На настоящей карте здесь откроется профиль вашего заведения на выбранной площадке."]]]);
+  let service = "";
+  if (category === "restaurant") {
+    business.menuUrl = href("menu");
+    business.payUrl = href("pay");
+    business.extra_links = [{ type: "tips", url: href("tips"), own: true }];
+    service = serviceBlock(business, { code: "DEMO07", label: "Стол 7", is_table: true }, "qr", { previewHref: href });
+    examples.set("menu", ["Меню", "Салат с томатами — 490 ₽", "Паста с грибами — 690 ₽", "Домашний лимонад — 290 ₽"]);
+    examples.set("pay", ["Счёт и оплата", "Стол 7 · сумма счёта 2 400 ₽", "В реальной карточке гость может оплатить весь счёт или свою часть через СБП."]);
+    examples.set("tips", ["Оставить чаевые", "Здесь гость может поблагодарить официанта после визита."]);
+    examples.set("waiter", ["Вызов официанта", "В рабочей карточке официант получит вызов от стола 7."]);
+    examples.set("help", ["Нужна помощь", "В рабочей карточке сотрудник получит уведомление от стола 7."]);
+    const split = Number(url.searchParams.get("split"));
+    examples.set("bill", ["Попросить счёт", split >= 2 && split <= 6 && Number.isInteger(split)
+      ? `Официант получит просьбу разделить счёт на ${split} части.`
+      : "Официант получит просьбу принести счёт для стола 7."]);
+  }
+  if (category === "beauty") {
+    business.extra_links = [
+      { type: "services", url: href("services"), own: true },
+      { type: "booking", url: href("booking"), own: true }
+    ];
+    examples.set("services", ["Услуги и цены", "Стрижка — от 1 500 ₽", "Уход за волосами — от 1 200 ₽"]);
+    examples.set("booking", ["Онлайн-запись", "В рабочей карточке кнопка ведёт на страницу записи вашего салона."]);
+    examples.set("points", ["Код для кассы", "Пример кода · 482 716", "В рабочей карточке гость показывает одноразовый код администратору, чтобы начислить или списать баллы."]);
+  }
+
+  const footer = { href: "/order/", text: "Хочу такую карту" };
+  const example = examples.get(url.searchParams.get("example"));
+  if (example) {
+    const [title, ...lines] = example;
+    return renderPage({
+      status: 200, title, theme: business.theme, footer,
+      body: `<h1 class="name name-long">${escapeHtml(title)}</h1>
+        <p class="tagline">${escapeHtml(business.name)} · демонстрация</p><div class="divider"></div>
+        ${lines.map((line) => `<p class="lead">${escapeHtml(line)}</p>`).join("")}
+        <a class="rate-public" href="${path}">Вернуться к карточке</a>`
+    });
+  }
+
+  return businessPage(business, "qr", null, flowFrom(url), category === "beauty" ? { points: 120 } : null, null, service, { path, href, footer });
+}
 
 export async function handleBusinessPage(request, env, ctx, slug) {
   const result = await loadBusiness(env, slug);
@@ -636,7 +704,7 @@ function redirect(location) {
 }
 
 // service — готовый блок вызова сотрудника для карты на столе (service.js) или ""
-function businessPage(business, source, cardCode = null, flow = { score: null, all: false, sent: false }, guest = null, appLink = null, service = "") {
+function businessPage(business, source, cardCode = null, flow = { score: null, all: false, sent: false }, guest = null, appLink = null, service = "", demo = null) {
   // Свой фирменный цвет заведения, иначе — цвет черты выбранной темы
   const accent = COLOR_RE.test(business.brand_color || "") ? business.brand_color : null;
 
@@ -649,11 +717,11 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
   const sourceQuery = query ? `?${query.replace(/&/g, "&amp;")}` : "";
 
   const buttons = PLATFORMS
-    .filter((p) => isHttpsUrl(business[p.field]))
+    .filter((p) => demo ? Boolean(business[p.field]) : isHttpsUrl(business[p.field]))
     .map(
       // Первая площадка — главная кнопка экрана, остальные — обычные
       (p, i) => `
-        <a class="button button-${p.key}${i === 0 ? " button-main" : ""}" href="/go/${escapeHtml(business.slug)}/${p.key}${sourceQuery}" rel="nofollow">
+        <a class="button button-${p.key}${i === 0 ? " button-main" : ""}" href="${demo ? escapeHtml(demo.href("review")) : `/go/${escapeHtml(business.slug)}/${p.key}${sourceQuery}`}" rel="nofollow">
           <span class="icon">${ICONS[p.key]}</span>
           <span class="label">Оставить отзыв<br>${p.label}</span>
           ${ARROW}
@@ -686,7 +754,7 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
   const wallet = guest && guest.walletLink
     ? `<a class="wallet-link" href="/me-link" rel="nofollow">🎁 Мои штампы и подарки — в Telegram</a>`
     : "";
-  const taglineBase = (taglineText ? `<p class="tagline">${escapeHtml(taglineText)}</p>` : "") + welcome;
+  const taglineBase = (taglineText ? `<p class="tagline">${escapeHtml(taglineText)}${demo ? " · демонстрация" : ""}</p>` : "") + welcome;
   // В сценарии «сначала оценка» кошелёк — внизу и только после оценки, чтобы до неё на виду были звёзды
   const tagline = taglineBase + wallet;
 
@@ -701,11 +769,11 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
   // Подарки — с тарифа Plus (tariffs.js)
   const discount = !has(business, "gifts") ? "" : bonusBlock(business, source, cardCode, guest ? guest.stamps : null, guest ? guest.rewards : 0, guest ? guest.visits : 0);
   // Баллы (points.js): баланс и «Код для кассы» — на любом шаге, они про чек, а не про оценку
-  const pointsBox = pointsBlock(business, source, cardCode, guest ? guest.points : null);
+  const pointsBox = pointsBlock(business, source, cardCode, guest ? guest.points : null, demo?.href("points"));
   const pointsHtml = pointsBox ? `${pointsBox}<style>${POINTS_CSS}</style>` : "";
 
   if (business.rating_first && has(business, "rating")) {
-    return ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline: taglineBase, wallet, discount, design, appLink, service, pointsHtml });
+    return ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline: taglineBase, wallet, discount, design, appLink, service, pointsHtml, demo });
   }
 
   const wifi = wifiItem(business);
@@ -724,7 +792,7 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
     extraCss: (service ? SERVICE_CSS : "") + (wifi ? WIFI_CSS : ""),
     script: wifi ? WIFI_SCRIPT : "",
     // «Карта как реклама»: гость-владелец бизнеса переходит на наш сайт, а заведение получает рекомендацию
-    footer: { href: `/r/${business.slug}?s=card`, text: "Хочу такую карту" },
+    footer: demo?.footer || { href: `/r/${business.slug}?s=card`, text: "Хочу такую карту" },
     body: `
       ${logo}
       <h1 class="${nameClass}">${escapeHtml(business.name)}</h1>
@@ -738,7 +806,8 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
       ${extraLinksBlock(business)}
       ${wifi ? `<nav class="hub" aria-label="Wi-Fi">${wifi}</nav>` : ""}
       ${pointsHtml}
-      ${discount}`
+      ${discount}
+      ${demo ? GUEST_DEMO_SWITCH : ""}`
   });
 }
 
@@ -795,7 +864,7 @@ const FB_SCRIPT = `(function () {
   });
 })();`;
 
-function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, wallet = "", discount, design, appLink, service = "", pointsHtml = "" }) {
+function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, wallet = "", discount, design, appLink, service = "", pointsHtml = "", demo }) {
   const base = new URLSearchParams();
   if (source !== "direct") base.set("s", source);
   const link = (extra) => {
@@ -827,7 +896,8 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
     // Под ними — необязательное «Что понравилось?»: каждое касание — ссылка, которая включает/выключает пункт (?l=…)
     let likes = "";
     if (score >= 4) {
-      const chips = LIKES.map(({ key, label }) => {
+      const choices = demo && business.category === "beauty" ? LIKES.filter(({ key }) => key !== "food" && key !== "drinks") : LIKES;
+      const chips = choices.map(({ key, label }) => {
         const on = flow.likes.includes(key);
         const next = on ? flow.likes.filter((k) => k !== key) : [...flow.likes, key];
         const href = `${link({ r: score, ...(next.length ? { l: next.join(",") } : {}) })}#like`;
@@ -835,7 +905,7 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
       }).join("");
       likes = `
       <div class="likes" id="like">
-        <p class="likes-q">${flow.likes.length ? "Спасибо! Передадим команде 💛" : "Что понравилось больше всего?"}</p>
+        <p class="likes-q">${flow.likes.length ? (demo ? "Вы отметили, что вам понравилось" : "Спасибо! Передадим команде 💛") : "Что понравилось больше всего?"}</p>
         <div class="likes-row">${chips}</div>
       </div>`;
     }
@@ -851,7 +921,7 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
       <h2 class="thanks">Спасибо, что рассказали</h2>
       ${chosen}
       ${sorryHtml(flow.sorry)}
-      <p class="lead">Владелец уже получил ваше сообщение и разберётся. Будем рады видеть вас снова.</p>
+      <p class="lead">${demo ? "В рабочей карточке эта обратная связь поступит владельцу." : "Владелец уже получил ваше сообщение и разберётся. Будем рады видеть вас снова."}</p>
       ${flow.phoneLost ? `<p class="fb-warn">Номер не похож на российский, поэтому мы его не сохранили. Сообщение владелец получил.</p>` : ""}`;
   } else {
     // 2в. Оценка 1–3 — сообщение владельцу; поле и кнопка — после выбора причины
@@ -859,13 +929,16 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
       <h2 class="thanks">Нам жаль, что что-то пошло не так</h2>
       ${chosen}
       ${sorryHtml(flow.sorry)}
-      <p class="lead">Отметьте, что не так, — владелец получит сообщение сразу и разберётся.</p>
+      <p class="lead">${demo ? "Отметьте причину, чтобы посмотреть, как работает обратная связь." : "Отметьте, что не так, — владелец получит сообщение сразу и разберётся."}</p>
       ${flow.empty ? `<p class="fb-warn" role="alert">Отметьте причину или напишите пару слов.</p>` : ""}
-      <form class="fb" id="fb" method="post" action="/feedback">
+      <form class="fb" id="fb" ${demo ? `method="get" action="${escapeHtml(demo.path)}"` : 'method="post" action="/feedback"'}>
         <fieldset class="why"><legend>Что пошло не так?</legend>
           ${Object.entries(reasonLabels(business.category)).map(([key, label]) =>
             `<input type="checkbox" name="why" value="${key}" id="why-${key}"><label for="why-${key}">${escapeHtml(label)}</label>`).join("")}
         </fieldset>
+        ${demo ? `<input type="hidden" name="r" value="${score}">
+        <input type="hidden" name="sent" value="1">
+        <div class="fb-more"><button class="fb-send" type="submit">Посмотреть результат</button></div>` : `
         <input type="hidden" name="b" value="${escapeHtml(business.slug)}">
         ${cardCode ? `<input type="hidden" name="c" value="${escapeHtml(cardCode)}">` : ""}
         ${source !== "direct" ? `<input type="hidden" name="s" value="${escapeHtml(source)}">` : ""}
@@ -880,7 +953,7 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
           <input type="tel" name="phone" inputmode="tel" autocomplete="tel" maxlength="20" value="+7 " placeholder="+7 900 000-00-00" aria-label="Ваш телефон">
           <p class="fb-consent">Отмечая «Перезвоните мне» и указывая номер, вы соглашаетесь, что ${escapeHtml(business.name)} свяжется с вами по этому сообщению.
             Номер видит только владелец, он не уходит в рекламу и удаляется через ${PHONE_KEEP_DAYS} дней. <a href="/privacy/#guests" target="_blank" rel="noopener">Подробнее</a></p>
-        </div>
+        </div>`}
         <p class="fb-hint">Без отметки сообщение анонимное — имя и телефон в тексте не пишите.</p>
         <button class="fb-send" type="submit">Отправить владельцу</button>
         </div>
@@ -894,7 +967,7 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
   const rated = Boolean(score || all);
   // Переходник (плитки, вызов, меню) — только на главном экране. После оценки вместо повтора — одна кнопка назад,
   // чтобы гость не путался в двух наборах кнопок. Тот же адрес без оценки, с меткой источника (NFC/QR)
-  const hub = hubBlock(business, { service, points: rated ? "" : pointsHtml });
+  const hub = hubBlock(business, { service, points: rated ? "" : pointsHtml, demo: Boolean(demo) });
   const wifiShown = !rated && hub.includes("hub-wifi");
   const backHome = hub
     ? `<a class="hub-back" href="${link({})}" aria-label="Вернуться на главную" title="На главную"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>`
@@ -913,8 +986,8 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
     // Оценка 1–3: подарок появляется позже (22 с), чтобы гость сначала спокойно написал владельцу
     extraCss: (score && score <= 3 ? ".bonus, .perks-late { animation-delay: 22s; }" : "") + (service ? SERVICE_CSS : "") + (wifiShown ? WIFI_CSS : ""),
     // Скрипт: на шаге формы 1–3 — форма; на главном экране с Wi-Fi — кнопка «Скопировать пароль»
-    script: score && score <= 3 && !sent && !all ? FB_SCRIPT : wifiShown ? WIFI_SCRIPT : "",
-    footer: { href: `/r/${business.slug}?s=card`, text: "Хочу такую карту" },
+    script: !demo && score && score <= 3 && !sent && !all ? FB_SCRIPT : wifiShown ? WIFI_SCRIPT : "",
+    footer: demo?.footer || { href: `/r/${business.slug}?s=card`, text: "Хочу такую карту" },
     body: `
       ${rated ? backHome : ""}
       ${logo}
@@ -926,7 +999,8 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
       ${tg}
       ${low ? `<div>${publicLink("Оставить отзыв на картах")}</div>` : ""}
       ${all || sent || score >= 4 ? momentBlock(business) : ""}
-      ${rated ? "" : hub}`
+      ${rated ? "" : hub}
+      ${demo ? GUEST_DEMO_SWITCH : ""}`
   });
 }
 
