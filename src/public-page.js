@@ -20,6 +20,7 @@ import { pointsBlock, POINTS_CSS } from "./points.js";
 import { hasMenu } from "./menu.js";
 import { tapOf, tapCookie } from "./tap.js";
 import { wifiItem, wifiVisible, WIFI_CSS, WIFI_SCRIPT } from "./wifi.js";
+import { SERVICE_DEMOS, SERVICE_LINKS, SERVICE_DEMO_CSS, SERVICE_BOOKING_SCRIPT, serviceDemoContent } from "./guest-demo-services.js";
 
 const SLUG_RE = /^[A-Za-z0-9_-]{3,64}$/;
 const COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
@@ -244,9 +245,6 @@ const GUEST_DEMOS = {
   restaurant: {
     name: "Бистро «Двор»", category: "restaurant", tagline: "Ресторан · стол 7", tariff: "plus", rating_first: true
   },
-  beauty: {
-    name: "Студия «Линия»", category: "beauty", tariff: "standard", rating_first: true, points_on: true
-  },
   reviews: {
     name: "Пункт выдачи", tagline: "Пример карты для отзывов", tariff: "start"
   }
@@ -254,12 +252,13 @@ const GUEST_DEMOS = {
 const GUEST_DEMO_SWITCH = `<p><a class="rate-public" href="/#guest-example">Выбрать другой пример</a></p>`;
 
 export function handleGuestDemo(url, category) {
-  if (!Object.hasOwn(GUEST_DEMOS, category)) return notFoundPage();
+  const profile = Object.hasOwn(SERVICE_DEMOS, category) ? SERVICE_DEMOS[category] : null;
+  if (!profile && !Object.hasOwn(GUEST_DEMOS, category)) return notFoundPage();
 
   const path = `/b/demo/${category}`;
-  const href = (action, split) => `${path}?${new URLSearchParams(split ? { example: action, split } : { example: action })}`;
+  const href = (action, params = {}) => `${path}?${new URLSearchParams({ example: action, ...params })}`;
   const business = {
-    ...GUEST_DEMOS[category],
+    ...(profile ? { ...profile.business, tariff: "standard", rating_first: true, points_on: true, wifiOn: true, wifi_name: "TapReview Guest", wifi_password: "demo2026" } : GUEST_DEMOS[category]),
     theme: "classic",
     yandex_url: href("review"),
     twogis_url: href("review")
@@ -271,7 +270,7 @@ export function handleGuestDemo(url, category) {
     business.menuUrl = href("menu");
     business.payUrl = href("pay");
     business.extra_links = [{ type: "tips", url: href("tips"), own: true }];
-    service = serviceBlock(business, { code: "DEMO07", label: "Стол 7", is_table: true }, "qr", { previewHref: href });
+    service = serviceBlock(business, { code: "DEMO07", label: "Стол 7", is_table: true }, "qr", { previewHref: (action, split) => href(action, split ? { split } : {}) });
     examples.set("menu", ["Меню", "Салат с томатами — 490 ₽", "Паста с грибами — 690 ₽", "Домашний лимонад — 290 ₽"]);
     examples.set("pay", ["Счёт и оплата", "Стол 7 · сумма счёта 2 400 ₽", "В реальной карточке гость может оплатить весь счёт или свою часть через СБП."]);
     examples.set("tips", ["Оставить чаевые", "Здесь гость может поблагодарить официанта после визита."]);
@@ -282,30 +281,31 @@ export function handleGuestDemo(url, category) {
       ? `Официант получит просьбу разделить счёт на ${split} части.`
       : "Официант получит просьбу принести счёт для стола 7."]);
   }
-  if (category === "beauty") {
-    business.extra_links = [
-      { type: "services", url: href("services"), own: true },
-      { type: "booking", url: href("booking"), own: true }
-    ];
-    examples.set("services", ["Услуги и цены", "Стрижка — от 1 500 ₽", "Уход за волосами — от 1 200 ₽"]);
-    examples.set("booking", ["Онлайн-запись", "В рабочей карточке кнопка ведёт на страницу записи вашего салона."]);
+  if (profile) {
+    business.payUrl = href("pay");
+    business.extra_links = SERVICE_LINKS.map(([action, type, label]) => ({ type, label, url: href(action), own: true }));
+    business.extra_links.push({ type: "custom", label: "Оценить мастера", url: href("master-review"), own: true });
     examples.set("points", ["Код для кассы", "Пример кода · 482 716", "В рабочей карточке гость показывает одноразовый код администратору, чтобы начислить или списать баллы."]);
   }
 
   const footer = { href: "/order/", text: "Хочу такую карту" };
-  const example = examples.get(url.searchParams.get("example"));
-  if (example) {
-    const [title, ...lines] = example;
+  const action = url.searchParams.get("example");
+  const example = examples.get(action);
+  const serviceExample = profile ? serviceDemoContent(action, profile, url, { href, path }, escapeHtml) : null;
+  if (example || serviceExample) {
+    const [title, ...content] = serviceExample || example;
     return renderPage({
       status: 200, title, theme: business.theme, footer,
+      extraCss: serviceExample ? SERVICE_DEMO_CSS : "",
+      script: serviceExample && (action === "booking" || action === "repeat") ? SERVICE_BOOKING_SCRIPT : "",
       body: `<h1 class="name name-long">${escapeHtml(title)}</h1>
         <p class="tagline">${escapeHtml(business.name)} · демонстрация</p><div class="divider"></div>
-        ${lines.map((line) => `<p class="lead">${escapeHtml(line)}</p>`).join("")}
+        ${serviceExample ? content[0] : content.map((line) => `<p class="lead">${escapeHtml(line)}</p>`).join("")}
         <a class="rate-public" href="${path}">Вернуться к карточке</a>`
     });
   }
 
-  return businessPage(business, "qr", null, flowFrom(url), category === "beauty" ? { points: 120 } : null, null, service, { path, href, footer });
+  return businessPage(business, "qr", null, flowFrom(url), profile ? { points: 120 } : null, null, service, { path, href, footer, serviceProfile: Boolean(profile) });
 }
 
 export async function handleBusinessPage(request, env, ctx, slug) {
@@ -896,7 +896,7 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
     // Под ними — необязательное «Что понравилось?»: каждое касание — ссылка, которая включает/выключает пункт (?l=…)
     let likes = "";
     if (score >= 4) {
-      const choices = demo && business.category === "beauty" ? LIKES.filter(({ key }) => key !== "food" && key !== "drinks") : LIKES;
+      const choices = demo?.serviceProfile ? LIKES.filter(({ key }) => key !== "food" && key !== "drinks") : LIKES;
       const chips = choices.map(({ key, label }) => {
         const on = flow.likes.includes(key);
         const next = on ? flow.likes.filter((k) => k !== key) : [...flow.likes, key];
