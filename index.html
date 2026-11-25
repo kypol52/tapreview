@@ -730,6 +730,7 @@
     .eco li { display: flex; align-items: center; white-space: nowrap; }
     .eco li:not(:last-child)::after { content: ""; width: 22px; height: 2px; margin: 0 8px; border-radius: 2px; background: var(--gold); }
     .eco li:last-child { color: var(--navy); font-weight: 750; }
+    .eco a { color: inherit; text-underline-offset: 3px; }
     @media (max-width: 719px) {
       .eco { display: grid; gap: 0; }
       .eco li {
@@ -749,7 +750,9 @@
     }
 
     /* Отличия */
-    .diff-grid { display: grid; gap: 16px; }
+    .diff.ai-layout { display: grid; align-items: start; gap: clamp(18px, 4vw, 44px); }
+    .ai-layout .ai-preview { min-width: 0; }
+    .ai-layout .ai-review { margin-top: 20px; }
     .diff { display: flex; flex-direction: column; padding: 24px; border-radius: var(--r-lg); background: #fff; box-shadow: 0 0 0 1px var(--line) inset; }
     .diff h3 { margin: 0 0 10px; color: var(--navy); font-size: 21px; font-weight: 800; letter-spacing: -0.015em; }
     .diff p { margin: 0; color: var(--muted); font-size: 15.5px; }
@@ -803,8 +806,7 @@
 
     /* Подключение */
     .section-head.start-heading p.start-subtitle {
-      font-family: "Playfair Display", Georgia, serif;
-      font-size: clamp(23px, 3vw, 32px); font-weight: 600; line-height: 1.25; color: var(--navy);
+      font-size: clamp(20px, 2.6vw, 28px); font-weight: 700; line-height: 1.3; color: var(--navy);
     }
     .start-heading .start-phrase { margin-top: 10px; }
     .start-word { display: inline-block; min-width: 10ch; color: var(--navy); font-weight: 700; }
@@ -850,6 +852,7 @@
     .pop-consent { display: flex; gap: 10px; align-items: flex-start; font-size: 12.5px; line-height: 1.45; color: var(--muted); cursor: pointer; }
     .pop-consent input { flex: none; width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--navy); }
     .pop-consent a { color: var(--navy); }
+    #pop-submit:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
     .pop .btn { width: 100%; min-height: 50px; }
     .pop-err { margin: 0; font-size: 13px; color: #b42318; }
     .pop-trap { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
@@ -889,7 +892,7 @@
       .benefits { grid-template-columns: repeat(2, 1fr); }
       .feats { grid-template-columns: repeat(2, 1fr); }
       .role-grid { grid-template-columns: repeat(2, 1fr); }
-      .diff-grid { grid-template-columns: repeat(2, 1fr); }
+      .ai-layout { grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); }
       .diff { padding: 28px; }
       .formats { grid-template-columns: repeat(2, 1fr); }
       .format { padding: 24px; }
@@ -1058,7 +1061,7 @@
       <nav class="nav" aria-label="Разделы">
         <a href="#how">Как работает</a>
         <a href="#roles">Возможности</a>
-        <a href="#diff">Отличия</a>
+        <a href="#diff">AI-администратор</a>
         <a href="#start">Подключение</a>
       </nav>
       <div class="h-actions">
@@ -1073,7 +1076,7 @@
           <nav aria-label="Разделы мобильной версии">
             <a href="#how">Как работает</a>
             <a href="#roles">Возможности</a>
-            <a href="#diff">Отличия</a>
+            <a href="#diff">AI-администратор</a>
             <a href="#start">Подключение</a>
             <a href="#faq">Вопросы</a>
           </nav>
@@ -1209,8 +1212,8 @@
           </li>
           <li class="step reveal" style="--d:.16s">
             <div class="step-num"><b>3</b>Отзыв</div>
-            <h3>Оставляет отзыв или пишет вам</h3>
-            <p>Кнопки Яндекс Карт, 2ГИС и Google сразу открывают форму отзыва. Если что-то не понравилось, гость может написать вам в Telegram — и вы успеете всё исправить.</p>
+            <h3>Оставляет отзыв</h3>
+            <p>Кнопки Яндекс Карт, 2ГИС и Google сразу ведут на страницу отзыва. Если что-то не понравилось, гость может заполнить специальную форму. Сообщение поступит в личный кабинет.</p>
           </li>
         </ol>
       </div>
@@ -1316,7 +1319,7 @@
             <article class="feat">
               <figure class="shot"><img src="/assets/roles/o1-complaints.jpg?v=3" width="600" height="450" alt="Сообщение недовольного гостя с причиной и номером для звонка" loading="lazy" decoding="async"></figure>
               <h3>Жалобы в первую очередь поступают вам</h3>
-              <p>Если гостю что-то не понравилось, он пишет вам в Telegram с причиной и может попросить перезвонить.</p>
+              <p>Если гостю что-то не понравилось, он заполняет специальную форму, указывает причину и может попросить перезвонить.</p>
             </article>
             <article class="feat">
               <figure class="shot"><img src="/assets/roles/o2-funnel.jpg?v=3" width="600" height="450" alt="Путь гостя: открыли страницу, оценили, перешли к отзыву, получили подарок" loading="lazy" decoding="async"></figure>
@@ -1326,7 +1329,7 @@
             <article class="feat">
               <figure class="shot"><img src="/assets/roles/o3-ai.jpg?v=3" width="600" height="450" alt="AI-разбор: срочное сообщение о возможном отравлении" loading="lazy" decoding="async"></figure>
               <h3>AI отмечает срочное</h3>
-              <p>Выделяет отзывы, которые требуют быстрой реакции команды.</p>
+              <p>Выделяет отзывы, которые требуют быстрой реакции персонала.</p>
               <details class="feat-more">
                 <summary>Как AI разбирает отзывы</summary>
                 <ul>
@@ -1339,8 +1342,8 @@
             </article>
             <article class="feat">
               <figure class="shot"><img src="/assets/roles/o4-score.jpg?v=3" width="600" height="450" alt="TapReview Score заведения: 71 из 100" loading="lazy" decoding="async"></figure>
-              <h3>Отчёт в Telegram</h3>
-              <p>Итоги недели по понедельникам, итоги месяца и TapReview Score — без входа в кабинет.</p>
+              <h3>Отчёт в личном кабинете</h3>
+              <p>Недельный отчёт по понедельникам и итоги месяца с TapReview Score.</p>
             </article>
           </div>
         </div>
@@ -1351,58 +1354,31 @@
           <li>Получил подарок</li>
           <li>Вернулся снова</li>
           <li>Копит баллы</li>
-          <li>Вы видите всё это в статистике</li>
+          <li><a href="https://tapreview.ru/s/gg8xHSzf4upnBVqfgSg2PduA" target="_blank" rel="noopener noreferrer">Вы видите всё это в статистике</a></li>
         </ol>
       </div>
     </section>
 
-    <!-- ---------- чем отличаемся ---------- -->
+    <!-- ---------- AI-администратор ---------- -->
     <section id="diff">
       <div class="wrap">
         <div class="section-head reveal">
-          <p class="kicker">Отличия</p>
-          <h2>Не просто табличка с QR‑кодом</h2>
-          <p>Карты для гостей и AI-администратор для общения с клиентами.</p>
+          <h2>AI-администратор</h2>
+          <p>Круглосуточно отвечает клиентам и передаёт заявки вашей команде.</p>
         </div>
-        <div class="diff-grid">
-          <article class="diff diff-big reveal">
-            <div class="mini mini-hub" aria-hidden="true">
-              <span><svg><use href="#i-star"/></svg>Отзыв</span>
-              <span><svg viewBox="0 0 24 24"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 21V3c-2 1-3.5 4-3.5 8h3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Меню и заказ</span>
-              <span><svg viewBox="0 0 24 24"><path d="M4 17h16M6 17a6 6 0 0 1 12 0M12 8V6M10.5 6h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Официант</span>
-              <span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 17V7.5h3.2a2.6 2.6 0 0 1 0 5.2H8.5M8.5 15h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Чаевые</span>
-              <span><svg viewBox="0 0 24 24"><path d="M2.5 9a14 14 0 0 1 19 0M5.5 12.5a9.5 9.5 0 0 1 13 0M8.8 16a4.8 4.8 0 0 1 6.4 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="19.3" r="1.3" fill="currentColor"/></svg>Wi-Fi</span>
-              <span><svg viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2.5 10h19M6 15h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Оплата счёта</span>
-              <span class="wide">Подарок на следующий визит<b>340 баллов</b></span>
-            </div>
-            <h3>Система, а не одна ссылка</h3>
-            <p>Отзывы, меню, оплата и программа лояльности на одной странице.</p>
-            <details class="feat-more">
-              <summary>Все возможности карты</summary>
-              <p>Вы выбираете кнопки и меняете ссылки в любое время. Для этого не нужно перепечатывать карты.</p>
-              <ul class="diff-list">
-                <li>Отзыв на Яндекс Картах, в 2ГИС и Google</li>
-                <li>Меню с фото и заказ прямо со стола</li>
-                <li>Вызов официанта и просьба принести счёт</li>
-                <li>Чаевые по личной ссылке официанта</li>
-                <li>Подарки, штампы и баллы для постоянных гостей</li>
-                <li>Wi-Fi, сайт, бронь, доставка — любые ваши ссылки</li>
-                <li>Статистика по каждой карте и каждому залу</li>
-              </ul>
-            </details>
-          </article>
-          <article class="diff diff-big diff-dark reveal" style="--d:.06s">
+        <article class="diff diff-big diff-dark ai-layout reveal">
+          <div class="ai-preview">
             <div class="mini mini-ask" aria-hidden="true">
               <span class="q">Сколько стоит стрижка?</span>
               <span class="a">Мужская — 1 500 ₽. Записать вас? Подскажите имя и телефон.</span>
               <span class="q">Ирина, 8 912 000-00-12</span>
               <span class="lead-pill">Новая заявка → администратору</span>
             </div>
-            <h3>AI-администратор</h3>
-            <p>Круглосуточно отвечает клиентам и передаёт заявки вашей команде.</p>
+          </div>
+          <div>
             <details class="feat-more">
               <summary>Как работает AI-администратор</summary>
-              <p>Работает в Telegram, во ВКонтакте и в чате на сайте. Берёт сведения о ценах, меню и часах работы из вашей базы знаний.</p>
+              <p>Работает в мессенджерах, во ВКонтакте и в чате на сайте. Берёт сведения о ценах, меню и часах работы из вашей базы знаний.</p>
               <ul class="diff-list">
                 <li>Отвечает за секунды, даже ночью и в выходные</li>
                 <li>Берёт цены только из вашей базы и не придумывает их</li>
@@ -1411,9 +1387,12 @@
                 <li>Все диалоги и заявки — в одном кабинете</li>
               </ul>
             </details>
-            <p class="diff-foot"><a href="https://ai.tapreview.ru/" target="_blank" rel="noopener">TapReview AI</a> — отдельный продукт нашей экосистемы.</p>
-          </article>
-        </div>
+            <h3 class="ai-review">AI отмечает срочное</h3>
+            <p>Выделяет отзывы, которые требуют быстрой реакции персонала. Модуль AI в TapReview анализирует оценку, текст и причину обращения, отмечает срочные случаи и кратко объясняет, что произошло.</p>
+            <p>В статистике видно, на что гости жалуются чаще всего и сколько обращений требуют внимания. В недельной сводке AI собирает повторяющиеся темы, показывает, что гости хвалят, и предлагает, что проверить в работе команды.</p>
+            <p class="diff-foot"><a href="https://ai.tapreview.ru/" target="_blank" rel="noopener">TapReview AI</a> — отдельный продукт нашей экосистемы для общения с клиентами и сбора заявок.</p>
+          </div>
+        </article>
       </div>
     </section>
 
@@ -1423,14 +1402,14 @@
         <div class="why-head reveal">
           <p class="kicker">Почему TapReview</p>
           <h2>Одна карта, которая работает на вас каждый день</h2>
-          <p>Гость касается её телефоном — и сразу получает всё, что нужно в заведении. А вы получаете отзывы, постоянных гостей и понятную картину того, как идут дела.</p>
+          <p>Разбирайте обратную связь на планёрках: выберите проблему, которая повторяется, договоритесь об изменении и через неделю проверьте, стало ли таких обращений меньше.</p>
         </div>
         <ul class="why-list reveal" style="--d:.06s">
           <li><h3>Больше отзывов на картах</h3><p>Гостю не нужно искать вас в Яндексе или 2ГИС: касание — и форма отзыва уже открыта.</p></li>
           <li><h3>О проблемах вы узнаёте первым</h3><p>Если что-то пошло не так, гость может сразу написать вам — и вы успеете всё исправить.</p></li>
           <li><h3>Гости возвращаются</h3><p>Подарки, штампы и баллы дают повод прийти снова, а постоянных гостей карта узнаёт сама.</p></li>
           <li><h3>Быстрее обслуживание</h3><p>Меню, вызов официанта, счёт и чаевые — прямо со стола. Гостю не нужно ждать, а персоналу — бегать лишний раз.</p></li>
-          <li><h3>Всё видно в цифрах</h3><p>Статистика по каждой карте, точке и сотруднику, отчёты в Telegram без входа в кабинет.</p></li>
+          <li><h3>Всё видно в цифрах</h3><p>В личном кабинете можно сравнить показатели по картам, точкам и сотрудникам.</p></li>
           <li><h3>Просто начать</h3><p>Без приложения для гостя и без оборудования для вас. Подключение сейчас бесплатное, всё настраиваем сами.</p></li>
         </ul>
       </div>
@@ -1459,12 +1438,11 @@
           </li>
           <li>
             <h3>Интеграция TapReview в заведении</h3>
-            <p>Поможем выбрать места для карт и встроить их в обслуживание гостей. Дадим доступ к статистике и настроим отчёты в Telegram.</p>
+            <p>Поможем выбрать места для карт и встроить их в обслуживание гостей. Откроем доступ к статистике и покажем, где смотреть отчёты.</p>
           </li>
         </ol>
         <div class="start-cta reveal">
           <a class="btn btn-primary" href="/order/">Подключить</a>
-          <a class="btn btn-ghost" href="https://t.me/tapreview_ru" target="_blank" rel="noopener"><svg aria-hidden="true"><use href="#i-tg"/></svg>Спросить в Telegram</a>
         </div>
       </div>
     </section>
@@ -1522,7 +1500,7 @@
               </details>
               <details>
                 <summary>Что показывает статистика?</summary>
-                <p>Сколько раз открыли страницу, с NFC или по QR, какие оценки ставят и что хвалят, сколько человек перешли на Яндекс Карты, 2ГИС или Google, сколько подарков выдали и забрали, сколько гостей вернулись. По дням, по каждой карте и точке, плюс TapReview Score и итоги месяца. Смотреть можно по личной ссылке или в Telegram.</p>
+                <p>Сколько раз открыли страницу, с NFC или по QR, какие оценки ставят и что хвалят, сколько человек перешли на Яндекс Карты, 2ГИС или Google, сколько подарков выдали и забрали, сколько гостей вернулись. По дням, по каждой карте и точке, плюс TapReview Score и итоги месяца. Отчёты доступны в личном кабинете.</p>
               </details>
               <details>
                 <summary>У меня несколько заведений. Это удобно?</summary>
@@ -1530,7 +1508,7 @@
               </details>
               <details>
                 <summary>Как работает вызов официанта? Нужна касса или планшет?</summary>
-                <p>Ничего ставить не нужно. Гость касается карты на столе и нажимает «Позвать официанта», «Попросить счёт» или заказывает из меню. Официант видит вызов со звуком на своей ссылке — в браузере любого телефона, — и в Telegram-чате смены. Оплата — как обычно, официанту: деньги через TapReview не идут.</p>
+                <p>Ничего ставить не нужно. Гость касается карты на столе и нажимает «Позвать официанта», «Попросить счёт» или заказывает из меню. Официант видит вызов и слышит уведомление в браузере телефона. Оплата — как обычно, официанту: деньги через TapReview не идут.</p>
               </details>
               <details>
                 <summary>А если гость нажмёт «Позвать официанта» из дома?</summary>
@@ -1567,13 +1545,9 @@
       <div class="wrap">
         <div class="cta reveal">
           <h2>Попробуйте TapReview в своём заведении</h2>
-          <p>Посчитайте стоимость и напишите нам в Telegram <b>@tapreview_ru</b> — ответим на вопросы и подготовим карту под ваш бизнес.</p>
+          <p>Оставьте заявку. Мы поможем выбрать функции и количество карт, затем подготовим страницу вашего заведения.</p>
           <div class="actions">
             <a class="btn btn-gold" href="/order/">Подключить</a>
-            <a class="btn btn-ghost" href="https://t.me/tapreview_ru" target="_blank" rel="noopener">
-              <svg aria-hidden="true"><use href="#i-tg"/></svg>
-              Написать в Telegram
-            </a>
           </div>
         </div>
       </div>
@@ -1621,14 +1595,14 @@
       </fieldset>
       <input type="text" name="name" placeholder="Как вас зовут" autocomplete="name" maxlength="80" aria-label="Как вас зовут">
       <input type="text" name="business_name" placeholder="Название заведения" autocomplete="organization" maxlength="120" aria-label="Название заведения">
-      <input type="tel" name="contact" placeholder="Телефон или @telegram" autocomplete="tel" maxlength="60" aria-label="Телефон или Telegram">
+      <input type="tel" name="contact" placeholder="Телефон" autocomplete="tel" maxlength="60" aria-label="Телефон">
       <label class="pop-trap" aria-hidden="true">Сайт <input name="website" tabindex="-1" autocomplete="off"></label>
       <label class="pop-consent">
-        <input type="checkbox" name="consent">
+        <input type="checkbox" name="consent" required>
         <span>Даю <a href="/consent/" target="_blank">согласие на обработку персональных данных</a> и ознакомлен(а) с <a href="/privacy/" target="_blank">политикой</a>.</span>
       </label>
       <p class="pop-err" id="pop-err" role="alert" hidden></p>
-      <button class="btn btn-primary" type="submit">Получить демо</button>
+      <button class="btn btn-primary" type="submit" id="pop-submit" disabled>Получить демо</button>
     </form>
     <p class="pop-done" id="pop-done" tabindex="-1" hidden></p>
   </aside>
@@ -1786,6 +1760,13 @@
       var pop = document.getElementById("pop");
       var form = document.getElementById("pop-form");
       var err = document.getElementById("pop-err");
+      var btn = document.getElementById("pop-submit");
+      var consent = form.elements.consent;
+      var sending = false;
+      function syncSubmit() { btn.disabled = sending || !consent.checked; }
+      consent.addEventListener("change", syncSubmit);
+      window.addEventListener("pageshow", syncSubmit);
+      syncSubmit();
       var shownAt = 0;
       var loadedAt = Date.now();
       function saved() { try { return JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { return null; } }
@@ -1837,9 +1818,10 @@
         var digits = contact.replace(/\D/g, "");
         if (!f.name.value.trim()) return fail("Укажите, как к вам обращаться.", f.name);
         if (!f.business_name.value.trim()) return fail("Укажите название заведения.", f.business_name);
-        if (!contact) return fail("Укажите телефон или Telegram.", f.contact);
+        if (!contact) return fail("Укажите телефон.", f.contact);
         if (!isTg && digits.length < 10) return fail("Проверьте номер телефона.", f.contact);
-        if (!f.consent.checked) return fail("Отметьте согласие на обработку данных.", f.consent);
+        if (sending) return;
+        if (!consent.checked) return fail("Отметьте согласие на обработку данных.", consent);
         var ref = null;
         try { ref = (JSON.parse(localStorage.getItem("tr_ref") || "null") || {}).slug || null; } catch (e2) {}
         var payload = {
@@ -1850,8 +1832,8 @@
           comment: "Быстрая заявка из окна на главной — тариф и число карт уточнить\nКто: " + (f.role.value || "не указал") + (ref ? "\nПо приглашению: " + ref : ""),
           elapsed: Date.now() - shownAt
         };
-        var btn = form.querySelector("button[type=submit]");
-        btn.disabled = true;
+        sending = true;
+        syncSubmit();
         btn.textContent = "Отправляем…";
         fetch("/api/order", { method: "POST", headers: { "Content-Type": "text/plain;charset=UTF-8" }, body: JSON.stringify(payload) })
           .then(function (r) {
@@ -1871,8 +1853,9 @@
             done.focus();
           })
           .catch(function (error) {
-            fail((error && error.message) || "Не удалось отправить. Напишите нам в Telegram @tapreview_ru.");
-            btn.disabled = false;
+            fail((error && error.message) || "Не удалось отправить заявку. Попробуйте ещё раз.");
+            sending = false;
+            syncSubmit();
             btn.textContent = "Получить демо";
           });
       });
