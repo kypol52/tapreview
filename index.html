@@ -178,7 +178,7 @@
     .visual { position: relative; display: flex; justify-content: center; min-width: 0; padding: 0 0 8px; }
     .hero-grid > * { min-width: 0; }
     .scene-wrap { --s: 0.68; width: 100%; height: calc(540px * var(--s)); display: flex; justify-content: center; }
-    .scene { position: relative; flex: none; width: 480px; height: 540px; transform: scale(var(--s)); transform-origin: top center; }
+    .scene { --hero-mm: 2.55px; --tap-cycle: 10s; position: relative; flex: none; width: 480px; height: 540px; transform: scale(var(--s)); transform-origin: top center; }
 
     /* Стол: тёмный орех с латунной кромкой, края растворяются в фоне */
     .counter {
@@ -203,7 +203,7 @@
     }
 
     /* Подставка с картой */
-    .stand { position: absolute; z-index: 2; left: 64px; bottom: 112px; width: 194px; transform: perspective(1100px) rotateY(16deg) rotateX(2deg); transform-origin: bottom center; }
+    .stand { position: absolute; z-index: 2; left: 101px; bottom: 112px; width: calc(54 * var(--hero-mm)); transform: perspective(1100px) rotateY(16deg) rotateX(2deg); transform-origin: bottom center; }
     .stand-shadow { position: absolute; left: -26px; right: -40px; bottom: -36px; height: 34px; border-radius: 50%; background: radial-gradient(closest-side, rgba(10, 5, 0, 0.55), transparent); filter: blur(2px); }
     .card-img { position: relative; display: block; width: 100%; height: auto; border-radius: 12px; box-shadow: 0 2px 6px rgba(10, 42, 92, 0.12), 0 24px 40px -12px rgba(10, 42, 92, 0.3); }
     /* Акриловое стекло поверх карты: блик и тонкая кромка */
@@ -219,6 +219,45 @@
       box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.95) inset, 0 -1px 0 rgba(150, 165, 190, 0.4) inset, 0 10px 16px -6px rgba(40, 30, 15, 0.3);
     }
     .stand-base::before { content: ""; position: absolute; left: 14px; right: 14px; top: 5px; height: 3px; border-radius: 3px; background: rgba(150, 165, 190, 0.35); }
+
+    /* Одна шкала для вертикальной карты 54×86 и подставки 120×140×40. */
+    .hero-product { transition: opacity .4s var(--ease), visibility 0s .4s; }
+    .scene[data-product="stand"] .stand-card, .scene[data-product="card"] .display-stand {
+      opacity: 0; visibility: hidden;
+    }
+    .scene[data-product="card"] .stand-card, .scene[data-product="stand"] .display-stand {
+      opacity: 1; visibility: visible; transition-delay: 0s;
+    }
+    .stand-card .card-img { height: calc(86 * var(--hero-mm)); }
+    .display-stand {
+      position: absolute; z-index: 2; left: 8px; bottom: 102px; width: calc(120 * var(--hero-mm));
+      transform: perspective(1100px) rotateY(-8deg); transform-origin: bottom center;
+    }
+    .display-stand-foot {
+      position: absolute; inset: auto 0 0; height: calc(40 * var(--hero-mm)); border-radius: 4px;
+      transform: skewX(-50deg) scaleY(.42); transform-origin: bottom center;
+      background: linear-gradient(145deg, #eceff5, #fff 70%); box-shadow: 0 4px 2px #afbbcd, 0 12px 17px #1c130f55;
+    }
+    .display-stand-face {
+      position: relative; display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+      width: 100%; height: calc(140 * var(--hero-mm)); padding: 18px 14px 15px; border-radius: 12px 12px 5px 5px;
+      background: #fff; color: var(--navy); text-align: center;
+      box-shadow: 3px 1px 0 #d6dce7, 0 0 0 1px #e2e7ef inset, 0 13px 22px -14px #101c33;
+    }
+    .display-stand-brand { font-size: 35px; font-weight: 800; line-height: 1; }
+    .display-stand-tag { margin: 0; font-size: 10px; font-weight: 750; letter-spacing: .18em; }
+    .display-stand-line { width: 56px; height: 4px; background: var(--gold); }
+    .display-stand-title { margin: 0; font-size: 17px; font-weight: 750; line-height: 1.18; }
+    .display-stand-stars { display: flex; gap: 3px; color: var(--gold); }
+    .display-stand-stars svg { width: 23px; height: 23px; }
+    .display-stand-qr { display: block; width: 122px; height: 122px; border: 2px solid var(--navy); border-radius: 13px; }
+    .display-stand-features { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: 100%; }
+    .display-stand-features span { padding: 0 3px; font-size: 8.5px; font-weight: 700; line-height: 1.15; }
+    .display-stand-features span + span { border-left: 1px solid var(--navy); }
+    .display-stand-features b { display: block; margin-bottom: 4px; font-size: 17px; }
+    .scene-switch { border: 1px solid var(--line-strong); cursor: pointer; font-family: inherit; }
+    .scene-switch[hidden] { display: none; }
+    .scene-switch:focus-visible { outline: 2px solid var(--navy); outline-offset: 3px; }
 
     /* NFC-волны в точке касания */
     .nfc { position: absolute; z-index: 5; left: 232px; top: 262px; width: 0; height: 0; pointer-events: none; }
@@ -280,16 +319,16 @@
     @keyframes tap-rate { 0%, 68% { opacity: 1; } 73%, 96% { opacity: 0; } 100% { opacity: 1; } }
     @keyframes tap-star { 0%, 55% { color: #e3e7ee; } 56.5%, 97% { color: var(--gold); } 100% { color: #e3e7ee; } }
     @keyframes tap-touch { 0%, 51% { opacity: 0; transform: scale(0.4); } 53.5% { opacity: 1; transform: scale(0.85); } 60%, 100% { opacity: 0; transform: scale(1.5); } }
-    .phone { animation: tap-phone 10s var(--ease) infinite; }
-    .s-idle { animation: tap-idle 10s linear infinite; }
-    .nfc i { animation: tap-ring 10s ease-out infinite; }
-    .s-rate { animation: tap-rate 10s linear infinite; }
-    .r-stars span { animation: tap-star 10s linear infinite; }
+    .phone { animation: tap-phone var(--tap-cycle) var(--ease) infinite; }
+    .s-idle { animation: tap-idle var(--tap-cycle) linear infinite; }
+    .nfc i { animation: tap-ring var(--tap-cycle) ease-out infinite; }
+    .s-rate { animation: tap-rate var(--tap-cycle) linear infinite; }
+    .r-stars span { animation: tap-star var(--tap-cycle) linear infinite; }
     .r-stars span:nth-child(2) { animation-delay: 0.06s; }
     .r-stars span:nth-child(3) { animation-delay: 0.12s; }
     .r-stars span:nth-child(4) { animation-delay: 0.18s; }
     .r-stars span:nth-child(5) { animation-delay: 0.24s; }
-    .r-tap { animation: tap-touch 10s ease-out infinite; }
+    .r-tap { animation: tap-touch var(--tap-cycle) ease-out infinite; }
     .nfc i:nth-child(2) { animation-delay: 0.18s; }
     .nfc i:nth-child(3) { animation-delay: 0.36s; }
     /* Боковые кнопки */
@@ -953,11 +992,8 @@
       .hero-grid { display: contents; }
       .hero-grid > .visual { grid-row: 2; padding: 0; margin-block: 12px 4px; }
       .hero .scene-wrap { --s: 0.54; }
-      .hero .tap-chip { display: none; }
-      .hero .phone, .hero .s-idle, .hero .nfc i,
-      .hero .s-rate, .hero .r-stars span, .hero .r-tap {
-        animation-duration: 4.6s; animation-iteration-count: 1;
-      }
+      .hero .scene { --tap-cycle: 6s; }
+      .hero .scene-switch { padding: 6px 12px 6px 7px; font-size: 12px; }
       .hero-copy { padding-inline: 20px; }
       .js .hero .reveal { opacity: 1; transform: none; transition: none; }
       .hero h1 { font-size: clamp(29px, 7.6vw, 46px); }
@@ -1010,6 +1046,8 @@
       .js .dash .bar { transform: none; }
       /* Без анимации: телефон уже приложен к карте, страница открыта */
       .phone { transform: translate(-78px, 36px) rotate(-12deg); }
+      .scene[data-product="stand"] .phone { transform: rotate(7deg); }
+      .scene[data-product="stand"] .nfc { visibility: hidden; }
       .s-idle { opacity: 0; }
       .nfc i { opacity: 0.5; transform: scale(1); }
       .nfc i:nth-child(2) { opacity: 0.3; transform: scale(1.4); }
@@ -1115,15 +1153,32 @@
           </ul>
         </div>
 
-        <div class="visual reveal" style="--d:.1s" aria-hidden="true">
-         <div class="scene-wrap">
-          <div class="scene">
+        <div class="visual reveal" style="--d:.1s">
+         <div class="scene-wrap" aria-hidden="true">
+          <div class="scene" id="hero-scene" data-product="card">
           <div class="counter"><div class="counter-top"></div><div class="counter-edge"></div></div>
-          <div class="stand">
+          <div class="stand stand-card hero-product">
             <div class="stand-shadow"></div>
             <div class="stand-base"></div>
             <img class="card-img" src="/assets/card-front.png" width="640" height="1015" alt="">
             <div class="stand-glass"></div>
+          </div>
+          <div class="display-stand hero-product">
+            <div class="display-stand-foot"></div>
+            <div class="display-stand-face">
+              <strong class="display-stand-brand">TapReview</strong>
+              <p class="display-stand-tag">ОТЗЫВ В ОДНО КАСАНИЕ</p>
+              <span class="display-stand-line"></span>
+              <p class="display-stand-title">Больше возможностей<br>для вашего визита</p>
+              <div class="display-stand-stars"><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg></div>
+              <img class="display-stand-qr" src="/assets/qr-demo-barber.png" width="148" height="148" alt="">
+              <div class="display-stand-features">
+                <span><b>✂</b>Каталог<br>стрижек</span>
+                <span><b>☆</b>Бонусы<br>за визиты</span>
+                <span><b>₽</b>Оплата<br>услуг</span>
+                <span><b>↗</b>Наши<br>акции</span>
+              </div>
+            </div>
           </div>
           <div class="nfc"><i></i><i></i><i></i></div>
           <div class="phone">
@@ -1176,7 +1231,7 @@
           </div>
           </div>
          </div>
-          <div class="tap-chip"><span><svg><use href="#i-nfc"/></svg></span>Одно касание — отзыв, меню, чаевые</div>
+          <button class="tap-chip scene-switch" id="hero-scene-switch" type="button" hidden><span aria-hidden="true"><svg><use href="#i-nfc"/></svg></span><b>Показать подставку</b></button>
         </div>
       </div>
     </div>
@@ -1608,6 +1663,31 @@
   </aside>
 
   <script>
+    (function () {
+      var scene = document.getElementById("hero-scene");
+      var button = document.getElementById("hero-scene-switch");
+      var motion = matchMedia("(prefers-reduced-motion: reduce)");
+      var manualAt = -Infinity;
+      var menu = scene.querySelectorAll(".r-grid > span");
+      button.hidden = false;
+      function switchProduct() {
+        var stand = scene.dataset.product === "card";
+        scene.dataset.product = stand ? "stand" : "card";
+        button.querySelector("b").textContent = stand ? "Показать карту" : "Показать подставку";
+        scene.querySelectorAll(".r-name, .s-name").forEach(function (name) { name.textContent = stand ? "Форма" : "Утро"; });
+        scene.querySelectorAll(".s-tag").forEach(function (tag) { tag.textContent = stand ? "Барбершоп" : "Кофейня"; });
+        scene.querySelector(".s-idle").lastChild.textContent = stand ? "Поднесите к подставке" : "Поднесите к карте";
+        scene.querySelector(".r-waiter").textContent = stand ? "Ваш мастер: Илья" : "Вас обслуживает: Анна";
+        menu[1].lastChild.textContent = stand ? "Услуги" : "Меню";
+        menu[3].lastChild.textContent = stand ? "Оплата услуг" : "Оплатить счёт";
+      }
+      button.addEventListener("click", function () { manualAt = performance.now(); switchProduct(); });
+      var phone = scene.querySelector(".phone");
+      phone.addEventListener("animationiteration", function (event) {
+        if (event.target === phone && event.animationName === "tap-phone" && !motion.matches && performance.now() - manualAt >= 2500) switchProduct();
+      });
+    })();
+
     (function () {
       var picker = document.getElementById("guest-example");
       document.getElementById("guest-example-open").addEventListener("click", function () { picker.showModal(); });
