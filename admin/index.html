@@ -213,13 +213,18 @@
       <section id="cards-section" hidden>
         <div class="page-head">
           <div>
-            <h1>Карты</h1>
+            <h1 id="c-title">Карты</h1>
             <p id="c-count" class="muted">Шаблонные карты с уникальным QR. Привяжите карту к заведению — и она заработает.</p>
           </div>
           <div class="head-buttons">
             <button id="c-csv-button" class="btn btn-secondary" type="button">Скачать список (CSV)</button>
             <button id="c-issue-button" class="btn btn-primary" type="button">+ Выпустить карты</button>
           </div>
+        </div>
+
+        <div class="filters card-kind" role="group" aria-label="Формат">
+          <button class="chip active" type="button" data-card-kind="card" aria-pressed="true">Карты</button>
+          <button class="chip" type="button" data-card-kind="platform" aria-pressed="false">Платформы</button>
         </div>
 
         <div class="toolbar">
@@ -1095,11 +1100,11 @@
         <span>Статус</span>
         <label class="check">
           <input id="c-active" type="checkbox" checked>
-          Карта работает (снимите, если карту потеряли или украли)
+          <span id="c-active-label">Карта работает (снимите, если карту потеряли или украли)</span>
         </label>
         <label class="check">
           <input id="c-is-table" type="checkbox">
-          Карта лежит на столе: гости могут позвать официанта (нужен модуль «Сервис в зале»; название стола — в поле выше)
+          <span id="c-table-label">Карта лежит на столе: гости могут позвать официанта (нужен модуль «Сервис в зале»; название стола — в поле выше)</span>
         </label>
       </div>
 
@@ -1120,15 +1125,15 @@
   <dialog id="issue-dialog" class="editor editor-small">
     <form id="issue-form" method="dialog">
       <div class="editor-head">
-        <h2>Выпустить карты</h2>
+        <h2 id="issue-title">Выпустить карты</h2>
         <button id="issue-close" class="btn btn-ghost" type="button" aria-label="Закрыть">✕</button>
       </div>
 
       <label class="field">
-        <span>Сколько карт</span>
+        <span id="issue-count-label">Сколько карт</span>
         <input id="issue-count" type="number" min="1" max="200" value="10" required>
       </label>
-      <p class="muted field-hint">
+      <p id="issue-hint" class="muted field-hint">
         Будут созданы свободные карты с новыми номерами. Затем нажмите «Скачать список (CSV)» —
         это файл для типографии: номер и ссылка для QR каждой карты.
       </p>

@@ -27,6 +27,7 @@ const state = {
   cardsLoaded: false,
   cardStats: {}, // id карты → { page_views, clicks } за 30 дней
   cardFilter: "all",
+  cardKind: "card",
   billingFilter: "all", // фильтр списка бизнесов по подписке
   orders: [],
   orderFilter: "open",
@@ -203,10 +204,13 @@ function bindEvents() {
   $("c-csv-button").addEventListener("click", downloadCardsCsv);
   $("c-search").addEventListener("input", renderCards);
   $("c-search").addEventListener("keydown", onCardSearchEnter);
-  for (const chip of document.querySelectorAll("#cards-section .chip")) {
+  for (const chip of document.querySelectorAll("#cards-section [data-card-kind]")) {
+    chip.addEventListener("click", () => setCardKind(chip.dataset.cardKind));
+  }
+  for (const chip of document.querySelectorAll("#cards-section [data-filter]")) {
     chip.addEventListener("click", () => {
       state.cardFilter = chip.dataset.filter;
-      for (const other of document.querySelectorAll("#cards-section .chip")) {
+      for (const other of document.querySelectorAll("#cards-section [data-filter]")) {
         other.classList.toggle("active", other === chip);
       }
       renderCards();
@@ -424,6 +428,7 @@ function showApp() {
   $("user-email").textContent = state.session.email || "";
   state.groupsLoaded = false;
   state.cardsLoaded = false;
+  setCardKind("card");
 
   // Ссылка «Я владелец — активировать карту» со страницы карты: /admin/?card=КОД
   const cardParam = normalizeCardCode(new URLSearchParams(location.search).get("card"));
@@ -3051,6 +3056,7 @@ function openPendingCard() {
 
   const card = state.cards.find((c) => c.code === code);
   if (card) {
+    setCardKind(card.kind === "platform" ? "platform" : "card");
     openCardEditor(card);
   } else {
     toast(`Карта ${formatCardCode(code)} не найдена`);
@@ -3062,11 +3068,34 @@ function cardStatus(card) {
   return card.business_id ? "assigned" : "free";
 }
 
-function filteredCards() {
+function setCardKind(kind) {
+  state.cardKind = kind;
+  state.cardFilter = "all";
+  $("c-search").value = "";
+  const platform = kind === "platform";
+  $("c-title").textContent = platform ? "Платформы" : "Карты";
+  $("c-search").placeholder = platform ? "Номер платформы или заведение" : "Номер карты или заведение";
+  $("c-issue-button").textContent = platform ? "+ Выпустить платформы" : "+ Выпустить карты";
+  for (const chip of document.querySelectorAll("#cards-section [data-card-kind]")) {
+    const selected = chip.dataset.cardKind === kind;
+    chip.classList.toggle("active", selected);
+    chip.setAttribute("aria-pressed", String(selected));
+  }
+  for (const chip of document.querySelectorAll("#cards-section [data-filter]")) {
+    chip.classList.toggle("active", chip.dataset.filter === "all");
+  }
+  if (state.cardsLoaded) renderCards();
+}
+
+function cardsForKind() {
+  return state.cards.filter((card) => (card.kind || "card") === state.cardKind);
+}
+
+function filteredCards(cards = cardsForKind()) {
   const query = $("c-search").value.trim().toLowerCase();
   const codeQuery = normalizeCardCode(query, true);
 
-  return state.cards.filter((card) => {
+  return cards.filter((card) => {
     if (state.cardFilter !== "all" && cardStatus(card) !== state.cardFilter) return false;
     if (!query) return true;
     const business = businessById(card.business_id);
@@ -3079,18 +3108,23 @@ function filteredCards() {
 }
 
 function renderCards() {
-  const items = filteredCards();
-
-  const total = state.cards.length;
-  const free = state.cards.filter((c) => cardStatus(c) === "free").length;
-  const assigned = state.cards.filter((c) => cardStatus(c) === "assigned").length;
+  const platform = state.cardKind === "platform";
+  const cards = cardsForKind();
+  const items = filteredCards(cards);
+  const total = cards.length;
+  const free = cards.filter((c) => cardStatus(c) === "free").length;
+  const assigned = cards.filter((c) => cardStatus(c) === "assigned").length;
   $("c-count").textContent = total
     ? `Всего: ${total} · привязано: ${assigned} · свободно: ${free}`
-    : "Шаблонные карты с уникальным QR. Привяжите карту к заведению — и она заработает.";
+    : (platform ? "У каждой платформы свой номер и QR для привязки к заведению."
+      : "Шаблонные карты с уникальным QR. Привяжите карту к заведению — и она заработает.");
 
   $("c-rows").replaceChildren(...items.map(renderCardRow));
   $("c-table").hidden = items.length === 0;
   $("c-empty").hidden = total !== 0;
+  $("c-empty").textContent = platform
+    ? "Пока нет платформ. Нажмите «+ Выпустить платформы»."
+    : "Пока нет ни одной карты. Нажмите «+ Выпустить карты».";
   $("c-nothing").hidden = total === 0 || items.length !== 0;
 }
 
@@ -3102,7 +3136,9 @@ function renderCardRow(card) {
   });
 
   const codeCell = document.createElement("td");
-  codeCell.append(el("span", "slug card-code", formatCardCode(card.code)));
+  const codeBadge = el("span", "slug card-code", formatCardCode(card.code));
+  if (card.kind === "platform") codeBadge.classList.add("platform-code");
+  codeCell.append(codeBadge);
 
   const business = businessById(card.business_id);
   const businessCell = document.createElement("td");
@@ -3151,7 +3187,7 @@ function onCardSearchEnter(event) {
   if (event.key !== "Enter") return;
   event.preventDefault();
   const code = normalizeCardCode($("c-search").value);
-  const card = code && state.cards.find((c) => c.code === code);
+  const card = code && cardsForKind().find((c) => c.code === code);
   if (card) {
     openCardEditor(card);
   } else if (filteredCards().length === 1) {
@@ -3163,7 +3199,11 @@ function openCardEditor(card) {
   state.editingCard = card;
   hideError("c-editor-error");
 
-  $("c-editor-title").textContent = `Карта ${formatCardCode(card.code)}`;
+  const platform = card.kind === "platform";
+  $("c-editor-title").textContent = `${platform ? "Платформа" : "Карта"} ${formatCardCode(card.code)}`;
+  $("c-active-label").textContent = platform ? "Платформа работает" : "Карта работает (снимите, если карту потеряли или украли)";
+  $("c-table-label").textContent = (platform ? "Платформа стоит на столе" : "Карта лежит на столе") +
+    ": гости могут позвать официанта (нужен модуль «Сервис в зале»; название стола — в поле выше)";
   $("c-link-url").value = cardUrl(card, "nfc");
   $("c-link-open").href = cardUrl(card);
   $("c-qr-preview").src =
@@ -3194,9 +3234,9 @@ function openCardEditor(card) {
   $("c-stats").textContent =
     assigned +
     (stats
-      ? `За 30 дней с этой карты: ${stats.page_views} ${plural(stats.page_views, "открытие", "открытия", "открытий")}, ` +
+      ? `За 30 дней: ${stats.page_views} ${plural(stats.page_views, "открытие", "открытия", "открытий")}, ` +
         `${stats.clicks} ${plural(stats.clicks, "переход", "перехода", "переходов")} к отзывам.`
-      : "За 30 дней с этой карты переходов не было.");
+      : "За 30 дней переходов не было.");
 
   if (!$("card-editor").open) $("card-editor").showModal();
   select.focus();
@@ -3236,7 +3276,7 @@ async function onSaveCard(event) {
     const business = businessById(saved.business_id);
     toast(
       business && saved.is_active
-        ? `Карта ${formatCardCode(saved.code)} → ${business.name}`
+        ? `${saved.kind === "platform" ? "Платформа" : "Карта"} ${formatCardCode(saved.code)} → ${business.name}`
         : "Сохранено"
     );
   } catch (error) {
@@ -3251,10 +3291,10 @@ async function onDeleteCard() {
   const card = state.editingCard;
   if (!card) return;
 
+  const platform = card.kind === "platform";
   const ok = confirm(
-    `Удалить карту ${formatCardCode(card.code)} навсегда?\n\n` +
-      "Если карта напечатана, её QR перестанет работать.\n" +
-      "Чтобы временно выключить карту — лучше снимите галочку «Карта работает»."
+    `Удалить ${platform ? "платформу" : "карту"} ${formatCardCode(card.code)} навсегда?\n\n` +
+      "Напечатанный QR перестанет работать. Для временного отключения снимите галочку статуса."
   );
   if (!ok) return;
 
@@ -3263,7 +3303,7 @@ async function onDeleteCard() {
     state.cards = state.cards.filter((c) => c.id !== card.id);
     renderCards();
     closeCardEditor();
-    toast("Карта удалена");
+    toast(platform ? "Платформа удалена" : "Карта удалена");
   } catch (error) {
     showError("c-editor-error", error.message);
   }
@@ -3271,7 +3311,13 @@ async function onDeleteCard() {
 
 function openIssueDialog() {
   hideError("issue-error");
-  $("issue-count").value = "10";
+  const platform = state.cardKind === "platform";
+  $("issue-title").textContent = platform ? "Выпустить платформы" : "Выпустить карты";
+  $("issue-count-label").textContent = platform ? "Сколько платформ" : "Сколько карт";
+  $("issue-count").value = platform ? "1" : "10";
+  $("issue-hint").textContent = platform
+    ? "Платформы получат номера серии PL. В CSV можно скачать номера и ссылки для QR и NFC."
+    : "Будут созданы свободные карты с новыми номерами. Номера и ссылки для QR и NFC можно скачать в CSV.";
   $("issue-dialog").showModal();
   $("issue-count").select();
 }
@@ -3281,18 +3327,19 @@ async function onIssueCards(event) {
   hideError("issue-error");
 
   const button = $("issue-save");
+  const kind = state.cardKind;
   button.disabled = true;
   button.textContent = "Выпускаем…";
 
   try {
     const created = await api("/api/admin/cards", {
       method: "POST",
-      body: { count: Number($("issue-count").value) }
+      body: { count: Number($("issue-count").value), kind }
     });
     state.cards.push(...created);
     renderCards();
     $("issue-dialog").close();
-    toast(`Выпущено карт: ${created.length}`);
+    toast(`Выпущено ${kind === "platform" ? "платформ" : "карт"}: ${created.length}`);
   } catch (error) {
     showError("issue-error", error.message);
   } finally {
@@ -3329,7 +3376,8 @@ function downloadCardsCsv() {
     .map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(";"))
     .join("\r\n");
   const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
-  downloadBlob(blob, `tapreview-cards-${new Date().toISOString().slice(0, 10)}.csv`);
+  const format = state.cardKind === "platform" ? "platforms" : "cards";
+  downloadBlob(blob, `tapreview-${format}-${new Date().toISOString().slice(0, 10)}.csv`);
 }
 
 // Код карты: латинские буквы и цифры, регистр и дефисы не важны (k7p-3qx = K7P3QX).
@@ -3342,6 +3390,7 @@ function normalizeCardCode(value, partial = false) {
 
 // K7P3QX → K7P-3QX (так номер напечатан на карте)
 function formatCardCode(code) {
+  if (code.length === 8 && code.startsWith("PL")) return `PL-${code.slice(2, 5)}-${code.slice(5)}`;
   return code.length === 6 ? `${code.slice(0, 3)}-${code.slice(3)}` : code;
 }
 

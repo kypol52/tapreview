@@ -109,6 +109,9 @@ const CARD_COLUMNS = "id,code,business_id,label,is_table,staff_id,is_active,assi
 // Код карты печатается на карте — только заглавные буквы и цифры без похожих (0/O, 1/I/L)
 const CARD_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const CARD_CODE_LENGTH = 6;
+const PLATFORM_PREFIX = "PL";
+// Первый макет платформы уже содержит QR с номером из прежней серии.
+const FIRST_PLATFORM_CODE = "SXCP3Y";
 const MAX_CARDS_PER_BATCH = 200;
 
 // Без похожих символов (0/O, 1/l/I), чтобы ссылку можно было продиктовать
@@ -606,33 +609,43 @@ async function listCards(env) {
     env,
     `cards?select=${CARD_COLUMNS}&order=created_at.asc,id.asc&limit=5000`
   );
-  return json(rows);
+  return json(rows.map(withCardKind));
+}
+
+function withCardKind(card) {
+  const isPlatform = card.code === FIRST_PLATFORM_CODE ||
+    (card.code.length === PLATFORM_PREFIX.length + CARD_CODE_LENGTH && card.code.startsWith(PLATFORM_PREFIX));
+  return isPlatform ? { ...card, kind: "platform" } : card;
 }
 
 // Выпуск партии: создаём N новых свободных карт со случайными кодами
 async function issueCards(request, env) {
   const input = await readJson(request);
+  const kind = input.kind ?? "card";
+  if (kind !== "card" && kind !== "platform") throw new HttpError(400, "Неизвестный формат");
   const count = Number(input.count);
   if (!Number.isInteger(count) || count < 1 || count > MAX_CARDS_PER_BATCH) {
     throw new HttpError(400, `Количество карт: от 1 до ${MAX_CARDS_PER_BATCH}`);
   }
 
-  const codes = new Set();
-  while (codes.size < count) codes.add(generateCardCode());
+  const prefix = kind === "platform" ? PLATFORM_PREFIX : "";
 
   // Повтор с уже существующим кодом почти невероятен; если случится — пробуем ещё раз
   for (let attempt = 0; attempt < 5; attempt++) {
+    const codes = new Set();
+    while (codes.size < count) {
+      const code = prefix + generateCardCode();
+      if (code !== FIRST_PLATFORM_CODE) codes.add(code);
+    }
     try {
       const rows = await db(env, `cards?select=${CARD_COLUMNS}`, {
         method: "POST",
         body: [...codes].map((code) => ({ code })),
         prefer: "return=representation"
       });
-      return json(rows, 201);
+      return json(rows.map(withCardKind), 201);
     } catch (error) {
       if (error.code === "23505") {
-        codes.clear();
-        while (codes.size < count) codes.add(generateCardCode());
         continue;
       }
       throw error;
@@ -680,7 +693,8 @@ async function updateCard(request, env, id) {
     body: data,
     prefer: "return=representation"
   });
-  return json(rows[0]);
+  if (!rows.length) throw new HttpError(404, "Карта не найдена");
+  return json(withCardKind(rows[0]));
 }
 
 async function deleteCard(env, id) {

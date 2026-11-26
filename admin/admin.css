@@ -445,6 +445,9 @@ input[type="color"]:disabled { opacity: 0.4; }
 }
 .toolbar .search { margin-bottom: 0; }
 .filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.card-kind { margin-bottom: 14px; }
+.card-kind .chip { font-weight: 700; padding-inline: 16px; }
+.card-code.platform-code { background: #e5edf9; color: #0a2a5c; }
 .chip {
   padding: 6px 12px;
   border: 1px solid var(--border);
