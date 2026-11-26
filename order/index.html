@@ -80,10 +80,9 @@
     .format-choice label { display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 10px; align-items: center; text-align: left; min-height: 88px; }
     .format-choice input:checked + label { box-shadow: 0 0 0 1.5px var(--navy) inset, 0 4px 14px rgba(15, 23, 40, .08); }
     .format-card-img { justify-self: center; width: 33px; height: 52px; border-radius: 4px; box-shadow: 0 2px 5px #0a2a5c33; }
-    .seg label .format-stand-img { position: relative; display: grid; z-index: 0; width: 45px; height: 52px; justify-self: center; align-content: center; justify-items: center; gap: 2px; background: #fff; border: 1px solid var(--line-strong); border-radius: 4px; }
-    .format-stand-img::after { position: absolute; z-index: -1; content: ""; bottom: -4px; left: 2px; right: -4px; height: 7px; background: #dae0ea; border-radius: 2px; transform: skewX(-28deg); }
-    .format-stand-img small { color: var(--navy); font-size: 6px; font-weight: 800; }
-    .format-stand-img img { width: 19px; height: 19px; }
+    .seg label .format-stand-img { position: relative; z-index: 0; width: 48px; justify-self: center; }
+    .format-stand-img::after { position: absolute; z-index: -1; content: ""; bottom: -3px; left: 1px; right: -4px; height: 7px; background: #dae0ea; border-radius: 2px; transform: skewX(-28deg); }
+    .format-stand-img img { display: block; width: 100%; height: auto; border: 1px solid var(--line-strong); border-radius: 4px; }
     .seg label .format-copy span { margin-top: 3px; line-height: 1.4; }
     @media (max-width: 480px) { .format-choice { grid-template-columns: 1fr; } }
 
@@ -280,7 +279,7 @@
               </label>
               <input type="radio" id="product-stand" name="product" value="stand">
               <label for="product-stand">
-                <span class="format-stand-img" aria-hidden="true"><small>TapReview</small><img src="/assets/qr-demo-barber.png" alt=""></span>
+                <span class="format-stand-img"><img src="/assets/order-stand-preview.png" width="384" height="448" alt=""></span>
                 <span class="format-copy"><b>Настольная платформа</b><span>120×140 мм · NFC и QR для стойки или ресепшена</span></span>
               </label>
             </div>
