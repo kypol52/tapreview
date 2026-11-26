@@ -539,7 +539,12 @@ function wheelHtml(prizes, index, { still = false, theme = "classic", sound = fa
         <stop offset="0" stop-color="#F2D99B"/><stop offset="1" stop-color="${t.acc}"/></linearGradient></defs>
         <path d="M14 35C12 31 2.5 21 2.5 13a11.5 11.5 0 0 1 23 0c0 8-9.5 18-11.5 22z" fill="url(#gw-pin)" stroke="rgba(16,29,53,.35)" stroke-width=".8"/>
         <circle cx="14" cy="13" r="4" fill="${t.rim}"/></svg></span>
-      <button class="gw-hub" type="button"${still ? ` tabindex="-1" aria-hidden="true"` : ` aria-label="Открыть подарок"`}><span>TR</span></button>
+      ${still
+        ? `<div class="gw-hub" aria-hidden="true"><span class="gw-mark">TR</span></div>`
+        : `<button class="gw-hub" type="button" aria-label="Жми, чтобы открыть подарок" disabled>
+            <span class="gw-mark" aria-hidden="true">TR</span>
+            <span class="gw-action" aria-hidden="true">ЖМИ</span>
+          </button>`}
       <span class="gw-sparks" aria-hidden="true"></span>
     </div>
     ${sound ? `<button class="gw-sound" type="button" aria-pressed="false" aria-label="Включить звук" hidden>
@@ -713,11 +718,11 @@ const BONUS_PAGE_CSS = `
   .gs { position: relative; margin: 2px 0 20px; }
   .gs-lead { margin: 0; font-size: 15px; line-height: 1.45; color: var(--muted); animation: gs-in 0.6s ease 0.05s both; }
   .gw {
-    position: relative; width: min(300px, 100%); aspect-ratio: 1 / 1; margin: 26px auto 0;
+    position: relative; align-self: center; width: min(384px, calc(100% + 24px)); aspect-ratio: 1 / 1; margin: 26px 0 0;
     container-type: inline-size; touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
     animation: gw-in 0.75s cubic-bezier(0.2, 0.7, 0.2, 1) 0.15s both;
   }
-  .gs-js .gs[data-state="idle"] .gw, .gs-js[data-state="idle"] .gw { cursor: pointer; }
+  .gs-js[data-state="idle"] .gw { cursor: pointer; }
   .gw-disc { position: absolute; inset: 0; border-radius: 50%; will-change: transform; filter: drop-shadow(0 12px 20px rgba(16, 29, 53, 0.22)); }
   .gw-svg { display: block; width: 100%; height: 100%; }
   .gw-dim { fill: var(--gw-rim); opacity: 0; transition: opacity 0.7s ease; }
@@ -736,7 +741,6 @@ const BONUS_PAGE_CSS = `
   }
   .gw-ic { display: block; width: var(--ic); height: var(--ic); }
   .gw-ic svg { display: block; width: 100%; height: 100%; }
-  .gw.is-done .gw-li { transition-duration: 0.8s; }
   /* указатель — золотая метка сверху, слегка вздрагивает на разделителях */
   .gw-pin { position: absolute; z-index: 3; left: 50%; top: 0; width: 9.5%; transform: translate(-50%, -46%); transform-origin: 50% 30%; filter: drop-shadow(0 3px 4px rgba(16, 29, 53, 0.3)); }
   .gw-pin svg { display: block; width: 100%; height: auto; }
@@ -749,16 +753,28 @@ const BONUS_PAGE_CSS = `
     background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--gw-hub) 82%, #fff), var(--gw-hub) 62%, var(--gw-rim));
     box-shadow: 0 0 0 1.5px var(--gw-acc), 0 0 0 4.5px var(--gw-rim), 0 0 0 5.5px color-mix(in srgb, var(--gw-acc) 55%, transparent), 0 8px 16px rgba(7, 13, 26, 0.35);
     transition: transform 0.16s ease;
-    animation: gw-glow 1.6s ease 1s 1 both;
   }
-  .gw-hub span { font-family: var(--serif, "Playfair Display", Georgia, serif); font-size: 8.4cqw; font-weight: 600; letter-spacing: 0.02em; color: #F2D99B; }
+  .gw-hub span { grid-area: 1 / 1; line-height: 1; }
+  .gw-mark { font-family: var(--serif, "Playfair Display", Georgia, serif); font-size: 8.4cqw; font-weight: 600; letter-spacing: 0.02em; color: #F2D99B; }
+  .gw-action { display: none; font-family: var(--sans, sans-serif); font-size: 6.4cqw; font-weight: 800; }
+  .gw-hub:enabled { background: radial-gradient(circle at 50% 25%, #FFF2C6, #D8AD58); color: #241907; }
+  .gw-hub:enabled .gw-action { display: block; }
+  .gw-hub:enabled .gw-mark { color: inherit; opacity: 0; }
   .gw-hub:focus-visible { outline: 2px solid var(--gw-acc); outline-offset: 6px; }
-  .gw.is-done .gw-hub { animation: none; }
-  .gw.is-pressed .gw-hub { transform: translate(-50%, -50%) scale(0.9); }
-  @keyframes gw-glow {
-    0% { filter: brightness(1); }
-    45% { filter: brightness(1.18) drop-shadow(0 0 10px color-mix(in srgb, var(--gw-acc) 70%, transparent)); }
-    100% { filter: brightness(1); }
+  /* Два цикла, затем подсказка остаётся на кнопке до нажатия. */
+  @media (prefers-reduced-motion: no-preference) {
+    .gw.is-pressed .gw-hub { transform: translate(-50%, -50%) scale(0.9); }
+    .gw-hub:enabled .gw-action { animation: gw-action 2.3s ease 0.3s 2; }
+    .gw-hub:enabled .gw-mark { animation: gw-mark 2.3s ease 0.3s 2; }
+  }
+  @keyframes gw-action {
+    0%, 49%, 100% { opacity: 1; transform: scale(1); }
+    22% { transform: scale(1.09); }
+    58%, 89% { opacity: 0; transform: scale(0.93); }
+  }
+  @keyframes gw-mark {
+    0%, 58%, 89%, 100% { opacity: 0; }
+    65%, 82% { opacity: 1; }
   }
   /* нажатие: тонкая золотая волна и мягкая вспышка от центра */
   .gw-ripple, .gw-flash { position: absolute; left: 50%; top: 50%; border-radius: 50%; pointer-events: none; opacity: 0; }
@@ -864,10 +880,11 @@ const BONUS_PAGE_CSS = `
   .invite-hint { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
   .br-stamp-note { margin: 10px 0 0; font-size: 15.5px; font-weight: 600; line-height: 1.4; color: var(--text); }
   @media (prefers-reduced-motion: reduce) {
-    .gs-lead, .gw, .gs-js .gs-hint, .gw-hub, .gc-pending { animation-duration: 0.01s; animation-delay: 0s; }
+    .gs-lead, .gw, .gs-js .gs-hint, .gc-pending { animation-duration: 0.01s; animation-delay: 0s; }
+    .gw.is-go .gw-ripple, .gw.is-go .gw-flash { animation: none; }
     .gc-pending { animation-delay: 1.5s; }
     .gc.gc-show { animation-duration: 0.01s; }
-    .gw-li, .gw-dim, .gw-glow, .gw-hl { transition-duration: 0.01s; }
+    .gw-li, .gw-dim, .gw-glow, .gw-hl { transition: none; }
     .br-fade { animation: none; }
   }
 `;
@@ -902,6 +919,7 @@ const GIFT_SCRIPT = `(function () {
   var stage = doc.querySelector(".gs");
   if (!stage || stage.getAttribute("data-state") !== "idle" || !card) return;
   var wheel = stage.querySelector(".gw"), disc = stage.querySelector(".gw-disc"), pin = stage.querySelector(".gw-pin");
+  var hub = wheel.querySelector(".gw-hub");
   var hint = stage.querySelector(".gs-hint"), soundBtn = stage.querySelector(".gw-sound");
   var end = Number(wheel.getAttribute("data-end")), seg = Number(wheel.getAttribute("data-seg"));
   var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -967,6 +985,7 @@ const GIFT_SCRIPT = `(function () {
     if (state !== "idle") return; // повторные нажатия игнорируются
     if (e) e.preventDefault();
     setState("pressed");
+    hub.disabled = true;
     if (hint) hint.textContent = "Открываем подарок…";
     wheel.classList.add("is-pressed", "is-go");
     tone(520, 0.12, 0.045); buzz(10);
@@ -1002,8 +1021,6 @@ const GIFT_SCRIPT = `(function () {
     wheel.classList.add("is-done");
     var labels = disc.querySelectorAll(".gw-li");
     for (var i = 0; i < labels.length; i++) labels[i].style.setProperty("--ca", labels[i].getAttribute("data-final") + "deg");
-    var hub = wheel.querySelector(".gw-hub");
-    if (hub) { hub.setAttribute("tabindex", "-1"); hub.setAttribute("aria-hidden", "true"); }
     tone(784, 0.5, 0.035); tone(988, 0.6, 0.03, "sine", 0.09); tone(1175, 0.9, 0.025, "sine", 0.18);
     buzz([12, 40, 18]);
     if (!reduce) sparkle();
@@ -1035,6 +1052,7 @@ const GIFT_SCRIPT = `(function () {
     try { fn(); } catch (e) { setState("error"); wheel.classList.add("is-done"); if (hint) hint.textContent = "Ваш подарок — ниже"; showCard(); }
   }
   wheel.addEventListener("click", function (e) { safe(function () { start(e); }); });
+  hub.disabled = false;
 })();`;
 
 // ---------- Касса: проверка и погашение кода (страница /s/ТОКЕН/bonus) ----------
