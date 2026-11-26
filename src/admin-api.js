@@ -110,8 +110,6 @@ const CARD_COLUMNS = "id,code,business_id,label,is_table,staff_id,is_active,assi
 const CARD_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const CARD_CODE_LENGTH = 6;
 const PLATFORM_PREFIX = "PL";
-// Первый макет платформы уже содержит QR с номером из прежней серии.
-const FIRST_PLATFORM_CODE = "SXCP3Y";
 const MAX_CARDS_PER_BATCH = 200;
 
 // Без похожих символов (0/O, 1/l/I), чтобы ссылку можно было продиктовать
@@ -613,8 +611,7 @@ async function listCards(env) {
 }
 
 function withCardKind(card) {
-  const isPlatform = card.code === FIRST_PLATFORM_CODE ||
-    (card.code.length === PLATFORM_PREFIX.length + CARD_CODE_LENGTH && card.code.startsWith(PLATFORM_PREFIX));
+  const isPlatform = card.code.length === PLATFORM_PREFIX.length + CARD_CODE_LENGTH && card.code.startsWith(PLATFORM_PREFIX);
   return isPlatform ? { ...card, kind: "platform" } : card;
 }
 
@@ -633,10 +630,7 @@ async function issueCards(request, env) {
   // Повтор с уже существующим кодом почти невероятен; если случится — пробуем ещё раз
   for (let attempt = 0; attempt < 5; attempt++) {
     const codes = new Set();
-    while (codes.size < count) {
-      const code = prefix + generateCardCode();
-      if (code !== FIRST_PLATFORM_CODE) codes.add(code);
-    }
+    while (codes.size < count) codes.add(prefix + generateCardCode());
     try {
       const rows = await db(env, `cards?select=${CARD_COLUMNS}`, {
         method: "POST",
