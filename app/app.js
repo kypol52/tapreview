@@ -2170,7 +2170,7 @@ function openInTelegramButton() {
 const STATUS_LABEL = { pending: "На проверке", published: "Опубликован", rejected: "Отклонён" };
 
 async function meView() {
-  const head = h("header", { class: "head" }, h("h1", { class: "title" }, "Профиль"), h("p", { class: "lead" }, "Ваши отзывы и настройки"));
+  const head = h("header", { class: "head" }, h("h1", { class: "title" }, "Профиль"));
   if (!inTelegram) return render(head, emptyView(I.user, "Только в Telegram", "Профиль привязан к вашему аккаунту Telegram.", openInTelegramButton()));
   render(head, skeletonList(3));
   let data;
@@ -2183,12 +2183,13 @@ async function meView() {
   const reviews = data.reviews.length
     ? h("div", { class: "menu" },
         data.reviews.map((r) =>
-          h("a", { class: "menu-item", href: r.place && r.place.visible ? `#/place/${encodeURIComponent(r.place.slug)}` : "#/me" },
-            h("div", { class: "grow" },
-              h("div", { style: "font-weight:700;color:var(--ink)" }, r.place ? r.place.name : "Заведение"),
-              h("span", { class: "sub" }, `${"★".repeat(r.score)}${"☆".repeat(5 - r.score)} · ${fmtDate(r.updated || r.date)}${r.text ? ` · ${r.text}` : ""}`)
+          h("a", { class: "menu-item profile-review", href: r.place && r.place.visible ? `#/place/${encodeURIComponent(r.place.slug)}` : "#/me" },
+            h("div", { class: "profile-review-head" },
+              h("strong", null, r.place ? r.place.name : "Заведение"),
+              h("span", { class: `pill pill-${r.status}` }, STATUS_LABEL[r.status])
             ),
-            h("span", { class: `pill pill-${r.status}` }, STATUS_LABEL[r.status])
+            h("span", { class: "fine" }, `${"★".repeat(r.score)}${"☆".repeat(5 - r.score)} · ${fmtDate(r.updated || r.date)}`),
+            r.text ? h("p", { class: "profile-review-text" }, r.text) : null
           )
         )
       )
@@ -2197,26 +2198,19 @@ async function meView() {
   // Рабочий режим официанта — если на этом аккаунте подключены рабочие ссылки
   const work = await staffTokens();
   const workEntry = work.length
-    ? h("a", { class: "card invite-card", href: work.length === 1 ? `#/work/${work[0]}` : "#/work", onclick: haptic.tap },
-        h("div", { class: "invite-icon", style: "background:#fff4d6" }, icon(I.store)),
-        h("div", { class: "grow" }, h("div", { style: "font-weight:700;color:var(--ink)" }, "Работа"), h("div", { class: "fine" }, "Вызовы гостей, подарки и баллы")),
+    ? h("a", { class: "menu-item", href: work.length === 1 ? `#/work/${work[0]}` : "#/work", onclick: haptic.tap },
+        icon(I.store, "menu-icon"),
+        h("div", { class: "grow" }, h("strong", null, "Работа сотрудника"), h("span", { class: "sub" }, "Вызовы гостей, подарки и баллы")),
         h("span", { class: "info-go" }, "›"))
     : null;
 
-  const business = data.businesses.length
-    ? [
-        h("div", { class: "section-head", style: "padding:18px 0 10px" }, h("h2", { class: "section-title" }, "Мои заведения")),
-        h("div", { class: "menu" },
-          data.businesses.map((b) =>
-            h("a", { class: "menu-item", href: `#/biz/${encodeURIComponent(b.slug)}` },
-              icon(I.store, "menu-icon"),
-              h("div", { class: "grow" }, h("div", { style: "font-weight:700;color:var(--ink)" }, b.name), h("span", { class: "sub" }, b.inCatalog ? "Кабинет: статистика, отзывы, профиль" : "Кабинет · не показывается в каталоге")),
-              h("span", { class: "info-go" }, "›")
-            )
-          )
-        )
-      ]
-    : [];
+  const businessEntries = data.businesses.map((b) =>
+    h("a", { class: "menu-item", href: `#/biz/${encodeURIComponent(b.slug)}` },
+      icon(I.store, "menu-icon"),
+      h("div", { class: "grow" }, h("strong", null, b.name), h("span", { class: "sub" }, b.inCatalog ? "Кабинет заведения" : "Кабинет заведения · скрыто из каталога")),
+      h("span", { class: "info-go" }, "›")
+    )
+  );
 
   render(
     head,
@@ -2224,18 +2218,17 @@ async function meView() {
       data.banned ? h("div", { class: "notice notice-rejected" }, h("div", null, h("b", null, "Аккаунт заблокирован"), "Вы не можете оставлять отзывы и жалобы.")) : null,
       h("div", { class: "section-head", style: "padding:6px 0 0" }, h("h2", { class: "section-title" }, "Мои отзывы"), h("span", { class: "fine" }, data.reviews.length ? String(data.reviews.length) : "")),
       reviews,
-      ...business,
-      workEntry,
       h("a", { class: "card invite-card", href: "#/wallet", onclick: haptic.tap },
         h("div", { class: "invite-icon", style: "background:#eaf0fb" }, icon(I.card)),
-        h("div", { class: "grow" }, h("div", { style: "font-weight:700;color:var(--ink)" }, "Мои заведения и подарки"), h("div", { class: "fine" }, "Визиты, штампы и коды подарков")),
+        h("div", { class: "grow" }, h("div", { style: "font-weight:700;color:var(--ink)" }, "Штампы и подарки"), h("div", { class: "fine" }, "История визитов и коды подарков")),
         h("span", { class: "info-go" }, "›")),
-      h("button", { class: "card invite-card", type: "button", onclick: inviteFriends },
-        h("div", { class: "invite-icon" }, icon(I.share)),
-        h("div", { class: "grow" }, h("div", { style: "font-weight:700;color:var(--ink)" }, "Позвать друзей"), h("div", { class: "fine" }, "Чем больше честных отзывов, тем проще найти хорошее место")),
-        h("span", { class: "info-go" }, "›")),
+      businessEntries.length || workEntry ? h("section", { class: "profile-management" },
+        h("h2", { class: "section-title" }, "Управление"),
+        h("div", { class: "menu" }, businessEntries, workEntry)) : null,
       h("div", { class: "section-head", style: "padding:18px 0 0" }, h("h2", { class: "section-title" }, "Уведомления")),
       notifyToggle(data.notify),
+      h("div", { class: "menu" }, h("button", { class: "menu-item", type: "button", onclick: inviteFriends },
+        icon(I.share, "menu-icon"), h("strong", { class: "grow" }, "Позвать друзей"), h("span", { class: "info-go" }, "›"))),
       h("div", { class: "section-head", style: "padding:18px 0 0" }, h("h2", { class: "section-title" }, "Данные и приватность")),
       h("div", { class: "card fine" },
         "Мы храним только ваш Telegram ID — чтобы один человек оставлял один отзыв о заведении и для защиты от накрутки. ",
@@ -2289,7 +2282,7 @@ function notifyToggle(on) {
   return h("label", { class: "card switch-row" },
     h("div", { class: "grow" },
       h("div", { style: "font-weight:700;color:var(--ink)" }, "Сообщать о моих отзывах"),
-      h("div", { class: "fine" }, "Бот TapReview напишет, когда отзыв опубликуют, отклонят или заведение ответит. Ничего другого не присылаем.")),
+      h("div", { class: "fine" }, "Бот сообщит, когда отзыв опубликуют, отклонят или заведение ответит.")),
     input, h("span", { class: "switch", "aria-hidden": "true" })
   );
 }

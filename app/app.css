@@ -234,6 +234,12 @@ h1.title { margin: 0 0 4px; font-size: 24px; line-height: 1.2; font-weight: 800;
 .menu-item:first-child { border-top: 0; }
 .menu-item .grow { flex: 1; min-width: 0; }
 .menu-item .sub { display: block; font-size: 12.5px; color: var(--muted); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-review { display: grid; gap: 4px; }
+.profile-review-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 8px; }
+.profile-review-head strong { min-width: 0; overflow-wrap: anywhere; }
+.profile-review-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; margin: 0; color: var(--ink); }
+.profile-management { display: grid; gap: 12px; padding-top: 12px; }
+.profile-management .section-title { margin: 0; }
 .pill { flex: none; padding: 3px 9px; border-radius: 99px; font-size: 11.5px; font-weight: 700; }
 .pill-pending { background: var(--warn-bg); color: var(--warn); }
 .pill-published { background: var(--ok-bg); color: var(--ok); }
