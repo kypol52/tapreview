@@ -166,6 +166,7 @@
     .sum-rows li span:last-child { color: #fff; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
     .sum-rows li[hidden] { display: none; }
     .sum-rows small { display: block; color: #8fa1c4; font-size: 12.5px; }
+    .sum-rows small[hidden] { display: none; }
     .total { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 18px 0 4px; }
     .total span { font-size: 15px; font-weight: 650; color: #fff; }
     .total strong { font-size: 38px; line-height: 1; font-weight: 750; letter-spacing: -0.03em; color: #fff; font-variant-numeric: tabular-nums; }
@@ -559,7 +560,6 @@
         var included = isEarly ? EARLY.cards : TARIFFS[t].cards * venues;
         var itemCount = cards + " " + (stand ? plural(cards, "платформа", "платформы", "платформ") : plural(cards, "карта", "карты", "карт"));
         var totalText = rub(r.now);
-        var standBreakdown = cards + " × " + rub(STAND.unit) + " + " + venues + " × " + rub(STAND.connection);
 
         calcNote.textContent = stand ? "Платформа — " + rub(STAND.unit) + " за штуку. Подключение — " + rub(STAND.connection) +
           " за заведение. Первый месяц подписки бесплатно, со второй точки подписка на 20% дешевле." : cardCalcNote;
@@ -572,7 +572,9 @@
         document.getElementById("cards-note").textContent = stand ? "По одной на стойку или ресепшен" : "В подключение входит " + included + " " + plural(included, "карта", "карты", "карт") +
           ", каждая сверх — " + (isEarly ? EARLY.extraCard : PRICES.extraCard) + " ₽";
         document.getElementById("s-conn-label").textContent = stand ? "Платформы и подключение" : "Подключение";
-        document.getElementById("s-conn-note").textContent = stand ? standBreakdown : label + " · " + itemCount +
+        var connectionNote = document.getElementById("s-conn-note");
+        connectionNote.hidden = stand;
+        connectionNote.textContent = stand ? "" : label + " · " + itemCount +
           (r.extra ? " (" + r.extra + " сверх пакета)" : "") + (isEarly ? " · «Свой дизайн» в подарок" : "");
         document.getElementById("s-conn").textContent = r.connection ? rub(r.connection) : "бесплатно";
         document.getElementById("plan-month-note").textContent = rub(isEarly ? r.monthly : TARIFFS[t].base) + " в месяц";
