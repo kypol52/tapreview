@@ -19,6 +19,8 @@ export const TARIFFS = {
 };
 export const TARIFF_KEYS = Object.keys(TARIFFS);
 export const DESIGN_PRICE = 990;
+export const STAND_PRICE = 990;
+export const STAND_CONNECTION_PRICE = 490;
 export const EXTRA_CARD_PRICE = 199;
 export const MODULE_PRICE = 490;
 export const NETWORK_DISCOUNT = 0.2;

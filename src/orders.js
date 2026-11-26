@@ -15,7 +15,7 @@
 
 import { db } from "./supabase.js";
 import { tg } from "./telegram.js";
-import { TARIFFS, DESIGN_PRICE, EXTRA_CARD_PRICE, MODULE_PRICE, MODULE_KEYS, NETWORK_DISCOUNT, YEAR_MONTHS, EARLY } from "./tariffs.js";
+import { TARIFFS, DESIGN_PRICE, EXTRA_CARD_PRICE, MODULE_PRICE, MODULE_KEYS, NETWORK_DISCOUNT, YEAR_MONTHS, EARLY, STAND_PRICE, STAND_CONNECTION_PRICE } from "./tariffs.js";
 
 // Цены (прайс 4 ноября 2026) — tariffs.js; те же на главной, в калькуляторе order/index.html и в оферте (п. 3.3–3.4).
 // Подписка — за заведение: Start 490 / Plus 990 / Pro 1 990 ₽ в месяц; со второй точки −20%.
@@ -44,7 +44,9 @@ function isStandOrder(order) {
 
 export function orderForAdmin(order) {
   if (!isStandOrder(order)) return order;
-  return { ...order, product: "stand", comment: order.comment.slice(STAND_ORDER_PREFIX.length) || null };
+  // До утверждения цены в заявке сохранялась только стоимость выбранного дизайна.
+  const price_pending = Number(order.total_now) === (order.custom_design ? DESIGN_PRICE : 0);
+  return { ...order, product: "stand", price_pending, comment: order.comment.slice(STAND_ORDER_PREFIX.length) || null };
 }
 
 const MAX_BODY = 8000;
@@ -259,7 +261,7 @@ export function orderTotals({ venues = 1, cards, plan, tariff = "standard", cust
   }
   const t = TARIFFS[tariff] || TARIFFS.standard;
   const extra = stand ? 0 : Math.max(0, n - t.cards * v);
-  const connection = stand ? 0 : t.connection * v + extra * EXTRA_CARD_PRICE;
+  const connection = stand ? STAND_PRICE * n + STAND_CONNECTION_PRICE * v : t.connection * v + extra * EXTRA_CARD_PRICE;
   const monthly = monthlyTotal(tariff, v, modules);
   const subscription = plan === "year" ? monthly * YEAR_MONTHS : monthly;
   const design = custom_design ? DESIGN_PRICE : 0;
@@ -324,7 +326,7 @@ export function orderText(o, env = {}) {
   const stand = isStandOrder(o);
   const t = orderTotals({ ...o, stand });
   const dueNow = stand
-    ? "Разовая стоимость: <b>по запросу</b>"
+    ? `При заказе: <b>${rub(t.now)}</b> (платформы и подключение${o.custom_design ? " и дизайн" : ""})`
     : `При заказе: <b>${rub(t.now)}</b> (подключение${o.custom_design && !o.early ? " и дизайн" : ""})`;
   const admin = `${String(env.PUBLIC_BASE_URL || "https://tapreview.ru").replace(/\/+$/, "")}/admin/`;
   return [

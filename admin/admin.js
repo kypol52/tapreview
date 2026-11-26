@@ -552,7 +552,7 @@ function renderOrder(order) {
 
   const per = order.plan === "year" ? "в год" : "в месяц";
   const stand = order.product === "stand";
-  const dueNow = stand ? "разовая стоимость по запросу" : `при заказе ${rub(order.total_now)}`;
+  const dueNow = order.price_pending ? "разовая стоимость по запросу" : `при заказе ${rub(order.total_now)}`;
   const sum = el(
     "div",
     "o-sum",

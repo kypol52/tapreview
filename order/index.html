@@ -169,7 +169,6 @@
     .total { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 18px 0 4px; }
     .total span { font-size: 15px; font-weight: 650; color: #fff; }
     .total strong { font-size: 38px; line-height: 1; font-weight: 750; letter-spacing: -0.03em; color: #fff; font-variant-numeric: tabular-nums; }
-    .total strong.is-quote { font-size: 26px; text-align: right; }
     .next { margin: 0; color: #9fb0cf; font-size: 14px; text-align: right; }
     .next b { color: #fff; }
     .sum-notes { margin: 20px 0 0; padding: 16px 0 0; border-top: 1px solid rgba(255, 255, 255, 0.1); list-style: none; display: grid; gap: 8px; font-size: 13px; color: #9fb0cf; }
@@ -469,6 +468,7 @@
       };
       var PRICES = { extraCard: 199, module: 490, network: 0.2, yearMonths: 10, design: 990 };
       var EARLY = { connection: 0, cards: 5, extraCard: 150, monthly: 490 };
+      var STAND = { unit: 990, connection: 490 };
       function totals(o) {
         var extra, connection, monthly;
         if (o.early) {
@@ -479,7 +479,9 @@
         }
         var t = TARIFFS[o.tariff];
         extra = o.stand ? 0 : Math.max(0, o.cards - t.cards * o.venues);
-        connection = o.stand ? 0 : t.connection * o.venues + extra * PRICES.extraCard;
+        connection = o.stand
+          ? STAND.unit * o.cards + STAND.connection * o.venues
+          : t.connection * o.venues + extra * PRICES.extraCard;
         var perVenue = t.base + (o.tariff === "standard" ? o.modules.length * PRICES.module : 0);
         monthly = perVenue + (o.venues - 1) * Math.round(perVenue * (1 - PRICES.network));
         var sub = o.plan === "year" ? monthly * PRICES.yearMonths : monthly;
@@ -556,10 +558,11 @@
         var label = isEarly ? "Early Partner" : TARIFFS[t].label;
         var included = isEarly ? EARLY.cards : TARIFFS[t].cards * venues;
         var itemCount = cards + " " + (stand ? plural(cards, "платформа", "платформы", "платформ") : plural(cards, "карта", "карты", "карт"));
-        var totalLabel = stand ? "Разовая стоимость" : "При заказе";
-        var totalText = stand ? "По запросу" : rub(r.now);
+        var totalText = rub(r.now);
+        var standBreakdown = cards + " × " + rub(STAND.unit) + " + " + venues + " × " + rub(STAND.connection);
 
-        calcNote.textContent = stand ? "Подписка — за заведение. Со второй точки она на 20% дешевле. Первый месяц бесплатно. Стоимость платформ и подключения уточним после заявки." : cardCalcNote;
+        calcNote.textContent = stand ? "Платформа — " + rub(STAND.unit) + " за штуку. Подключение — " + rub(STAND.connection) +
+          " за заведение. Первый месяц подписки бесплатно, со второй точки подписка на 20% дешевле." : cardCalcNote;
         earlyInput.disabled = stand;
         document.getElementById("early-option").hidden = stand;
         document.getElementById("tariff-seg").classList.toggle("is-locked", isEarly);
@@ -569,9 +572,9 @@
         document.getElementById("cards-note").textContent = stand ? "По одной на стойку или ресепшен" : "В подключение входит " + included + " " + plural(included, "карта", "карты", "карт") +
           ", каждая сверх — " + (isEarly ? EARLY.extraCard : PRICES.extraCard) + " ₽";
         document.getElementById("s-conn-label").textContent = stand ? "Платформы и подключение" : "Подключение";
-        document.getElementById("s-conn-note").textContent = label + " · " + itemCount +
+        document.getElementById("s-conn-note").textContent = stand ? standBreakdown : label + " · " + itemCount +
           (r.extra ? " (" + r.extra + " сверх пакета)" : "") + (isEarly ? " · «Свой дизайн» в подарок" : "");
-        document.getElementById("s-conn").textContent = stand ? "По запросу" : r.connection ? rub(r.connection) : "бесплатно";
+        document.getElementById("s-conn").textContent = r.connection ? rub(r.connection) : "бесплатно";
         document.getElementById("plan-month-note").textContent = rub(isEarly ? r.monthly : TARIFFS[t].base) + " в месяц";
         document.getElementById("plan-year-note").textContent = isEarly ? "не для Early Partner" : rub(TARIFFS[t].base * PRICES.yearMonths) + " в год";
         document.getElementById("plan-year").disabled = isEarly;
@@ -580,23 +583,20 @@
           (venues > 1 ? " · " + venues + " " + plural(venues, "точка", "точки", "точек") + ", со второй −20%" : "") + " · " + rub(r.monthly) + " в месяц" +
           (isEarly ? " первые 6 месяцев" : "");
         document.getElementById("s-sub").textContent = "0 ₽ первый месяц";
-        document.getElementById("s-total-label").textContent = totalLabel;
         document.getElementById("s-total").textContent = totalText;
-        document.getElementById("s-total").classList.toggle("is-quote", stand);
         document.getElementById("s-next").textContent = rub(r.next) + " " + per;
-        document.getElementById("m-total-label").textContent = totalLabel;
         document.getElementById("m-total").textContent = totalText;
         document.getElementById("m-next").textContent = "через месяц " + rub(r.next) + " " + per;
         mobileOrderItems.textContent = itemCount + " · " + label;
-        mobileOrderPrice.textContent = (stand ? "Разовая стоимость по запросу" : "При заказе " + totalText) +
+        mobileOrderPrice.textContent = "При заказе " + totalText +
           " · через месяц " + rub(r.next) + " " + per;
         document.getElementById("calc-text").textContent =
           "Здравствуйте! Хочу подключить TapReview.\n" +
           "Тариф: " + label + (mods.length ? " + " + mods.map(function (m) { return MODULE_NAMES[m]; }).join(", ") : "") +
           ", оплата за " + (p === "year" ? "год" : "месяц") + (r.design ? " + «Свой дизайн»" : "") + "\n" +
           "Заведений: " + venues + ", " + (stand ? "платформ: " : "карт: ") + cards + "\n" +
-          (stand ? "Стоимость платформ и подключения — по запросу, первый месяц подписки бесплатно\n"
-            : r.now ? "При заказе: " + rub(r.now) + " (подключение" + (r.design ? " и дизайн" : "") + "), первый месяц подписки бесплатно\n"
+          (r.now ? "При заказе: " + totalText + " (" + (stand ? "платформы и подключение" : "подключение") +
+              (r.design ? " и дизайн" : "") + "), первый месяц подписки бесплатно\n"
             : "Подключение и первый месяц подписки — бесплатно\n") +
           "Дальше: " + rub(r.next) + " " + per + "\n" +
           (REF ? "По приглашению: " + REF + " (ещё месяц в подарок)\n" : "") +
