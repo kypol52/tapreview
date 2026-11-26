@@ -49,7 +49,7 @@
 
 import { db } from "./supabase.js";
 import { tg, BOT_COMMANDS } from "./telegram.js";
-import { deleteRuOrder, validate as validateOrder, OrderError } from "./orders.js";
+import { deleteRuOrder, orderForAdmin, validate as validateOrder, OrderError } from "./orders.js";
 import { bonusCounts, WHEEL_MAX, WHEEL_ICONS, WHEEL_TONES } from "./bonus.js";
 import { refUrl, refStats } from "./referral.js";
 import { localAuthEnabled, verifyToken, verifyApiKey, handleLogin } from "./admin-auth.js";
@@ -1301,7 +1301,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 async function listOrders(env) {
   const rows = await db(env, "orders?select=*&order=created_at.desc&limit=300");
-  return json(rows);
+  return json(rows.map(orderForAdmin));
 }
 
 // Следующий шаг, дата и заметка — общие для правки и ручного добавления
@@ -1331,7 +1331,7 @@ async function updateOrder(request, env, id) {
     prefer: "return=representation"
   });
   if (!rows.length) throw new HttpError(404, "Заявка не найдена");
-  return json(rows[0]);
+  return json(orderForAdmin(rows[0]));
 }
 
 // Контакт, добавленный вручную (познакомились лично, написали в Telegram и т. п.)
@@ -1349,7 +1349,7 @@ async function createOrder(request, env) {
     body: { ...order, ...pipelineFields({ status: data.status || "in_work", next_step: data.next_step, note: data.note, next_at: data.next_at }), tg_delivered: true },
     prefer: "return=representation"
   });
-  return json(rows[0], 201);
+  return json(orderForAdmin(rows[0]), 201);
 }
 
 // Удаление — по просьбе человека или когда данные больше не нужны (см. политику /privacy/)

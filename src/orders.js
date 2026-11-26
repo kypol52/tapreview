@@ -35,6 +35,17 @@ export function monthlyTotal(tariff, venues = 1, modules = []) {
 export const PLAN_LABELS = { month: "Месяц", year: "Год" };
 // Меняется вместе с текстом согласия (consent/index.html)
 const CONSENT_VERSION = "2026-11-01";
+// В существующей схеме cards хранит количество изделий для обоих форматов.
+const STAND_ORDER_PREFIX = "[format=stand]\n";
+
+function isStandOrder(order) {
+  return (order.comment || "").startsWith(STAND_ORDER_PREFIX);
+}
+
+export function orderForAdmin(order) {
+  if (!isStandOrder(order)) return order;
+  return { ...order, product: "stand", comment: order.comment.slice(STAND_ORDER_PREFIX.length) || null };
+}
 
 const MAX_BODY = 8000;
 const MIN_FILL_MS = 3000;
@@ -140,7 +151,12 @@ export function validate(data, { manual = false } = {}) {
   const name = clean(data.name, 80, "Имя", true);
   const businessName = clean(data.business_name, 120, "Название заведения", true);
   const city = clean(data.city, 80, "Город");
-  const comment = String(data.comment ?? "").trim().slice(0, 1000);
+  const product = data.product ?? "card";
+  if (product !== "card" && product !== "stand") throw new OrderError(400, "Выберите формат: карта или платформа");
+  const stand = product === "stand";
+  const prefix = stand ? STAND_ORDER_PREFIX : "";
+  const userComment = String(data.comment ?? "").trim().replace(/^(?:\[format=stand\](?:\s|$)\s*)+/, "");
+  const comment = prefix + userComment.slice(0, 1000 - prefix.length);
 
   // В поле заранее стоит «+7» — если дальше ничего не ввели, телефона нет
   let rawPhone = clean(data.phone, 30, "Телефон");
@@ -165,7 +181,7 @@ export function validate(data, { manual = false } = {}) {
   const cards = Number(data.cards);
   if (!Number.isInteger(venues) || venues < 1 || venues > 50) throw new OrderError(400, "Заведений: от 1 до 50");
   if (!Number.isInteger(cards) || cards < venues || cards > 500) {
-    throw new OrderError(400, "Карт: не меньше, чем заведений, и не больше 500");
+    throw new OrderError(400, `${stand ? "Платформ" : "Карт"}: не меньше, чем заведений, и не больше 500`);
   }
   const plan = data.plan === "year" ? "year" : data.plan === "month" ? "month" : null;
   if (!plan) throw new OrderError(400, "Выберите оплату: месяц или год");
@@ -178,6 +194,7 @@ export function validate(data, { manual = false } = {}) {
   // Early Partner: одно заведение, функции Plus, помесячно
   const early = data.early === true;
   if (early) {
+    if (stand) throw new OrderError(400, "Early Partner доступен для NFC-карт");
     if (venues !== 1) throw new OrderError(400, "Early Partner — для одного заведения. Для сети выберите обычный тариф");
     if (plan !== "month") throw new OrderError(400, "Early Partner оплачивается помесячно");
     tariff = "standard";
@@ -185,7 +202,7 @@ export function validate(data, { manual = false } = {}) {
   const customDesign = data.custom_design === true || early;
   if (!manual && data.consent !== true) throw new OrderError(400, "Нужно согласие на обработку персональных данных");
 
-  const totals = orderTotals({ venues, cards, plan, tariff, custom_design: customDesign, modules, early });
+  const totals = orderTotals({ venues, cards, plan, tariff, custom_design: customDesign, modules, early, stand });
   if (manual) {
     return {
       name,
@@ -231,7 +248,7 @@ export function validate(data, { manual = false } = {}) {
 
 // Первый месяц бесплатно: при заказе платится только подключение (и «Свой дизайн»), подписка — после него.
 // extra — карты сверх пакетов всех заведений
-export function orderTotals({ venues = 1, cards, plan, tariff = "standard", custom_design = false, modules = [], early = false }) {
+export function orderTotals({ venues = 1, cards, plan, tariff = "standard", custom_design = false, modules = [], early = false, stand = false }) {
   const v = Math.max(1, venues);
   const n = Math.max(v, cards);
   if (early) {
@@ -241,8 +258,8 @@ export function orderTotals({ venues = 1, cards, plan, tariff = "standard", cust
     return { connection, design: 0, extra, monthly, subscription: monthly, now: connection, next: monthly };
   }
   const t = TARIFFS[tariff] || TARIFFS.standard;
-  const extra = Math.max(0, n - t.cards * v);
-  const connection = t.connection * v + extra * EXTRA_CARD_PRICE;
+  const extra = stand ? 0 : Math.max(0, n - t.cards * v);
+  const connection = stand ? 0 : t.connection * v + extra * EXTRA_CARD_PRICE;
   const monthly = monthlyTotal(tariff, v, modules);
   const subscription = plan === "year" ? monthly * YEAR_MONTHS : monthly;
   const design = custom_design ? DESIGN_PRICE : 0;
@@ -304,14 +321,18 @@ async function notify(env, order) {
 // их смотрят в админ-панели. Так нет трансграничной передачи данных заявителей.
 export function orderText(o, env = {}) {
   const rub = (n) => `${Number(n).toLocaleString("ru-RU")} ₽`;
-  const t = orderTotals(o);
+  const stand = isStandOrder(o);
+  const t = orderTotals({ ...o, stand });
+  const dueNow = stand
+    ? "Разовая стоимость: <b>по запросу</b>"
+    : `При заказе: <b>${rub(t.now)}</b> (подключение${o.custom_design && !o.early ? " и дизайн" : ""})`;
   const admin = `${String(env.PUBLIC_BASE_URL || "https://tapreview.ru").replace(/\/+$/, "")}/admin/`;
   return [
     `🆕 <b>Заявка №${o.id}</b>`,
-    `🃏 Карт: <b>${o.cards}</b> · заведений: <b>${o.venues}</b> · тариф: <b>${o.early ? "Early Partner" : (TARIFFS[o.tariff] || TARIFFS.standard).label}</b>, оплата за ${o.plan === "year" ? "год" : "месяц"}` +
+    `🃏 ${stand ? "Платформ" : "Карт"}: <b>${o.cards}</b> · заведений: <b>${o.venues}</b> · тариф: <b>${o.early ? "Early Partner" : (TARIFFS[o.tariff] || TARIFFS.standard).label}</b>, оплата за ${o.plan === "year" ? "год" : "месяц"}` +
       ((o.modules || []).length ? ` · модули: <b>${o.modules.map((m) => (m === "ai" ? "AI" : "Сервис в зале")).join(", ")}</b>` : "") +
       (o.custom_design && !o.early ? " · <b>+ свой дизайн</b>" : ""),
-    `💳 При заказе: <b>${rub(t.now)}</b> (подключение${o.custom_design && !o.early ? " и дизайн" : ""}) · месяц бесплатно, дальше ${rub(t.next)} ${o.plan === "year" ? "в год" : "в месяц"}`,
+    `💳 ${dueNow} · месяц бесплатно, дальше ${rub(t.next)} ${o.plan === "year" ? "в год" : "в месяц"}`,
     `👉 Контакты и детали — в админке: <a href="${esc(admin)}">${esc(admin.replace(/^https?:\/\//, ""))}</a> → «Заявки»`
   ].join("\n");
 }

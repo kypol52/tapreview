@@ -551,13 +551,15 @@ function renderOrder(order) {
   }
 
   const per = order.plan === "year" ? "в год" : "в месяц";
+  const stand = order.product === "stand";
+  const dueNow = stand ? "разовая стоимость по запросу" : `при заказе ${rub(order.total_now)}`;
   const sum = el(
     "div",
     "o-sum",
-    `Карт: ${order.cards} · заведений: ${order.venues} · тариф ${order.early ? "Early Partner" : ({ start: "Start", standard: "Plus", plus: "Pro" })[order.tariff] || "Plus"}` +
+    `${stand ? "Платформ" : "Карт"}: ${order.cards} · заведений: ${order.venues} · тариф ${order.early ? "Early Partner" : ({ start: "Start", standard: "Plus", plus: "Pro" })[order.tariff] || "Plus"}` +
       `${(order.modules || []).length ? ` + ${order.modules.map((m) => (m === "ai" ? "AI" : "Сервис в зале")).join(", ")}` : ""}, ` +
       `оплата за ${order.plan === "year" ? "год" : "месяц"}${order.custom_design && !order.early ? " · + свой дизайн" : ""} · ` +
-      `при заказе ${rub(order.total_now)}, дальше ${rub(order.total_next)} ${per}`
+      `${dueNow}, дальше ${rub(order.total_next)} ${per}`
   );
 
   card.append(head, contacts, sum);
