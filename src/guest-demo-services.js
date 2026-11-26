@@ -22,6 +22,11 @@ export const SERVICE_DEMOS = {
   },
   barber: {
     business: {name: "Барбершоп «Форма»", category: "barber"},
+    links: [
+      ["tips", "tips", "Чаевые мастеру"],
+      ["masters", "custom", "Мастера"],
+      ["more", "custom", "Уход, сертификаты и абонементы"],
+    ],
     services: [
       ["Стрижка", "1 700 ₽", "45 мин", "Консультация, стрижка и укладка."],
       ["Моделирование бороды", "1 000 ₽", "30 мин", "Форма, контур и уход за бородой."],
@@ -76,6 +81,7 @@ export const SERVICE_DEMO_CSS = `
   .demo-item h2 { margin: 0; font-size: 17px; }
   .demo-item p { margin: 5px 0 0; color: var(--muted); font-size: 14px; }
   .demo-item .rate-public { margin-top: 9px; }
+  .demo-actions { display: flex; flex-wrap: wrap; gap: 0 16px; }
   .demo-photo { aspect-ratio: 1; max-width: 260px; margin: 0 auto 12px; border-radius: 10px; background: var(--btn-border) url('/assets/demo-services.jpg') no-repeat; background-size: 300% 300%; }
   .demo-photo-portrait { width: 112px; margin: 0 0 12px; }
   .demo-photo-more { background-image: url('/assets/demo-services-more.jpg'); }
@@ -132,8 +138,16 @@ export function serviceDemoContent(action, profile, url, {href, path}, esc) {
   switch (action) {
     case "services":
       return ["Услуги и цены", list(services.map(([name, price, time, text], i) => item(name, `${price} · ${time}. ${text}`, link("booking", "Записаться", {service: i}))))];
-    case "masters":
-      return ["Мастера и отзывы", list(masters.map((m, i) => item(m.name, `${m.detail}. Пример отзыва: ${m.review}`, link("portfolio", "Работы мастера", {master: i}) + " · " + link("booking", "Записаться к мастеру", {master: i}), photo(m.photo, `Демо-портрет мастера · ${m.name}`, true))))];
+    case "masters": {
+      const cards = masters.map((m, i) => {
+        const portfolioLink = link("portfolio", isBarber ? "Портфолио" : "Работы мастера", {master: i});
+        const controls = isBarber
+          ? `<div class="demo-actions">${portfolioLink}${link("master-review", "Оценить мастера", {subject: i})}</div>`
+          : portfolioLink + " · " + link("booking", "Записаться к мастеру", {master: i});
+        return item(m.name, `${m.detail}. Пример отзыва: ${m.review}`, controls, photo(m.photo, `Демо-портрет мастера · ${m.name}`, true));
+      });
+      return [isBarber ? "Мастера" : "Мастера и отзывы", list(cards)];
+    }
     case "portfolio": {
       const master = param("master", masters);
       const filtered = portfolio.filter(([, , owner]) => master === null || owner === master);
@@ -207,7 +221,7 @@ export function serviceDemoContent(action, profile, url, {href, path}, esc) {
       const subject = param("subject", masters);
       const ratings = ["5 — отлично", "4 — хорошо", "3 — нормально", "2 — плохо", "1 — очень плохо"];
       const rating = param("rating", ratings);
-      return ["Оценка мастера и салона", done && subject !== null && rating !== null ? notice(`Пробная оценка мастера ${masters[subject].name}: ${ratings[rating]}. Оценку салона можно оставить на карточке.`) : form(select("subject", "Мастер", choices(masters.map((m) => m.name))) + select("rating", "Оценка", choices(ratings)), "Оценить в демо")];
+      return ["Оценка мастера и салона", done && subject !== null && rating !== null ? notice(`Пробная оценка мастера ${masters[subject].name}: ${ratings[rating]}. Оценку салона можно оставить на карточке.`) : form(select("subject", "Мастер", choices(masters.map((m) => m.name)), subject) + select("rating", "Оценка", choices(ratings)), "Оценить в демо")];
     }
     case "remind":
       return isBarber ? simpleChoice("Напоминание о стрижке", "Когда напомнить", ["Через 3 недели", "Через 4 недели", "Через 5 недель"], "Выбрать в демо", (period) => `Пробное напоминание запланировано: ${period.toLowerCase()}.`) : null;

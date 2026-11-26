@@ -282,9 +282,11 @@ export function handleGuestDemo(url, category) {
       : "Официант получит просьбу принести счёт для стола 7."]);
   }
   if (profile) {
-    business.payUrl = href("pay");
-    business.extra_links = SERVICE_LINKS.map(([action, type, label]) => ({ type, label, url: href(action), own: true }));
-    business.extra_links.push({ type: "custom", label: "Оценить мастера", url: href("master-review"), own: true });
+    business.extra_links = (profile.links || SERVICE_LINKS).map(([action, type, label]) => ({ type, label, url: href(action), own: true }));
+    if (category !== "barber") {
+      business.payUrl = href("pay");
+      business.extra_links.push({ type: "custom", label: "Оценить мастера", url: href("master-review"), own: true });
+    }
     examples.set("points", ["Код для кассы", "Пример кода · 482 716", "В рабочей карточке гость показывает одноразовый код администратору, чтобы начислить или списать баллы."]);
   }
 
@@ -294,6 +296,7 @@ export function handleGuestDemo(url, category) {
   const serviceExample = profile ? serviceDemoContent(action, profile, url, { href, path }, escapeHtml) : null;
   if (example || serviceExample) {
     const [title, ...content] = serviceExample || example;
+    const mastersSection = category === "barber" && (action === "portfolio" || action === "master-review");
     return renderPage({
       status: 200, title, theme: business.theme, footer,
       extraCss: serviceExample ? SERVICE_DEMO_CSS : "",
@@ -301,7 +304,7 @@ export function handleGuestDemo(url, category) {
       body: `<h1 class="name name-long">${escapeHtml(title)}</h1>
         <p class="tagline">${escapeHtml(business.name)} · демонстрация</p><div class="divider"></div>
         ${serviceExample ? content[0] : content.map((line) => `<p class="lead">${escapeHtml(line)}</p>`).join("")}
-        <a class="rate-public" href="${path}">Вернуться к карточке</a>`
+        <a class="rate-public" href="${mastersSection ? escapeHtml(href("masters")) : path}">${mastersSection ? "Вернуться к мастерам" : "Вернуться к карточке"}</a>`
     });
   }
 
