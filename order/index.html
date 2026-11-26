@@ -216,6 +216,7 @@
       body[data-order-step="done"] .side { display: none; }
       body[data-order-step="contacts"], body[data-order-step="done"] { padding-bottom: 0; }
       body[data-order-step="contacts"] .layout { padding-top: 20px; }
+      body[data-order-step="calc"] #cc { bottom: calc(var(--order-bar-height, 112px) + 16px); }
       #contacts-panel { margin-top: 0; }
       .step-count { margin: 0 0 8px; color: var(--muted); font-size: 13px; font-weight: 650; }
       .step-back { min-height: 44px; padding: 0; margin-bottom: 8px; border: 0; background: none; color: var(--navy); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
@@ -661,7 +662,13 @@
       var errorBox = document.getElementById("form-error");
       var submit = document.getElementById("submit");
       var mobileLayout = window.matchMedia("(width < 960px)");
+      var mobileBar = document.getElementById("mbar");
       document.body.dataset.orderStep = "calc";
+      if (typeof ResizeObserver === "function") {
+        new ResizeObserver(function () {
+          if (mobileBar.offsetHeight) document.body.style.setProperty("--order-bar-height", mobileBar.offsetHeight + "px");
+        }).observe(mobileBar);
+      }
 
       function showMobileStep(step) {
         document.body.dataset.orderStep = step;
@@ -772,7 +779,7 @@
           .then(function (data) {
             form.hidden = true;
             document.body.dataset.orderStep = "done";
-            document.getElementById("mbar").hidden = true;
+            mobileBar.hidden = true;
             if (window.trGoal) trGoal("lead");
             var done = document.getElementById("done");
             if (data.id) document.getElementById("done-title").textContent = "Заявка №" + data.id + " отправлена!";            done.hidden = false;
