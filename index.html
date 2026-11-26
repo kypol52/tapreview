@@ -230,19 +230,24 @@
     }
     .stand-card .card-img { height: calc(86 * var(--hero-mm)); }
     .display-stand {
-      position: absolute; z-index: 2; left: 8px; bottom: 102px; width: calc(120 * var(--hero-mm));
-      transform: perspective(1100px) rotateY(-8deg); transform-origin: bottom center;
+      position: absolute; z-index: 2; left: 22px; bottom: 102px; width: calc(120 * var(--hero-mm));
+    }
+    .display-stand-model {
+      position: relative; transform-style: preserve-3d; transform-origin: bottom center;
+      transform: perspective(1600px) rotateX(-12deg) rotateY(32deg);
     }
     .display-stand-foot {
-      position: absolute; inset: auto 0 0; height: calc(40 * var(--hero-mm)); border-radius: 4px;
-      transform: skewX(-50deg) scaleY(.42); transform-origin: bottom center;
-      background: linear-gradient(145deg, #eceff5, #fff 70%); box-shadow: 0 4px 2px #afbbcd, 0 12px 17px #1c130f55;
+      position: absolute; inset: auto 0 0; height: calc(40 * var(--hero-mm)); border-radius: 5px 5px 2px 2px;
+      /* Столешница под панелью: от нижнего сгиба на 40 мм назад. */
+      transform: rotateX(90deg); transform-origin: bottom center;
+      background: linear-gradient(180deg, #f8f9fc, #dce3ec);
+      box-shadow: 0 0 0 1px #bbc5d3 inset, 0 -4px 0 #9eacbf, 0 -8px 14px #1c130f55;
     }
     .display-stand-face {
       position: relative; display: flex; flex-direction: column; align-items: center; justify-content: space-between;
       width: 100%; height: calc(140 * var(--hero-mm)); padding: 18px 14px 15px; border-radius: 12px 12px 5px 5px;
       background: #fff; color: var(--navy); text-align: center;
-      box-shadow: 3px 1px 0 #d6dce7, 0 0 0 1px #e2e7ef inset, 0 13px 22px -14px #101c33;
+      box-shadow: -3px 1px 0 #c8d2df, 0 0 0 1px #e2e7ef inset;
     }
     .display-stand-brand { font-size: 35px; font-weight: 800; line-height: 1; }
     .display-stand-tag { margin: 0; font-size: 10px; font-weight: 750; letter-spacing: .18em; }
@@ -1164,19 +1169,21 @@
             <div class="stand-glass"></div>
           </div>
           <div class="display-stand hero-product">
-            <div class="display-stand-foot"></div>
-            <div class="display-stand-face">
-              <strong class="display-stand-brand">TapReview</strong>
-              <p class="display-stand-tag">ОТЗЫВ В ОДНО КАСАНИЕ</p>
-              <span class="display-stand-line"></span>
-              <p class="display-stand-title">Больше возможностей<br>для вашего визита</p>
-              <div class="display-stand-stars"><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg></div>
-              <img class="display-stand-qr" src="/assets/qr-demo-barber.png" width="148" height="148" alt="">
-              <div class="display-stand-features">
-                <span><b>✂</b>Каталог<br>стрижек</span>
-                <span><b>☆</b>Бонусы<br>за визиты</span>
-                <span><b>₽</b>Оплата<br>услуг</span>
-                <span><b>↗</b>Наши<br>акции</span>
+            <div class="display-stand-model">
+              <div class="display-stand-foot"></div>
+              <div class="display-stand-face">
+                <strong class="display-stand-brand">TapReview</strong>
+                <p class="display-stand-tag">ОТЗЫВ В ОДНО КАСАНИЕ</p>
+                <span class="display-stand-line"></span>
+                <p class="display-stand-title">Больше возможностей<br>для вашего визита</p>
+                <div class="display-stand-stars"><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-star"/></svg></div>
+                <img class="display-stand-qr" src="/assets/qr-demo-barber.png" width="148" height="148" alt="">
+                <div class="display-stand-features">
+                  <span><b>✂</b>Каталог<br>стрижек</span>
+                  <span><b>☆</b>Бонусы<br>за визиты</span>
+                  <span><b>₽</b>Оплата<br>услуг</span>
+                  <span><b>↗</b>Наши<br>акции</span>
+                </div>
               </div>
             </div>
           </div>
