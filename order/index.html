@@ -199,9 +199,29 @@
       box-shadow: 0 -8px 24px rgba(6, 26, 58, 0.18); font-size: 13px;
     }
     .mbar strong { display: block; color: #fff; font-size: 22px; line-height: 1.1; font-weight: 750; font-variant-numeric: tabular-nums; }
-    .mbar a { flex: none; padding: 11px 16px; border-radius: 999px; background: var(--gold); color: var(--navy-900); font-weight: 750; font-size: 14px; text-decoration: none; }
+    .mbar a, .mbar button { flex: none; padding: 11px 16px; border: 0; border-radius: 999px; background: var(--gold); color: var(--navy-900); font: inherit; font-weight: 750; font-size: 14px; text-decoration: none; cursor: pointer; }
     body { padding-bottom: 76px; }
     .mbar[hidden] { display: none; }
+    .mobile-step, .mbar #contact-next { display: none; }
+
+    @media (width < 960px) {
+      body[data-order-step] .mobile-step { display: block; }
+      body[data-order-step="calc"] #contact-next { display: inline-flex; align-items: center; min-height: 44px; }
+      body[data-order-step="calc"] #contacts-panel,
+      body[data-order-step="calc"] #mobile-summary-link,
+      body[data-order-step="contacts"] #calc-panel,
+      body[data-order-step="contacts"] .head,
+      body[data-order-step="contacts"] .mbar,
+      body[data-order-step="contacts"] .side,
+      body[data-order-step="done"] .side { display: none; }
+      body[data-order-step="contacts"], body[data-order-step="done"] { padding-bottom: 0; }
+      body[data-order-step="contacts"] .layout { padding-top: 20px; }
+      #contacts-panel { margin-top: 0; }
+      .step-count { margin: 0 0 8px; color: var(--muted); font-size: 13px; font-weight: 650; }
+      .step-back { min-height: 44px; padding: 0; margin-bottom: 8px; border: 0; background: none; color: var(--navy); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+      .step-recap { margin: 0 0 18px; padding: 10px 12px; border-radius: 12px; background: var(--soft); color: var(--muted); font-size: 13px; }
+      .step-recap strong { display: block; color: var(--navy); }
+    }
 
     @media (min-width: 640px) {
       .wrap { padding-inline: 32px; }
@@ -248,8 +268,9 @@
     <div class="layout">
       <div>
         <form id="order-form" class="ym-hide-content" novalidate>
-          <section class="panel" aria-labelledby="calc-title">
-            <h2 id="format-title">Выберите формат</h2>
+          <section class="panel" id="calc-panel" aria-labelledby="calc-title">
+            <p class="mobile-step step-count">Шаг 1 из 2 · Расчёт</p>
+            <h2 id="format-title" tabindex="-1">Выберите формат</h2>
             <div class="seg format-choice" role="radiogroup" aria-labelledby="format-title">
               <input type="radio" id="product-card" name="product" value="card" checked>
               <label for="product-card">
@@ -344,8 +365,11 @@
           </section>
 
           <section class="panel" id="contacts-panel" aria-labelledby="contact-title">
-            <h2 id="contact-title">Контакты</h2>
+            <button class="mobile-step step-back" id="contact-back" type="button">← К расчёту</button>
+            <p class="mobile-step step-count">Шаг 2 из 2</p>
+            <h2 id="contact-title" tabindex="-1">Контакты</h2>
             <p class="panel-sub">Чтобы мы могли связаться и подтвердить заказ.</p>
+            <p class="mobile-step step-recap"><strong id="mobile-order-items"></strong><span id="mobile-order-price"></span></p>
 
             <div class="fields">
               <div class="field">
@@ -411,9 +435,10 @@
     </div>
   </main>
 
-  <div class="mbar" id="mbar" aria-hidden="true">
+  <div class="mbar" id="mbar">
     <div><span id="m-total-label">При заказе</span><strong id="m-total">3 490 ₽</strong><span id="m-next">через месяц 990 ₽ в месяц</span></div>
-    <a href="#summary">Подробнее</a>
+    <a id="mobile-summary-link" href="#summary">Подробнее</a>
+    <button id="contact-next" type="button">К контактам</button>
   </div>
 
   <footer class="footer">
@@ -467,6 +492,8 @@
       var calcNote = document.getElementById("calc-note");
       var cardCalcNote = calcNote.textContent;
       var earlyInput = document.getElementById("early");
+      var mobileOrderItems = document.getElementById("mobile-order-items");
+      var mobileOrderPrice = document.getElementById("mobile-order-price");
       var lessItems = document.querySelector('[data-step="cards"][data-dir="-1"]');
       var moreItems = document.querySelector('[data-step="cards"][data-dir="1"]');
       var startedAt = Date.now();
@@ -560,6 +587,9 @@
         document.getElementById("m-total-label").textContent = totalLabel;
         document.getElementById("m-total").textContent = totalText;
         document.getElementById("m-next").textContent = "через месяц " + rub(r.next) + " " + per;
+        mobileOrderItems.textContent = itemCount + " · " + label;
+        mobileOrderPrice.textContent = (stand ? "Разовая стоимость по запросу" : "При заказе " + totalText) +
+          " · через месяц " + rub(r.next) + " " + per;
         document.getElementById("calc-text").textContent =
           "Здравствуйте! Хочу подключить TapReview.\n" +
           "Тариф: " + label + (mods.length ? " + " + mods.map(function (m) { return MODULE_NAMES[m]; }).join(", ") : "") +
@@ -630,6 +660,23 @@
       // ---------- Отправка ----------
       var errorBox = document.getElementById("form-error");
       var submit = document.getElementById("submit");
+      var mobileLayout = window.matchMedia("(width < 960px)");
+      document.body.dataset.orderStep = "calc";
+
+      function showMobileStep(step) {
+        document.body.dataset.orderStep = step;
+        var contacts = step === "contacts";
+        document.getElementById(contacts ? "contact-title" : "format-title").focus({ preventScroll: true });
+        document.getElementById(contacts ? "contacts-panel" : "calc-panel").scrollIntoView({ block: "start" });
+      }
+
+      document.getElementById("contact-next").addEventListener("click", function () {
+        update();
+        showMobileStep("contacts");
+      });
+      document.getElementById("contact-back").addEventListener("click", function () {
+        if (!submit.disabled) showMobileStep("calc");
+      });
 
       function fail(message, field) {
         errorBox.textContent = message;
@@ -672,6 +719,11 @@
 
       form.addEventListener("submit", function (e) {
         e.preventDefault();
+        if (mobileLayout.matches && document.body.dataset.orderStep === "calc") {
+          update();
+          showMobileStep("contacts");
+          return;
+        }
         errorBox.hidden = true;
         update();
 
@@ -719,6 +771,7 @@
           })
           .then(function (data) {
             form.hidden = true;
+            document.body.dataset.orderStep = "done";
             document.getElementById("mbar").hidden = true;
             if (window.trGoal) trGoal("lead");
             var done = document.getElementById("done");
