@@ -698,6 +698,18 @@
             <p id="f-prizes-note" class="field-hint"></p>
             <button id="f-prize-add" class="btn btn-secondary btn-small" type="button">+ Добавить приз</button>
             <a id="f-wheel-preview" class="btn btn-secondary btn-small" href="#" target="_blank" rel="noopener" hidden>Посмотреть колесо ↗</a>
+            <p id="f-wheel-count" class="field-hint"></p>
+            <div class="grid-2">
+              <label class="field">
+                <span>Гарантированный подарок каждые N вращений</span>
+                <input id="f-wheel-every" type="number" min="1" max="1000000" step="1" placeholder="Например, 20">
+              </label>
+              <label class="field">
+                <span>Какой подарок выдавать</span>
+                <select id="f-wheel-prize"></select>
+              </label>
+            </div>
+            <p class="field-hint">При интервале 20 выбранный подарок выпадет на 20-м, 40-м, 60-м вращении и так далее. На остальных вращениях действуют шансы призов. Чтобы отключить правило, очистите интервал.</p>
           </div>
 
           <div class="grid-3">

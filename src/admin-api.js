@@ -93,6 +93,7 @@ const ADMIN_COLUMNS =
   "google_url,yandex_url,twogis_url,discount_code,discount_text,is_active," +
   "paid_until,monthly_price,billing_note," +
   "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions,bonus_daily_limit," +
+  "wheel_spin_count,wheel_prize_every,wheel_prize_label," +
   "stamps_goal,stamps_prize,friend_gift,friend_reward,vip_visits,vip_gift,sorry_gift," +
   "referred_by,ref_reward_at,theme,design,extra_links,rating_first,moment,tariff,modules,pay_on,wifi_name,wifi_password," +
   "points_on,points_percent,points_max_share,points_expire_days,points_max_check," +
@@ -358,7 +359,13 @@ export async function handleApi(request, env, url) {
       }
       const bonusStatsMatch = path.match(/^\/api\/admin\/businesses\/(\d{1,18})\/bonus-stats$/);
       if (bonusStatsMatch && method === "GET") {
-        return json(await bonusCounts(env, [Number(bonusStatsMatch[1])], 30));
+        const id = bonusStatsMatch[1];
+        const [stats, rows] = await Promise.all([
+          bonusCounts(env, [id], 30),
+          db(env, `businesses?id=eq.${id}&select=wheel_spin_count&limit=1`)
+        ]);
+        if (!rows.length) throw new HttpError(404, "Бизнес не найден");
+        return json({ ...stats, wheel_spin_count: rows[0].wheel_spin_count });
       }
 
       if (path === "/api/admin/orders" && method === "GET") {
@@ -923,6 +930,10 @@ function cleanBonus(input) {
     if (!Number.isInteger(n) || n < min || n > max) throw new HttpError(400, `${label}: целое число от ${min} до ${max}`);
     return n;
   };
+  // Старые клиенты админки могут присылать форму без полей правила.
+  const wheelRule = mode !== "wheel" || "wheel_prize_every" in input || "wheel_prize_label" in input
+    ? cleanWheelRule(mode, input, activePrizes, int)
+    : {};
   // Штампы (миграция 028): пусто — выключены
   const stampsGoal = int(input.stamps_goal, 2, 10, "Штампов до особого приза", null);
   const stampsPrize = cleanText(input.stamps_prize, 60, "Особый приз за штампы") || null;
@@ -951,12 +962,22 @@ function cleanBonus(input) {
     stamps_prize: stampsGoal ? stampsPrize : null,
     bonus_mode: mode,
     bonus_prizes: cleanPrizes,
+    ...wheelRule,
     bonus_from_days: int(input.bonus_from_days, 0, 30, "Через сколько дней начинает действовать", 1),
     bonus_valid_days: int(input.bonus_valid_days, 1, 365, "Сколько дней действует", 14),
     bonus_cooldown_days: int(input.bonus_cooldown_days, 1, 365, "Как часто можно получать", 30),
     bonus_daily_limit: int(input.bonus_daily_limit, 1, 10000, "Не больше подарков в день", 50),
     bonus_conditions: cleanText(input.bonus_conditions, 200, "Условия подарка") || null
   };
+}
+
+function cleanWheelRule(mode, input, activePrizes, int) {
+  const every = mode === "wheel" ? int(input.wheel_prize_every, 1, 1000000, "Интервал подарка", null) : null;
+  const label = every ? cleanText(input.wheel_prize_label, 30, "Гарантированный подарок") : null;
+  if (every && activePrizes.filter((prize) => prize.label === label).length !== 1) {
+    throw new HttpError(400, "Выберите включённый подарок с уникальным названием");
+  }
+  return { wheel_prize_every: every, wheel_prize_label: label };
 }
 
 function cleanDate(value) {

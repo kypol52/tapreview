@@ -1599,6 +1599,8 @@ function readForm() {
     discount_text: $("f-discount-text").value,
     bonus_mode: $("f-bonus-mode").value,
     bonus_prizes: readPrizes(),
+    wheel_prize_every: $("f-wheel-every").value,
+    wheel_prize_label: $("f-wheel-prize").value,
     bonus_from_days: $("f-bonus-from").value,
     bonus_valid_days: $("f-bonus-valid").value,
     bonus_cooldown_days: $("f-bonus-cooldown").value,
@@ -2089,6 +2091,9 @@ function fillBonus(business) {
     ? business.bonus_prizes
     : DEFAULT_PRIZES;
   $("f-prizes").replaceChildren(...prizes.map(prizeRow));
+  $("f-wheel-every").value = business?.wheel_prize_every ?? "";
+  fillWheelPrize(business?.wheel_prize_label || "");
+  $("f-wheel-count").textContent = `Вращений с выдачей подарка: ${business?.wheel_spin_count ?? 0}`;
   $("f-bonus-from").value = business ? business.bonus_from_days ?? 1 : 1;
   $("f-bonus-valid").value = business ? business.bonus_valid_days ?? 14 : 14;
   $("f-bonus-cooldown").value = business ? business.bonus_cooldown_days ?? 30 : 30;
@@ -2422,6 +2427,7 @@ function prizeRow(prize) {
   label.placeholder = "Название приза";
   label.value = prize.label || "";
   label.className = "prize-label";
+  label.addEventListener("input", () => fillWheelPrize());
   const weight = el("input");
   weight.type = "number";
   weight.min = "1";
@@ -2550,6 +2556,7 @@ function updatePrizeShares() {
     row.classList.toggle("is-off", !isOn(row));
   }
   $("f-prize-add").hidden = rows.length >= PRIZES_MAX;
+  fillWheelPrize();
   const active = rows.filter(isOn).length;
   const note = $("f-prizes-note");
   if (note) {
@@ -2559,10 +2566,23 @@ function updatePrizeShares() {
   }
 }
 
+function fillWheelPrize(selected = $("f-wheel-prize").value) {
+  const select = $("f-wheel-prize");
+  const labels = [...$("f-prizes").children]
+    .filter((row) => row.querySelector(".prize-active").checked)
+    .map((row) => row.querySelector(".prize-label").value.trim())
+    .filter(Boolean);
+  const unique = labels.filter((label) => labels.indexOf(label) === labels.lastIndexOf(label));
+  select.replaceChildren(new Option("Выберите подарок", ""), ...unique.map((label) => new Option(label, label)));
+  if (selected && !unique.includes(selected)) select.add(new Option(`${selected} (недоступен)`, selected));
+  select.value = selected;
+}
+
 async function loadBonusStats(business) {
   try {
     const s = await api(`/api/admin/businesses/${business.id}/bonus-stats`);
     if (state.editing !== business) return;
+    $("f-wheel-count").textContent = `Вращений с выдачей подарка: ${s.wheel_spin_count}`;
     $("f-bonus-stats").textContent = `За 30 дней: выдано ${s.issued}, погашено ${s.redeemed}`;
     $("f-bonus-stats").className = "billing-status ok";
   } catch {

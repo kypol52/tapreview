@@ -201,16 +201,17 @@ export async function handleBonus(request, env) {
       friendOn(business) ? inviteFor(env, business, visitorKey) : null
     ]);
     const extras = { stamps, rewards, invite };
+    const prizes = prizesOf(business);
 
-    if (existing.length) {
+    const repeatResult = (code) => {
       // Для колеса показываем его уже остановленным на выпавшем призе — так понятно, что розыгрыш был
-      const prizes = prizesOf(business);
-      const index = business.bonus_mode === "wheel" && !existing[0].stamp_reward && !existing[0].reward_kind && !existing[0].vip
-        ? prizes.findIndex((p) => p.label === existing[0].prize)
+      const index = business.bonus_mode === "wheel" && !code.stamp_reward && !code.reward_kind && !code.vip && !code.sorry
+        ? prizes.findIndex((p) => p.label === code.prize)
         : -1;
       const wheel = index >= 0 ? { prizes, index } : null;
-      return withCookie(resultPage(business, existing[0], { repeat: true, backUrl, wheel, ...extras }), setCookie);
-    }
+      return withCookie(resultPage(business, code, { repeat: true, backUrl, wheel, ...extras }), setCookie);
+    };
+    if (existing.length) return repeatResult(existing[0]);
 
     // Защита от накрутки (миграция 023): один код в день с телефона и лимит кодов в день на заведение
     const guard = await dailyGuard(request, env, business);
@@ -218,12 +219,12 @@ export async function handleBonus(request, env) {
       return withCookie(limitPage(business, backUrl, guard.blocked.heading, guard.blocked.text, rewards), setCookie);
     }
 
-    const prizes = prizesOf(business);
     // Все штампы собраны — вместо колеса особый приз владельца, счёт штампов начнётся заново.
     // VIP-гость (миграция 032) — VIP-подарок вместо колеса (приз за штампы важнее).
     const reward = stamps !== null && stamps >= business.stamps_goal;
     const vip = !reward && vipOn(business) && (await visitCount(env, business, visitorKey)) >= business.vip_visits;
     const index = reward || vip ? -1 : pickWeighted(prizes);
+    const wheel = business.bonus_mode === "wheel" && index >= 0 ? { prizes, index } : null;
     const prizeLabel = reward ? String(business.stamps_prize).slice(0, 60) : vip ? String(business.vip_gift).slice(0, 60) : prizes[index].label;
 
     let cardId = null;
@@ -241,14 +242,20 @@ export async function handleBonus(request, env) {
       cardId,
       extra: reward ? { stamp_reward: true } : vip ? { vip: true } : {},
       conditions: own && own.conditions ? own.conditions : undefined,
-      validDays: own && own.valid_days ? own.valid_days : undefined
+      validDays: own && own.valid_days ? own.valid_days : undefined,
+      wheel
     });
+    if (saved.repeat) return repeatResult(saved);
+    if (saved.blocked) {
+      const { heading, text } = GIFT_LIMITS[saved.blocked];
+      return withCookie(limitPage(business, backUrl, heading, text, rewards), setCookie);
+    }
 
     return withCookie(
       resultPage(business, saved, {
         repeat: false,
         backUrl,
-        wheel: business.bonus_mode === "wheel" && !reward && !vip ? { prizes, index } : null,
+        wheel: wheel ? { prizes, index: saved.wheel_index } : null,
         ...extras,
         stamps: reward ? 0 : stamps
       }),
@@ -260,7 +267,7 @@ export async function handleBonus(request, env) {
   }
 }
 
-export const CODE_FIELDS = "code,prize,conditions,valid_from,valid_until,redeemed_at,created_at,stamp_reward,reward_kind,vip";
+export const CODE_FIELDS = "code,prize,conditions,valid_from,valid_until,redeemed_at,created_at,stamp_reward,reward_kind,vip,sorry";
 
 // ---------- Извинение при оценке 1–3 (миграция 050) ----------
 // Владелец задаёт sorry_gift — недовольный гость сразу видит одноразовый код над формой, без колеса.
@@ -307,6 +314,14 @@ export function sorryHtml(c) {
 //     по суточному обезличенному отпечатку «сеть + браузер» (IP не хранится);
 //  2) не больше bonus_daily_limit кодов в день на заведение.
 // → { deviceDay, blocked: null | { heading, text } }
+const GIFT_LIMITS = {
+  device: {
+    heading: "Подарок с этого телефона сегодня уже получен",
+    text: "Код был на экране, когда вы получали подарок. Новый подарок можно будет получить в другой день."
+  },
+  venue: { heading: "Подарки на сегодня закончились", text: "Приходите завтра — подарки снова будут ждать вас." }
+};
+
 export async function dailyGuard(request, env, business) {
   const dayStart = Math.floor((Date.now() + MSK_OFFSET) / DAY) * DAY - MSK_OFFSET;
   const deviceDay = await sha256(`${await visitorHashOf(request, env)}|${business.id}`);
@@ -322,16 +337,10 @@ export async function dailyGuard(request, env, business) {
   // Кроме отпечатка «сеть + браузер» — потолок на адрес сети: инкогнито или другой браузер на том же телефоне
   // меняют отпечаток, но не адрес. С запасом на общий Wi-Fi и мобильных операторов, у которых один адрес на многих.
   if (sameDevice.length || !(await ipAllow(request, env, `gift|${business.id}`, GIFTS_PER_IP, DAY))) {
-    return {
-      deviceDay,
-      blocked: {
-        heading: "Подарок с этого телефона сегодня уже получен",
-        text: "Код был на экране, когда вы получали подарок. Новый подарок можно будет получить в другой день."
-      }
-    };
+    return { deviceDay, blocked: GIFT_LIMITS.device };
   }
   if (today.length >= limit) {
-    return { deviceDay, blocked: { heading: "Подарки на сегодня закончились", text: "Приходите завтра — подарки снова будут ждать вас." } };
+    return { deviceDay, blocked: GIFT_LIMITS.venue };
   }
   return { deviceDay, blocked: null };
 }
@@ -340,24 +349,37 @@ export async function dailyGuard(request, env, business) {
 // Дни — по Москве. С задержкой: с начала дня через N дней и ещё bonus_valid_days дней.
 // Без задержки: с этой минуты до конца (bonus_valid_days)-го дня, считая сегодняшний.
 // conditions / validDays — свои у сектора колеса (иначе — заведения).
-export async function issueCode(env, business, { prize, visitorKey, deviceDay = null, cardId = null, extra = {}, noDelay = false, conditions, validDays }) {
-  const { validFrom, validUntil } = codeDates(business, { noDelay, validDays });
+export async function issueCode(env, business, { prize, visitorKey, deviceDay = null, cardId = null, extra = {}, noDelay = false, conditions, validDays, wheel = null }) {
+  const giftFields = (label, ownConditions, ownDays) => {
+    const { validFrom, validUntil } = codeDates(business, { noDelay, validDays: ownDays });
+    return {
+      prize: String(label).slice(0, 60),
+      conditions: (ownConditions !== undefined ? ownConditions : business.bonus_conditions) || null,
+      valid_from: new Date(validFrom).toISOString(),
+      valid_until: new Date(validUntil).toISOString()
+    };
+  };
+  const candidates = wheel?.prizes.map((p) => giftFields(p.label, p.conditions || undefined, p.valid_days));
+  const body = {
+    business_id: business.id,
+    card_id: cardId,
+    visitor_key: visitorKey,
+    device_day: deviceDay,
+    ...extra,
+    ...(wheel ? {} : giftFields(prize, conditions, validDays))
+  };
   for (let attempt = 0; attempt < 10; attempt++) {
     try {
+      const code = randomString(CODE_DIGITS, CODE_LENGTH);
+      if (wheel) {
+        return await db(env, "rpc/issue_wheel_gift", {
+          method: "POST",
+          body: { p_gift: { ...body, code }, p_prizes: candidates, p_random_index: wheel.index, p_config: business.bonus_prizes }
+        });
+      }
       const inserted = await db(env, `bonus_codes?select=${CODE_FIELDS}`, {
         method: "POST",
-        body: {
-          code: randomString(CODE_DIGITS, CODE_LENGTH),
-          business_id: business.id,
-          card_id: cardId,
-          prize: String(prize).slice(0, 60),
-          conditions: (conditions !== undefined ? conditions : business.bonus_conditions) || null,
-          visitor_key: visitorKey,
-          device_day: deviceDay,
-          ...extra,
-          valid_from: new Date(validFrom).toISOString(),
-          valid_until: new Date(validUntil).toISOString()
-        },
+        body: { ...body, code },
         prefer: "return=representation"
       });
       return inserted[0];
