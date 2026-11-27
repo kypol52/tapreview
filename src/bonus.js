@@ -646,7 +646,7 @@ function resultPage(business, c, { repeat, backUrl, wheel = null, stamps = null,
   if (stampsOn(business) && stamps !== null) {
     stampBox = c.stamp_reward
       ? `<p class="br-stamp">🎉 Все ${business.stamps_goal} ${plural(business.stamps_goal, "штамп", "штампа", "штампов")} собраны — это ваш особый подарок. Штампы начинают копиться заново.</p>`
-      : `${stampsHtml(business, stamps)}${c.redeemed_at ? "" : `<p class="br-stamp-note">Штамп появится, когда персонал погасит этот код.</p>`}`;
+      : `${stampsHtml(business, stamps)}${c.redeemed_at ? "" : `<p class="br-stamp-note">Штамп появится после погашения кода.</p>`}`;
   }
   const spin = Boolean(wheel) && !repeat; // колесо ждёт нажатия
   const prize = wheel ? wheel.prizes[wheel.index] : null;
@@ -1348,36 +1348,49 @@ export async function redeemCode(env, id, by = null) {
   return rows[0] || null;
 }
 
+async function* bonusRows(env, query) {
+  let cursor = "";
+  while (true) {
+    const rows = await db(env, `${query}${cursor}&order=id.asc&limit=1000`);
+    if (!rows.length) return;
+    yield* rows;
+    cursor = `&id=gt.${rows[rows.length - 1].id}`;
+  }
+}
+
 export async function bonusCounts(env, businessIds, days = 30) {
   const since = new Date(Date.now() - days * DAY).toISOString();
-  const rows = await db(
-    env,
-    `bonus_codes?business_id=in.(${businessIds.join(",")})&created_at=gt.${encodeURIComponent(since)}` +
-      `&select=prize,redeemed_at&limit=10000`
-  );
-  const byPrize = {};
+  const cutoff = encodeURIComponent(since);
+  const query = `bonus_codes?business_id=in.(${businessIds.join(",")})&or=(created_at.gte.${cutoff},redeemed_at.gte.${cutoff})&select=id,prize,created_at,redeemed_at`;
+  const byPrize = Object.create(null);
+  let issued = 0;
   let redeemed = 0;
-  for (const r of rows) {
+  for await (const r of bonusRows(env, query)) {
     const p = (byPrize[r.prize] = byPrize[r.prize] || { issued: 0, redeemed: 0 });
-    p.issued++;
-    if (r.redeemed_at) {
+    if (Date.parse(r.created_at) >= Date.parse(since)) {
+      p.issued++;
+      issued++;
+    }
+    if (Date.parse(r.redeemed_at) >= Date.parse(since)) {
       p.redeemed++;
       redeemed++;
     }
   }
-  return { issued: rows.length, redeemed, byPrize };
+  return { issued, redeemed, byPrize };
 }
 
 // Для воронки в статистике: коды, выданные за период (и сколько из них уже погашено). cardId — одна карта.
 export async function bonusFunnel(env, businessIds, { from, to, cardId = null }) {
-  const rows = await db(
-    env,
-    `bonus_codes?business_id=in.(${businessIds.join(",")})` +
+  const query = `bonus_codes?business_id=in.(${businessIds.join(",")})` +
       `&created_at=gte.${encodeURIComponent(new Date(from).toISOString())}&created_at=lt.${encodeURIComponent(new Date(to).toISOString())}` +
       (cardId ? `&card_id=eq.${cardId}` : "") +
-      `&select=redeemed_at&limit=10000`
-  );
-  return { issued: rows.length, redeemed: rows.filter((r) => r.redeemed_at).length };
+      "&select=id,redeemed_at";
+  let issued = 0, redeemed = 0;
+  for await (const row of bonusRows(env, query)) {
+    issued++;
+    if (row.redeemed_at) redeemed++;
+  }
+  return { issued, redeemed };
 }
 
 // ---------- Мелочи ----------

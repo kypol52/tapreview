@@ -13,7 +13,7 @@ import { tg } from "./telegram.js";
 import { isBot, sha256, visitorHashOf } from "./analytics.js";
 import { has } from "./tariffs.js";
 import { classifyFeedback } from "./ai.js";
-import { tapOf, ipAllow } from "./tap.js";
+import { tapDetails, ipAllow } from "./tap.js";
 
 const DEDUPE_WINDOW_MINUTES = 30;
 const SLUG_RE = /^[A-Za-z0-9_-]{3,64}$/;
@@ -135,7 +135,7 @@ export async function handleFeedback(request, env, ctx) {
   // Куда вернуть гостя — по адресу; «с карты» ли сообщение — по метке tap.js (ниже)
   const backSource = ["nfc", "qr"].includes(form.get("s")) ? form.get("s") : "direct";
   const score = Number(form.get("r"));
-  if (!SLUG_RE.test(slug) || !Number.isInteger(score) || score < 1 || score > 5) {
+  if (!SLUG_RE.test(slug) || !Number.isInteger(score) || score < 1 || score > 3) {
     return new Response("Откройте страницу с карты ещё раз", { status: 400 });
   }
 
@@ -168,10 +168,11 @@ export async function handleFeedback(request, env, ctx) {
 
   try {
     const rows = await db(env, `businesses?slug=eq.${encodeURIComponent(slug)}&is_active=eq.true&select=id,name,tariff,category,modules&limit=1`);
-    if (!rows.length || !has(rows[0], "rating")) return done();
+    if (!rows.length || !has(rows[0], "rating")) return new Response("Форма обратной связи недоступна.", { status: 404 });
     const business = rows[0];
     const visitor = await visitorHashOf(request, env);
-    const tap = await tapOf(request, env, business.id);
+    const details = await tapDetails(request, env, business.id);
+    const tap = details && (!cardCode || details.cardCode === cardCode) ? details.source : null;
     const source = tap || "direct";
 
     // Не больше 3 сообщений с одного телефона за 10 минут, FEEDBACK_PER_IP с одного адреса сети за сутки,
@@ -190,7 +191,7 @@ export async function handleFeedback(request, env, ctx) {
     if (!(await ipAllow(request, env, `fb|${business.id}`, FEEDBACK_PER_IP, 24 * 3600e3))) return done();
 
     let card = null;
-    if (cardCode) {
+    if (cardCode && tap) {
       const cards = await db(env, `cards?code=eq.${cardCode}&business_id=eq.${business.id}&select=id,code,label,staff_id&limit=1`);
       card = cards[0] || null;
     }
@@ -209,7 +210,10 @@ export async function handleFeedback(request, env, ctx) {
       await notifyOwner(env, business, card, score, message, saved[0].id, reasons, ai);
     })());
   } catch (error) {
-    console.error(`Feedback error: ${error.message}\n${error.stack}`);
+    console.error("Feedback error", error.code || "unknown");
+    return new Response("Не удалось отправить сообщение. Вернитесь к форме и попробуйте ещё раз.", {
+      status: 503, headers: { "Cache-Control": "no-store", "Content-Type": "text/plain; charset=utf-8" }
+    });
   }
   return done();
 }

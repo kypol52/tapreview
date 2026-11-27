@@ -18,7 +18,7 @@ import { payOn } from "./pay.js";
 import { staffOfCard, withStaffTips } from "./staff.js";
 import { pointsBlock, POINTS_CSS } from "./points.js";
 import { hasMenu } from "./menu.js";
-import { tapOf, tapCookie } from "./tap.js";
+import { tapOf, tapDetails, tapCookie } from "./tap.js";
 import { wifiItem, wifiVisible, WIFI_CSS, WIFI_SCRIPT } from "./wifi.js";
 import { SERVICE_DEMOS, SERVICE_LINKS, SERVICE_DEMO_CSS, SERVICE_BOOKING_SCRIPT, serviceDemoContent } from "./guest-demo-services.js";
 
@@ -490,8 +490,9 @@ export async function handleCardPage(request, env, ctx, rawCode) {
       cardId: card.id
     })
   );
-  const tap = await tapOf(request, env, business.id);
-  if (business.rating_first && has(business, "rating") && flow.score && !flow.sent && !flow.all && tap) {
+  const visit = await tapDetails(request, env, business.id);
+  const tap = visit?.source;
+  if (business.rating_first && has(business, "rating") && flow.score && !flow.sent && !flow.all && visit?.cardCode === card.code) {
     ctx.waitUntil(logRating(request, env, { businessId: business.id, cardId: card.id, score: flow.score, source: tap, likes: flow.likes, staffId: staff ? staff.id : null }));
   }
   // Wi-Fi заведения (wifi.js) — только гостю у карты
