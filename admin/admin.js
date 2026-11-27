@@ -84,6 +84,12 @@ function bindEvents() {
   });
   $("f-paid-until").addEventListener("input", showBillingStatus);
   $("f-bonus-mode").addEventListener("change", showBonusMode);
+  $("f-wheel-rule-add").addEventListener("click", () => {
+    const row = wheelRuleRow({});
+    $("f-wheel-rules").append(row);
+    fillWheelPrizes();
+    row.querySelector(".wheel-rule-every").focus();
+  });
   $("ref-copy").addEventListener("click", () => copyText($("ref-url").value));
   $("staff-create").addEventListener("click", onCreateStaffLink);
   $("team-add").addEventListener("click", onAddStaff);
@@ -1599,8 +1605,10 @@ function readForm() {
     discount_text: $("f-discount-text").value,
     bonus_mode: $("f-bonus-mode").value,
     bonus_prizes: readPrizes(),
-    wheel_prize_every: $("f-wheel-every").value,
-    wheel_prize_label: $("f-wheel-prize").value,
+    wheel_prize_rules: [...$("f-wheel-rules").children].map((row) => ({
+      every: row.querySelector(".wheel-rule-every").value,
+      label: row.querySelector(".wheel-rule-prize").value
+    })),
     bonus_from_days: $("f-bonus-from").value,
     bonus_valid_days: $("f-bonus-valid").value,
     bonus_cooldown_days: $("f-bonus-cooldown").value,
@@ -2091,8 +2099,11 @@ function fillBonus(business) {
     ? business.bonus_prizes
     : DEFAULT_PRIZES;
   $("f-prizes").replaceChildren(...prizes.map(prizeRow));
-  $("f-wheel-every").value = business?.wheel_prize_every ?? "";
-  fillWheelPrize(business?.wheel_prize_label || "");
+  const legacyRules = business?.wheel_prize_every
+    ? [{ every: business.wheel_prize_every, label: business.wheel_prize_label }]
+    : [];
+  const rules = business?.wheel_prize_rules ?? legacyRules;
+  $("f-wheel-rules").replaceChildren(...rules.map(wheelRuleRow));
   $("f-wheel-count").textContent = `Вращений с выдачей подарка: ${business?.wheel_spin_count ?? 0}`;
   $("f-bonus-from").value = business ? business.bonus_from_days ?? 1 : 1;
   $("f-bonus-valid").value = business ? business.bonus_valid_days ?? 14 : 14;
@@ -2417,6 +2428,9 @@ function showBonusMode() {
   $("f-bonus-settings").hidden = mode === "off";
   $("f-fixed-box").hidden = mode !== "fixed";
   $("f-wheel-box").hidden = mode !== "wheel";
+  for (const input of $("f-wheel-rules").querySelectorAll(".wheel-rule-every")) {
+    input.disabled = mode !== "wheel";
+  }
 }
 
 function prizeRow(prize) {
@@ -2427,7 +2441,7 @@ function prizeRow(prize) {
   label.placeholder = "Название приза";
   label.value = prize.label || "";
   label.className = "prize-label";
-  label.addEventListener("input", () => fillWheelPrize());
+  label.addEventListener("input", fillWheelPrizes);
   const weight = el("input");
   weight.type = "number";
   weight.min = "1";
@@ -2556,7 +2570,7 @@ function updatePrizeShares() {
     row.classList.toggle("is-off", !isOn(row));
   }
   $("f-prize-add").hidden = rows.length >= PRIZES_MAX;
-  fillWheelPrize();
+  fillWheelPrizes();
   const active = rows.filter(isOn).length;
   const note = $("f-prizes-note");
   if (note) {
@@ -2566,16 +2580,32 @@ function updatePrizeShares() {
   }
 }
 
-function fillWheelPrize(selected = $("f-wheel-prize").value) {
-  const select = $("f-wheel-prize");
+function wheelRuleRow(rule) {
+  const row = $("f-wheel-rule-template").content.firstElementChild.cloneNode(true);
+  row.querySelector(".wheel-rule-every").value = rule.every ?? "";
+  const prize = row.querySelector(".wheel-rule-prize");
+  prize.add(new Option(rule.label || "Выберите подарок", rule.label || ""));
+  row.querySelector(".wheel-rule-remove").addEventListener("click", () => {
+    row.remove();
+    fillWheelPrizes();
+    $("f-wheel-rule-add").focus();
+  });
+  return row;
+}
+
+function fillWheelPrizes() {
   const labels = [...$("f-prizes").children]
     .filter((row) => row.querySelector(".prize-active").checked)
     .map((row) => row.querySelector(".prize-label").value.trim())
     .filter(Boolean);
   const unique = labels.filter((label) => labels.indexOf(label) === labels.lastIndexOf(label));
-  select.replaceChildren(new Option("Выберите подарок", ""), ...unique.map((label) => new Option(label, label)));
-  if (selected && !unique.includes(selected)) select.add(new Option(`${selected} (недоступен)`, selected));
-  select.value = selected;
+  for (const select of $("f-wheel-rules").querySelectorAll(".wheel-rule-prize")) {
+    const selected = select.value;
+    select.replaceChildren(new Option("Выберите подарок", ""), ...unique.map((label) => new Option(label, label)));
+    if (selected && !unique.includes(selected)) select.add(new Option(`${selected} (недоступен)`, selected));
+    select.value = selected;
+  }
+  $("f-wheel-rule-add").disabled = $("f-wheel-rules").children.length >= 50;
 }
 
 async function loadBonusStats(business) {

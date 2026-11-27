@@ -699,17 +699,25 @@
             <button id="f-prize-add" class="btn btn-secondary btn-small" type="button">+ Добавить приз</button>
             <a id="f-wheel-preview" class="btn btn-secondary btn-small" href="#" target="_blank" rel="noopener" hidden>Посмотреть колесо ↗</a>
             <p id="f-wheel-count" class="field-hint"></p>
-            <div class="grid-2">
-              <label class="field">
-                <span>Гарантированный подарок каждые N вращений</span>
-                <input id="f-wheel-every" type="number" min="1" max="1000000" step="1" placeholder="Например, 20">
-              </label>
-              <label class="field">
-                <span>Какой подарок выдавать</span>
-                <select id="f-wheel-prize"></select>
-              </label>
-            </div>
-            <p class="field-hint">При интервале 20 выбранный подарок выпадет на 20-м, 40-м, 60-м вращении и так далее. На остальных вращениях действуют шансы призов. Чтобы отключить правило, очистите интервал.</p>
+            <span>Гарантированные подарки</span>
+            <div id="f-wheel-rules" class="prizes"></div>
+            <template id="f-wheel-rule-template">
+              <div class="prize-row">
+                <div class="grid-2">
+                  <label class="field">
+                    <span>Каждые N вращений</span>
+                    <input class="wheel-rule-every" type="number" min="1" max="1000000" step="1" placeholder="Например, 20">
+                  </label>
+                  <label class="field">
+                    <span>Какой подарок выдавать</span>
+                    <select class="wheel-rule-prize"></select>
+                  </label>
+                </div>
+                <div><button class="btn btn-secondary btn-small wheel-rule-remove" type="button">Удалить правило</button></div>
+              </div>
+            </template>
+            <button id="f-wheel-rule-add" class="btn btn-secondary btn-small" type="button">+ Добавить правило</button>
+            <p class="field-hint">При интервале 20 подарок выпадет на 20-м, 40-м, 60-м вращении и так далее. Если на одно вращение приходится несколько правил, сработает правило с самым большим интервалом. В остальные вращения действуют шансы призов.</p>
           </div>
 
           <div class="grid-3">

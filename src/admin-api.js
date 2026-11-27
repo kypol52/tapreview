@@ -93,7 +93,7 @@ const ADMIN_COLUMNS =
   "google_url,yandex_url,twogis_url,discount_code,discount_text,is_active," +
   "paid_until,monthly_price,billing_note," +
   "bonus_mode,bonus_prizes,bonus_from_days,bonus_valid_days,bonus_cooldown_days,bonus_conditions,bonus_daily_limit," +
-  "wheel_spin_count,wheel_prize_every,wheel_prize_label," +
+  "wheel_spin_count,wheel_prize_every,wheel_prize_label,wheel_prize_rules," +
   "stamps_goal,stamps_prize,friend_gift,friend_reward,vip_visits,vip_gift,sorry_gift," +
   "referred_by,ref_reward_at,theme,design,extra_links,rating_first,moment,tariff,modules,pay_on,wifi_name,wifi_password," +
   "points_on,points_percent,points_max_share,points_expire_days,points_max_check," +
@@ -930,10 +930,26 @@ function cleanBonus(input) {
     if (!Number.isInteger(n) || n < min || n > max) throw new HttpError(400, `${label}: целое число от ${min} до ${max}`);
     return n;
   };
-  // Старые клиенты админки могут присылать форму без полей правила.
-  const wheelRule = mode !== "wheel" || "wheel_prize_every" in input || "wheel_prize_label" in input
-    ? cleanWheelRule(mode, input, activePrizes, int)
-    : {};
+  let wheelRule = {};
+  if (mode !== "wheel") {
+    wheelRule = { wheel_prize_rules: [], wheel_prize_every: null, wheel_prize_label: null };
+  } else if (input.wheel_prize_rules != null) {
+    if (!Array.isArray(input.wheel_prize_rules) || input.wheel_prize_rules.length > 50) {
+      throw new HttpError(400, "Колесо: укажите не больше 50 правил выдачи");
+    }
+    const rules = input.wheel_prize_rules.map((rule, i) =>
+      cleanWheelRule(rule?.every, rule?.label, activePrizes, int, `Правило ${i + 1}`));
+    if (new Set(rules.map((rule) => rule.every)).size !== rules.length) {
+      throw new HttpError(400, "Укажите разные интервалы для гарантированных подарков");
+    }
+    wheelRule = { wheel_prize_rules: rules, wheel_prize_every: null, wheel_prize_label: null };
+  } else if ("wheel_prize_every" in input || "wheel_prize_label" in input) {
+    // Старые клиенты отправляют только одно правило. Сохранённый список имеет приоритет.
+    const rule = input.wheel_prize_every == null || input.wheel_prize_every === ""
+      ? null
+      : cleanWheelRule(input.wheel_prize_every, input.wheel_prize_label, activePrizes, int, "Правило");
+    wheelRule = { wheel_prize_every: rule?.every ?? null, wheel_prize_label: rule?.label ?? null };
+  }
   // Штампы (миграция 028): пусто — выключены
   const stampsGoal = int(input.stamps_goal, 2, 10, "Штампов до особого приза", null);
   const stampsPrize = cleanText(input.stamps_prize, 60, "Особый приз за штампы") || null;
@@ -971,13 +987,16 @@ function cleanBonus(input) {
   };
 }
 
-function cleanWheelRule(mode, input, activePrizes, int) {
-  const every = mode === "wheel" ? int(input.wheel_prize_every, 1, 1000000, "Интервал подарка", null) : null;
-  const label = every ? cleanText(input.wheel_prize_label, 30, "Гарантированный подарок") : null;
-  if (every && activePrizes.filter((prize) => prize.label === label).length !== 1) {
-    throw new HttpError(400, "Выберите включённый подарок с уникальным названием");
+function cleanWheelRule(value, prize, activePrizes, int, name) {
+  const every = typeof value === "number" || typeof value === "string"
+    ? int(value, 1, 1000000, `${name} — интервал подарка`, null)
+    : null;
+  if (!every) throw new HttpError(400, `${name} — укажите интервал подарка`);
+  const label = typeof prize === "string" ? cleanText(prize, 30, `${name} — гарантированный подарок`) : "";
+  if (activePrizes.filter((item) => item.label === label).length !== 1) {
+    throw new HttpError(400, `${name} — выберите включённый подарок с уникальным названием`);
   }
-  return { wheel_prize_every: every, wheel_prize_label: label };
+  return { every, label };
 }
 
 function cleanDate(value) {
