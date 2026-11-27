@@ -1106,9 +1106,9 @@ function designCss(d) {
 //   потому что общий noindex отключает и превью ссылки в Telegram.
 const ROBOTS_ALL = `<meta name="robots" content="noindex">`;
 export const ROBOTS_SEARCH_ONLY = `<meta name="yandex" content="noindex, nofollow">\n  <meta name="googlebot" content="noindex, nofollow">\n  <meta name="bingbot" content="noindex, nofollow">`;
-export function renderPage({ status, title, accent, body, extraCss = "", footer = null, theme = "classic", design = null, meta = "", robots = ROBOTS_ALL, script = "" }) {
+export function renderPage({ status, title, accent, body, extraCss = "", footer = null, theme = "classic", design = null, meta = "", robots = ROBOTS_ALL, loadingIndicator = true, script = "" }) {
   const t = THEMES[theme] || THEMES.classic;
-  const nonce = script ? btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16)))) : "";
+  const nonce = loadingIndicator || script ? btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16)))) : "";
   if (design) extraCss = designCss(design) + extraCss;
   // Внизу всегда зелёная кнопка «Работает на TapReview»; на страницах без заведения (карта отключена, не найдена) — на главную
   const cta = footer || { href: "/", text: "Хочу такую карту" };
@@ -1679,9 +1679,58 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
       @keyframes bonus-show { from { visibility: hidden; opacity: 0; max-height: 0; margin-top: 0; overflow: hidden; } to { visibility: visible; opacity: 1; } }
     }
 ${extraCss}
+    .tr-loading {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 100;
+      pointer-events: none; padding: 16px 24px; border-radius: 16px; text-align: center;
+      background: #fff; box-shadow: 0 2px 12px #0002;
+      color: #9aa6a1; font: 700 28px/1.25 system-ui, sans-serif;
+    }
+    .tr-loading span { position: relative; }
+    .tr-loading small { display: block; margin-top: 4px; color: #49584f; font: 400 14px/1.4 system-ui, sans-serif; white-space: nowrap; }
+    .tr-loading span::after {
+      content: "TapReview"; position: absolute; inset: 0; color: #107549;
+      clip-path: inset(0 calc(100% - var(--loaded, 0%)) 0 0);
+      transition: clip-path 180ms ease-out;
+    }
+    @media (prefers-reduced-motion: reduce) { .tr-loading span::after { transition: none; } }
   </style>
 </head>
 <body>
+  ${loadingIndicator ? `<div hidden class="tr-loading" role="status"><span aria-hidden="true">TapReview</span><small>Загружаем страницу…</small></div>
+  <script nonce="${nonce}">(() => {
+    const badge = document.querySelector(".tr-loading");
+    let progress = 0;
+    function update() {
+      const images = Array.from(document.images).filter(image => image.loading !== "lazy");
+      const parsed = document.readyState !== "loading";
+      const fontsReady = !document.fonts || document.fonts.status === "loaded";
+      const ready = images.filter(image => image.complete).length + Number(parsed) + Number(parsed && fontsReady);
+      progress = Math.max(progress, Math.round(100 * ready / (images.length + 3)));
+      badge.style.setProperty("--loaded", progress + "%");
+    }
+    const delay = setTimeout(() => {
+      update();
+      badge.hidden = false;
+      document.addEventListener("load", update, true);
+      document.addEventListener("error", update, true);
+      document.addEventListener("DOMContentLoaded", update);
+      document.fonts?.addEventListener("loadingdone", update);
+    }, 600);
+    function stop() {
+      clearTimeout(delay);
+      document.removeEventListener("load", update, true);
+      document.removeEventListener("error", update, true);
+      document.removeEventListener("DOMContentLoaded", update);
+      document.fonts?.removeEventListener("loadingdone", update);
+    }
+    window.addEventListener("load", () => {
+      stop();
+      if (badge.hidden) return;
+      badge.style.setProperty("--loaded", "100%");
+      setTimeout(() => { badge.hidden = true; }, 200);
+    }, { once: true });
+    window.addEventListener("pagehide", () => { stop(); badge.hidden = true; }, { once: true });
+  })();</script>` : ""}
   <main class="card">
     ${body}
   </main>
@@ -1697,9 +1746,9 @@ ${script ? `<script nonce="${nonce}">${script}</script>` : ""}
       "Cache-Control": "no-store",
       "X-Content-Type-Options": "nosniff",
       "Referrer-Policy": "strict-origin-when-cross-origin",
-      // script — только у страниц, которым он нужен (корзина меню, menu.js): разовый nonce
+      // Встроенные скрипты страницы используют разовый nonce.
       "Content-Security-Policy":
-        `default-src 'none'; ${script ? `script-src 'nonce-${nonce}'; ` : ""}img-src 'self' https:; font-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`
+        `default-src 'none'; ${nonce ? `script-src 'nonce-${nonce}'; ` : ""}img-src 'self' https:; font-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`
     }
   });
 }

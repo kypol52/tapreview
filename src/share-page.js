@@ -127,6 +127,7 @@ export async function handleSharePage(request, env, slug) {
     meta,
     // Общий noindex отключает превью в Telegram — запрещаем индексацию только поисковикам
     robots: ROBOTS_SEARCH_ONLY,
+    loadingIndicator: false,
     extraCss,
     footer: { href: `/r/${b.slug}?s=link`, text: "Хочу такую карту" },
     body
