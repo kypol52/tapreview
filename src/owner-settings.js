@@ -348,7 +348,7 @@ function bonusSection(b, hidden, msg) {
     const on = !p.label || p.active !== false;
     return `<div class="set-prize-card">
       <div class="set-prize"><input name="p${i}" maxlength="30" value="${esc(p.label || "")}" placeholder="${i === 0 ? "Капучино" : i === 1 ? "Скидка 10%" : "Приз " + (i + 1)}" aria-label="Приз ${i + 1}">
-        <input name="w${i}" type="number" min="1" max="1000" inputmode="numeric" value="${p.label ? esc(String(p.weight ?? 1)) : ""}" placeholder="шанс" aria-label="Шанс приза ${i + 1}"></div>
+        <input name="w${i}" type="number" min="0.1" max="1000" step="0.1" inputmode="decimal" value="${p.label ? esc(String(p.weight ?? 1)) : ""}" placeholder="шанс" aria-label="Шанс приза ${i + 1}"></div>
       <div class="set-prize-line">
         <label class="set-check"><input type="checkbox" name="on${i}" value="1"${on ? " checked" : ""}> Включён</label>
         <label class="set-pos">Место<input name="pos${i}" type="number" min="1" max="${MAX_PRIZES}" inputmode="numeric" value="${i + 1}"></label>

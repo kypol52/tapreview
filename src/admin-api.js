@@ -897,8 +897,8 @@ function cleanBonus(input) {
     const label = cleanText(p && p.label, 30, `Приз ${i + 1}`);
     const weight = Number(p && p.weight);
     if (!label) throw new HttpError(400, `Приз ${i + 1}: укажите название`);
-    if (!Number.isInteger(weight) || weight < 1 || weight > 1000) {
-      throw new HttpError(400, `Приз «${label}»: шанс — целое число от 1 до 1000`);
+    if (!(weight >= 0.1 && weight <= 1000) || Math.round(weight * 10) / 10 !== weight) {
+      throw new HttpError(400, `Приз «${label}» — укажите вес от 0,1 до 1000 с шагом 0,1`);
     }
     const icon = p.icon === undefined || p.icon === null || p.icon === "" ? "auto" : String(p.icon);
     if (!WHEEL_ICONS[icon]) throw new HttpError(400, `Приз «${label}»: неизвестный значок`);

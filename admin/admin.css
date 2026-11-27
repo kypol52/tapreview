@@ -558,7 +558,7 @@ input[type="color"]:disabled { opacity: 0.4; }
 .xlink-row .xlink-label { width: 150px; flex: none; }
 .xlink-row .xlink-url { flex: 1; min-width: 160px; }
 .xlinks-box .field-hint { margin: 0 0 10px; }
-.prize-share { width: 40px; font-size: 13px; font-weight: 600; color: var(--muted); text-align: right; }
+.prize-share { min-width: 58px; font-size: 13px; font-weight: 600; color: var(--muted); text-align: right; white-space: nowrap; }
 @media (max-width: 640px) { .grid-3 { grid-template-columns: 1fr; } }
 .ref-visits { margin: 10px 0 0; font-size: 13px; }
 

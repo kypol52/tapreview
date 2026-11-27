@@ -2444,9 +2444,10 @@ function prizeRow(prize) {
   label.addEventListener("input", fillWheelPrizes);
   const weight = el("input");
   weight.type = "number";
-  weight.min = "1";
+  weight.min = "0.1";
   weight.max = "1000";
-  weight.step = "1";
+  weight.step = "0.1";
+  weight.inputMode = "decimal";
   weight.value = String(prize.weight || 10);
   weight.className = "prize-weight";
   weight.title = "Вес: чем больше, тем чаще выпадает";
@@ -2560,13 +2561,24 @@ function readPrizes() {
 }
 
 // Рядом с весом показываем шанс в процентах (среди включённых) — так понятнее
+const prizePercent = new Intl.NumberFormat("ru-RU", {
+  style: "percent",
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1
+});
+
 function updatePrizeShares() {
   const rows = [...$("f-prizes").children];
   const isOn = (row) => row.querySelector(".prize-active").checked;
   const total = rows.reduce((sum, row) => sum + (isOn(row) ? Number(row.querySelector(".prize-weight").value) || 0 : 0), 0);
   for (const row of rows) {
-    const w = Number(row.querySelector(".prize-weight").value) || 0;
-    row.querySelector(".prize-share").textContent = !isOn(row) ? "выкл" : total ? `${Math.round((w / total) * 100)}%` : "";
+    let display = "выкл";
+    if (isOn(row)) {
+      const share = total ? Number(row.querySelector(".prize-weight").value) / total : 0;
+      display = total ? prizePercent.format(share) : "";
+      if (share > 0 && share < 0.001) display = `<${prizePercent.format(0.001)}`;
+    }
+    row.querySelector(".prize-share").textContent = display;
     row.classList.toggle("is-off", !isOn(row));
   }
   $("f-prize-add").hidden = rows.length >= PRIZES_MAX;
