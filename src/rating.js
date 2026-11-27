@@ -18,8 +18,10 @@ import { tapOf, ipAllow } from "./tap.js";
 const DEDUPE_WINDOW_MINUTES = 30;
 const SLUG_RE = /^[A-Za-z0-9_-]{3,64}$/;
 const MAX_TEXT = 1000;
-// Телефон гостя (по желанию, с согласием) хранится столько дней, потом стирается (purgeOldPhones)
+// Номер для ответа владельца хранится столько дней, потом стирается (purgeOldPhones)
 export const PHONE_KEEP_DAYS = 30;
+export const FEEDBACK_PHONE_PATTERN = String.raw`(?:\+?[78][ \(\)\-]*(?:[0-9][ \(\)\-]*){10}|9(?:[ \(\)\-]*[0-9]){9})`;
+const FEEDBACK_PHONE_RE = new RegExp(`^${FEEDBACK_PHONE_PATTERN}$`, "u");
 // Сообщений владельцу в сутки на заведение: всего и пришедших не с карты (прямая ссылка, накрутка)
 export const FEEDBACK_PER_DAY = 50;
 export const DIRECT_FEEDBACK_PER_DAY = 8;
@@ -56,7 +58,7 @@ export const REMIND_AFTER_HOURS = 2;
 export const RECOVERY_CRON = "*/10 * * * *";
 
 // Шаг на странице по адресу: ?r=1..5 — оценка, ?v=all — сразу к площадкам, ?sent=1 — сообщение отправлено,
-// ?l=food,service — отмеченное «Что понравилось», ?np=1 — номер не сохранили (неверный формат)
+// ?l=food,service — отмеченное «Что понравилось», ?contact=phone|consent — ошибка контактных данных
 export function flowFrom(url) {
   const r = Number(url.searchParams.get("r"));
   const score = Number.isInteger(r) && r >= 1 && r <= 5 ? r : null;
@@ -68,7 +70,7 @@ export function flowFrom(url) {
     likes,
     all: url.searchParams.get("v") === "all",
     sent: url.searchParams.get("sent") === "1",
-    phoneLost: url.searchParams.get("np") === "1",
+    contactError: url.searchParams.get("contact"),
     // ?e=1 — отправили пустую форму (ни причины, ни текста)
     empty: url.searchParams.get("e") === "1"
   };
@@ -76,10 +78,9 @@ export function flowFrom(url) {
 
 // Российский номер → +7XXXXXXXXXX, иначе null
 export function normalizePhone(value) {
-  const digits = String(value || "").replace(/\D/g, "");
-  if (digits.length === 10 && digits[0] === "9") return `+7${digits}`;
-  if (digits.length === 11 && (digits[0] === "7" || digits[0] === "8")) return `+7${digits.slice(1)}`;
-  return null;
+  const input = String(value || "").trim();
+  if (!FEEDBACK_PHONE_RE.test(input)) return null;
+  return `+7${input.replace(/\D/g, "").slice(-10)}`;
 }
 
 // Оценка: один посетитель — одна оценка за 30 минут (передумал — обновляется).
@@ -144,14 +145,9 @@ export async function handleFeedback(request, env, ctx) {
   back.set("r", String(score));
   back.set("sent", "1");
   const message = String(form.get("text") || "").replace(/\r\n?/g, "\n").trim().slice(0, MAX_TEXT);
-  // Телефон — только если гость сам отметил «Перезвоните мне» (это и есть согласие); без отметки номер не берём
-  const consent = form.get("call") === "1";
-  // Поле телефона заранее заполнено «+7 » — без остальных цифр считаем пустым
-  const rawPhone = consent && String(form.get("phone") || "").replace(/\D/g, "").length > 1 ? String(form.get("phone")).trim() : "";
-  const phone = rawPhone ? normalizePhone(rawPhone) : null;
-  if (rawPhone && !phone) back.set("np", "1");
-  const location = `${cardCode ? `/c/${cardCode}` : `/b/${slug}`}?${back}`;
-  const done = () => new Response(null, { status: 303, headers: { Location: location, "Cache-Control": "no-store" } });
+  const path = cardCode ? `/c/${cardCode}` : `/b/${slug}`;
+  const redirectBack = (hash = "") => new Response(null, { status: 303, headers: { Location: `${path}?${back}${hash}`, "Cache-Control": "no-store" } });
+  const done = () => redirectBack();
   // Причины (миграция 044): только известные, без повторов
   const reasons = [...new Set(form.getAll("why").filter((k) => REASON_KEYS.includes(k)))];
 
@@ -161,7 +157,13 @@ export async function handleFeedback(request, env, ctx) {
   if (!message && !reasons.length) {
     back.delete("sent");
     back.set("e", "1");
-    return new Response(null, { status: 303, headers: { Location: `${cardCode ? `/c/${cardCode}` : `/b/${slug}`}?${back}#fb`, "Cache-Control": "no-store" } });
+    return redirectBack("#fb");
+  }
+  const phone = normalizePhone(form.get("phone"));
+  if (!phone || form.get("call") !== "1") {
+    back.delete("sent");
+    back.set("contact", phone ? "consent" : "phone");
+    return redirectBack("#fb");
   }
 
   try {
@@ -192,17 +194,19 @@ export async function handleFeedback(request, env, ctx) {
       const cards = await db(env, `cards?code=eq.${cardCode}&business_id=eq.${business.id}&select=id,code,label,staff_id&limit=1`);
       card = cards[0] || null;
     }
-    const body = { business_id: business.id, card_id: card ? card.id : null, score, text: message, reasons, source, visitor_hash: visitor };
+    const body = {
+      business_id: business.id, card_id: card ? card.id : null, score, text: message, reasons, source,
+      visitor_hash: visitor, phone, phone_consent_at: new Date().toISOString()
+    };
     // Личная карта сотрудника (staff.js) — сообщение относится к нему (только с касания карты, иначе жалобы на
     // официанта можно было бы слать из дома по номеру его карты)
     if (card && card.staff_id && tap) body.staff_id = card.staff_id;
-    if (phone) Object.assign(body, { phone, phone_consent_at: new Date().toISOString() });
     const saved = await db(env, "feedback?select=id", { method: "POST", body, prefer: "return=representation" });
     // Модуль AI (ai.js): сначала разметка (до 15 с), потом сообщение владельцу — с пометкой «Срочно», если нужно.
     // AI не ответил — сообщение уходит как обычно. Сообщения не с карты в AI не отправляем.
     ctx.waitUntil((async () => {
       const ai = tap ? await classifyFeedback(env, business, saved[0].id, { text: message, score, reasons }).catch(() => null) : null;
-      await notifyOwner(env, business, card, score, message, saved[0].id, Boolean(phone), reasons, ai);
+      await notifyOwner(env, business, card, score, message, saved[0].id, reasons, ai);
     })());
   } catch (error) {
     console.error(`Feedback error: ${error.message}\n${error.stack}`);
@@ -212,18 +216,14 @@ export async function handleFeedback(request, env, ctx) {
 
 // Сообщение сразу владельцу — всем, кто подключил Telegram-бота этого заведения
 // Сам номер в Telegram не отправляем (серверы Telegram за пределами РФ) — только ссылку на статистику, где он виден
-async function notifyOwner(env, business, card, score, message, id, hasPhone, reasons = [], ai = null) {
+async function notifyOwner(env, business, card, score, message, id, reasons = [], ai = null) {
   try {
     const chats = await db(env, `tg_subscribers?business_id=eq.${business.id}&select=chat_id`);
     if (!chats.length) return;
     const where = card ? `\n🃏 Карта ${card.label ? `«${esc(card.label)}» ` : ""}${card.code.slice(0, 3)}-${card.code.slice(3)}` : "";
-    let contact = "Гость остался анонимным. Разберитесь с причиной, пока он ещё рядом, — так недовольство не уйдёт в публичный отзыв.";
-    if (hasPhone) {
-      const link = await statsLinkOf(env, business.id);
-      contact = `📞 <b>Гость просит перезвонить.</b> Номер — в статистике${link ? `:\n${link}#fb` : " по вашей ссылке."}\n` +
-        `Позвоните, пока впечатление свежее, — так недовольство не уйдёт в публичный отзыв. ` +
-        `Номер гость ввёл сам, мы его не проверяем: если ответил другой человек — извинитесь и не продолжайте разговор.`;
-    }
+    const link = await statsLinkOf(env, business.id);
+    const contact = `📞 <b>Гость оставил номер для связи.</b> Номер в статистике${link ? `:\n${link}#fb` : " по вашей ссылке."}\n` +
+      `Номер гость ввёл сам. Если ответил другой человек, извинитесь и завершите разговор.`;
     const labels = reasonLabels(business.category);
     const why = reasons.length ? `\nПричина: <b>${reasons.map((k) => esc(labels[k])).join(", ")}</b>` : "";
     // Модуль AI: «Срочно» сверху и суть одной фразой

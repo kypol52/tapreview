@@ -11,7 +11,7 @@ import { guestOf, vipOn } from "./guests.js";
 import { has, hasModule } from "./tariffs.js";
 import { isExpired } from "./billing.js";
 import { bonusBlock, sorryOn, sorryCode, sorryHtml } from "./bonus.js";
-import { flowFrom, logRating, LIKES, PHONE_KEEP_DAYS, reasonLabels } from "./rating.js";
+import { flowFrom, logRating, LIKES, PHONE_KEEP_DAYS, FEEDBACK_PHONE_PATTERN, reasonLabels } from "./rating.js";
 import { makeCardTicket } from "./app-auth.js";
 import { serviceBlock, SERVICE_CSS } from "./service.js";
 import { payOn } from "./pay.js";
@@ -872,7 +872,6 @@ const FB_SCRIPT = `(function () {
   }
   f.addEventListener("submit", function () {
     if (auto && t.value.indexOf(auto.trim()) === 0) t.value = t.value.slice(auto.trim().length).trim();
-    if (p && !digits(p.value)) p.value = "";
   });
 })();`;
 
@@ -933,8 +932,7 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
       <h2 class="thanks">Спасибо, что рассказали</h2>
       ${chosen}
       ${sorryHtml(flow.sorry)}
-      <p class="lead">${demo ? "В рабочей карточке эта обратная связь поступит владельцу." : "Владелец уже получил ваше сообщение и разберётся. Будем рады видеть вас снова."}</p>
-      ${flow.phoneLost ? `<p class="fb-warn">Номер не похож на российский, поэтому мы его не сохранили. Сообщение владелец получил.</p>` : ""}`;
+      <p class="lead">${demo ? "В рабочей карточке эта обратная связь поступит владельцу." : "Владелец уже получил ваше сообщение и разберётся. Будем рады видеть вас снова."}</p>`;
   } else {
     // 2в. Оценка 1–3 — сообщение владельцу; поле и кнопка — после выбора причины
     step = `
@@ -943,6 +941,8 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
       ${sorryHtml(flow.sorry)}
       <p class="lead">${demo ? "Отметьте причину, чтобы посмотреть, как работает обратная связь." : "Отметьте, что не так, — владелец получит сообщение сразу и разберётся."}</p>
       ${flow.empty ? `<p class="fb-warn" role="alert">Отметьте причину или напишите пару слов.</p>` : ""}
+      ${flow.contactError === "phone" ? `<p class="fb-warn" role="alert">Введите полный номер телефона, чтобы отправить сообщение.</p>` : ""}
+      ${flow.contactError === "consent" ? `<p class="fb-warn" role="alert">Подтвердите согласие на обратную связь.</p>` : ""}
       <form class="fb" id="fb" ${demo ? `method="get" action="${escapeHtml(demo.path)}"` : 'method="post" action="/feedback"'}>
         <fieldset class="why"><legend>Что пошло не так?</legend>
           ${Object.entries(reasonLabels(business.category)).map(([key, label]) =>
@@ -959,16 +959,18 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
         <!-- Остальная форма появляется после выбора причины (CSS :has); старые браузеры видят её сразу -->
         <div class="fb-more">
         <textarea name="text" rows="3" maxlength="1000" placeholder="Расскажите подробнее (необязательно)" aria-label="Ваше сообщение"></textarea>
-        <input class="fb-call-box" type="checkbox" name="call" value="1" id="fb-call">
-        <label class="fb-call" for="fb-call">Перезвоните мне</label>
         <div class="fb-phone">
-          <input type="tel" name="phone" inputmode="tel" autocomplete="tel" maxlength="20" value="+7 " placeholder="+7 900 000-00-00" aria-label="Ваш телефон">
-          <p class="fb-consent">Отмечая «Перезвоните мне» и указывая номер, вы соглашаетесь, что ${escapeHtml(business.name)} свяжется с вами по этому сообщению.
-            Номер видит только владелец, он не уходит в рекламу и удаляется через ${PHONE_KEEP_DAYS} дней. <a href="/privacy/#guests" target="_blank" rel="noopener">Подробнее</a></p>
-        </div>`}
-        <p class="fb-hint">Без отметки сообщение анонимное — имя и телефон в тексте не пишите.</p>
-        <button class="fb-send" type="submit">Отправить владельцу</button>
+          <label for="fb-phone">Номер телефона (обязательно)</label>
+          <input id="fb-phone" type="tel" name="phone" inputmode="tel" autocomplete="tel" maxlength="20"
+            placeholder="+7 900 000-00-00" pattern="${FEEDBACK_PHONE_PATTERN}" title="Введите полный российский номер"
+            aria-describedby="fb-phone-note" required>
+          <label class="fb-call"><input class="fb-call-box" type="checkbox" name="call" value="1" required>
+            <span>Я согласен, чтобы заведение связалось со мной по этому сообщению</span></label>
+          <p class="fb-consent" id="fb-phone-note">Номер доступен владельцу заведения и удаляется через ${PHONE_KEEP_DAYS} дней.
+            <a href="/privacy/#guests" target="_blank" rel="noopener">Подробнее</a></p>
         </div>
+        <button class="fb-send" type="submit">Отправить владельцу</button>
+        </div>`}
       </form>`;
   }
   // 1–3: сначала кнопка Telegram, под ней «Оставить отзыв на картах» (доступна при любой оценке — правило площадок)
@@ -1087,7 +1089,7 @@ function designCss(d) {
     .xlink { background: var(--btn-bg); }
     .xlink:hover { border-color: var(--accent); box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 30%, transparent); }
     .bonus-button { box-shadow: ${glow("var(--accent)")}; }
-    .fb textarea, .fb-phone input, .like, .moment { background: rgba(0, 0, 0, 0.35); }
+    .fb textarea, .fb-phone input[type="tel"], .like, .moment { background: rgba(0, 0, 0, 0.35); }
     .moment { border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
     .like-on { background: color-mix(in srgb, var(--accent) 22%, rgba(0, 0, 0, 0.35)); box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 35%, transparent); }
     .footer:not(.footer-cta-btn) { background: rgba(18, 13, 10, 0.6); border-color: rgba(255, 236, 214, 0.2); color: var(--muted); }
@@ -1323,29 +1325,27 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
       border: 1px solid var(--btn-border); background: var(--btn-bg); color: var(--text); font: inherit; font-size: 16px; line-height: 1.4;
     }
     .fb textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-    .fb-hint { margin: 8px 2px 12px; color: var(--muted); font-size: 12.5px; }
     .fb-send {
       display: block; width: 100%; padding: 15px 18px; border: 0; border-radius: 999px; cursor: pointer;
       background: linear-gradient(135deg, var(--cta1), var(--cta2)); color: #fff; font: inherit; font-size: 16px; font-weight: 700;
     }
     .fb-send:active { transform: scale(0.98); }
     .fb-trap { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
-    /* Поле, «Перезвоните мне» и кнопка — только после выбора причины */
+    /* Поля и кнопка появляются после выбора причины. */
     .fb-more { animation: fb-in 0.25s ease both; }
     @keyframes fb-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
     @supports selector(:has(*)) {
       .fb:not(:has(.why input:checked)) .fb-more { display: none; }
     }
-    /* «Перезвоните мне»: поле телефона появляется только после отметки (без скриптов) */
-    .fb-call-box { width: 20px; height: 20px; margin: 14px 8px 0 2px; vertical-align: -4px; accent-color: var(--accent); cursor: pointer; }
-    .fb-call { font-size: 15px; font-weight: 650; cursor: pointer; }
-    .fb-phone { display: none; margin-top: 10px; }
-    .fb-call-box:checked ~ .fb-phone { display: block; }
-    .fb-phone input {
+    .fb-call { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; font-size: 14px; cursor: pointer; }
+    .fb-call-box { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+    .fb-phone { margin: 12px 0; }
+    .fb-phone > label:first-child { display: block; margin-bottom: 6px; font-size: 14px; font-weight: 650; }
+    .fb-phone input[type="tel"] {
       display: block; width: 100%; padding: 12px 14px; border-radius: 14px;
       border: 1px solid var(--btn-border); background: var(--btn-bg); color: var(--text); font: inherit; font-size: 16px;
     }
-    .fb-phone input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .fb-phone input[type="tel"]:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
     .fb-consent { margin: 8px 2px 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
     .fb-consent a { color: inherit; }
     .fb-warn { margin: 0 0 8px; color: var(--muted); font-size: 13px; }
