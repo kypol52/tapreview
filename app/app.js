@@ -1993,7 +1993,7 @@ function staffGiftTab(box, token) {
   });
   const check = h("button", { class: "btn btn-primary btn-block" }, "Проверить");
   const out = h("div", { class: "stack", style: "padding:0" });
-  box.replaceChildren(h("div", { class: "card" }, h("p", { class: "fine", style: "margin:0 0 10px" }, "Введите код с экрана гостя: 6 символов, например 123-456"), input, h("div", { style: "height:10px" }), check, abc), out,
+  box.replaceChildren(h("div", { class: "card" }, h("p", { class: "fine", style: "margin:0 0 10px" }, "Введите код бонуса из 6 символов. После проверки можно сверить номер подтверждения."), input, h("div", { style: "height:10px" }), check, abc), out,
     h("p", { class: "fine", style: "margin:2px" }, "Код действует один раз. Подарок не зависит от отзыва — так требуют правила Яндекс Карт и 2ГИС."));
 
   const format = (v) => {
@@ -2003,12 +2003,13 @@ function staffGiftTab(box, token) {
   const show = (r) => {
     const [cls, title] = GIFT_STATE[r.state] || GIFT_STATE.none;
     const nodes = [h("div", { class: `notice ${cls}`, style: "display:block" },
-      h("b", null, title),
+      h("b", null, r.guestRedeemed ? "Код погашен гостем" : title),
       r.vip ? h("div", null, "⭐ VIP-гость") : null,
       r.prize ? h("div", { style: "font-size:18px;font-weight:800;margin:4px 0" }, r.prize) : null,
       r.validity ? h("div", null, r.validity) : null,
       r.conditions ? h("div", null, `Условия: ${r.conditions}`) : null,
-      r.state === "used" && r.redeemedAt ? h("div", null, `Погашен ${new Date(r.redeemedAt).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}`) : null)];
+      r.guestReceipt ? h("div", null, "Номер подтверждения ", h("strong", null, r.guestReceipt)) : null,
+      r.redeemedTime ? h("div", null, `Погашен ${r.redeemedTime}`) : null)];
     if (r.state === "ok") {
       const redeem = h("button", { class: "btn btn-gold btn-block" }, "Погасить код и выдать подарок");
       redeem.addEventListener("click", () => run(true, redeem));
@@ -2027,7 +2028,7 @@ function staffGiftTab(box, token) {
       const r = await api("/api/app/staff/gift", { method: "POST", body: { t: token, code, redeem } });
       show(r);
       if (r.state === "done") haptic.ok();
-      else if (r.state !== "ok") haptic.err();
+      else if (r.state !== "ok" && !r.guestRedeemed) haptic.err();
     } catch (error) {
       haptic.err();
       toast(error.message);

@@ -15,7 +15,7 @@ import { db } from "./supabase.js";
 import { hasModule } from "./tariffs.js";
 import { TOKEN_RE } from "./stats-page.js";
 import { CALL_KINDS, activeCalls, staffCallAction } from "./service.js";
-import { normalizeCode, findCode, redeemCode, validityText } from "./bonus.js";
+import { normalizeCode, findCode, redeemCode, validityText, bonusDateTime, GUEST_REDEEMED_BY } from "./bonus.js";
 import { rewardInviter } from "./friends.js";
 import { POINTS_COLUMNS, pointsOn, balanceOf, rulesText, PointsError, findCode as findPointsCode, operate } from "./points.js";
 
@@ -103,28 +103,33 @@ export async function staffGift(env, input) {
   const { link, business } = await linkOf(env, input.t);
   const code = normalizeCode(input.code);
   if (!code) return { state: "format" };
-  const found = await findCode(env, code, [business.id]);
+  let found = await findCode(env, code, [business.id]);
   if (!found) return { state: "none", code };
   const by = link.label ? `персонал: ${link.label}` : "персонал";
-  let state = found.state;
-  if (input.redeem === true && state === "ok") {
+  if (input.redeem === true && input.receipt == null && found.state === "ok") {
     const done = await redeemCode(env, found.row.id, by);
     if (done) {
       touch(env, link.token);
       await rewardInviter(env, found.row);
+      found = { state: "done", row: { ...found.row, redeemed_at: done.redeemed_at, redeemed_by: by } };
+    } else {
+      found = await findCode(env, code, [business.id]);
+      if (!found) return { state: "none", code };
     }
-    state = done ? "done" : "used";
   }
   const r = found.row;
   return {
-    state,
+    state: found.state,
     code,
     prize: r.prize,
     vip: Boolean(r.vip),
     validity: validityText(r),
     conditions: r.conditions || null,
+    guestReceipt: r.guest_receipt || null,
+    guestRedeemed: r.redeemed_by === GUEST_REDEEMED_BY,
+    redeemedTime: r.redeemed_at ? bonusDateTime(r.redeemed_at) : null,
     validFrom: r.valid_from,
-    redeemedAt: state === "done" ? new Date().toISOString() : r.redeemed_at
+    redeemedAt: r.redeemed_at
   };
 }
 

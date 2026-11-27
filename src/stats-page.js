@@ -6,7 +6,7 @@ import { db } from "./supabase.js";
 import { PERIODS, PLATFORMS, loadReports, loadDaily, sumTotals, formatDateRange, formatCardCode } from "./report.js";
 import { ICONS } from "./public-page.js";
 import { formatDay } from "./billing.js";
-import { normalizeCode, findCode, redeemCode, bonusCounts, bonusFunnel, validityText } from "./bonus.js";
+import { normalizeCode, findCode, redeemCode, bonusCounts, bonusFunnel, validityText, bonusHistory, bonusDateTime, GUEST_REDEEMED_BY } from "./bonus.js";
 import { ratingStats, setFeedbackResolved, LIKES, PHONE_KEEP_DAYS, reasonLabels } from "./rating.js";
 import { refUrl, refStats } from "./referral.js";
 import { recentScore, scoreHtml, SCORE_CSS } from "./score.js";
@@ -276,33 +276,35 @@ async function renderDesk(request, env, { ids, base, owner, token, by, onRedeem 
       // Та же рабочая ссылка в приложении TapReview (staff-app.js): вызовы, подарки и баллы в Telegram
       (owner ? "" : staffAppButton(env, base.slice(3)));
 
-    // Погашение — обычной ссылкой ?code=…&redeem=1 (а не формой): в РФ соединения с Cloudflare
-    // иногда обрываются, и обычный переход браузер повторяет сам. Если повтор пришёл сразу после
-    // погашения, показываем «погашен», а не «уже погашен» — кассир не запутается.
     const url = new URL(request.url);
     const params = request.method === "POST" ? new URLSearchParams((await request.text()).slice(0, 500)) : url.searchParams;
     const input = String(params.get("code") || "");
-    const wantRedeem = request.method === "POST" || params.get("redeem") === "1";
+    const byReceipt = params.get("proof") === "1";
+    const wantRedeem = !byReceipt && params.get("confirm") !== "guest" && (request.method === "POST" || params.get("redeem") === "1");
     // Новые коды — 6 цифр (цифровая клавиатура на телефоне); старые с буквами — по ссылке «Старый код с буквами?»
     const letters = params.get("abc") === "1" || /[^\d\s-]/.test(input);
     let result = "";
     if (input) {
-      const code = normalizeCode(input);
-      const found = code ? await findCode(env, code, ids) : null;
-      if (wantRedeem && found && found.state === "ok") {
+      const found = await findCode(env, input, ids, byReceipt);
+      if (wantRedeem && found?.state === "ok") {
         const done = await redeemCode(env, found.row.id, by);
         if (done && onRedeem) await onRedeem();
         // Погашен подарок по приглашению → подарок пригласившему другу (friends.js)
         if (done) await rewardInviter(env, found.row);
         result = done
-          ? deskResult("done", found.row, names, "Код погашен — можно выдавать подарок")
-          : deskResult("used", found.row, names, "Код уже погашен");
-      } else if (wantRedeem && found && found.state === "used" && Date.now() - Date.parse(found.row.redeemed_at) < 2 * 60 * 1000) {
-        result = deskResult("done", found.row, names, "Код погашен — можно выдавать подарок");
+          ? deskResult("done", { ...found.row, redeemed_at: done.redeemed_at, redeemed_by: by }, names, "Код погашен — можно выдавать подарок")
+          : deskState(await findCode(env, input, ids), names, base);
       } else {
-        result = deskState(found, input, names, base);
+        result = deskState(found, names, base, byReceipt);
       }
     }
+
+    const issued = owner && url.searchParams.get("history") === "issued";
+    const requestedPage = Number(url.searchParams.get("page"));
+    const page = Number.isInteger(requestedPage) && requestedPage >= 1 && requestedPage <= 100000 ? requestedPage : 1;
+    const pageSize = 30;
+    const rows = await bonusHistory(env, ids, { issued, limit: pageSize + 1, offset: (page - 1) * pageSize });
+    const journal = bonusJournal(rows, { issued, page, pageSize, names, base, owner });
 
     // Счётчики подарков видит только владелец
     let statsPanel = "";
@@ -331,20 +333,24 @@ async function renderDesk(request, env, { ids, base, owner, token, by, onRedeem 
       ${owner ? `<a class="back" href="/s/${token}">← Статистика</a>` : ""}${callsLink}
       <h1 class="name">Проверка подарка</h1>
       ${venueName ? `<p class="sub">${esc(venueName)}</p>` : ""}
-      <p class="range">Введите код с экрана гостя: 6 цифр, например 123-456</p>
+      <p class="range">${byReceipt ? "Введите номер подтверждения из 8 символов" : "Введите код подарка с экрана гостя, например 123-456"}</p>
     </div>
   </header>
   <main class="wrap">
     <section class="panel">
       <form class="desk-form" method="get" action="${base}">
-        ${letters ? `<input type="hidden" name="abc" value="1">` : ""}
-        <input name="code" value="${esc(prettyInput(input))}" maxlength="12" autocomplete="off" autocapitalize="characters"
-          ${letters ? "" : `inputmode="numeric"`} spellcheck="false" placeholder="${letters ? "ABC-123" : "123-456"}" aria-label="Код подарка" required>
+        ${byReceipt ? '<input type="hidden" name="proof" value="1">' : letters ? '<input type="hidden" name="abc" value="1">' : ""}
+        <input name="code" value="${esc(byReceipt ? input.slice(0, 12) : prettyInput(input))}" data-proof="${byReceipt ? "1" : "0"}" maxlength="12" autocomplete="off" autocapitalize="characters"
+          ${letters || byReceipt ? "" : 'inputmode="numeric"'} spellcheck="false"
+          placeholder="${byReceipt ? "ABCD2345" : letters ? "ABC-123" : "123-456"}" aria-label="${byReceipt ? "Номер подтверждения" : "Код подарка"}" required>
         <button type="submit">Проверить</button>
       </form>
-      <a class="desk-abc" href="${base}${letters ? "" : "?abc=1"}">${letters ? "Обычный код из цифр" : "Старый код с буквами?"}</a>
+      ${byReceipt ? `<a class="desk-abc" href="${base}">Проверить по коду подарка</a>` : `
+        <a class="desk-abc" href="${base}${letters ? "" : "?abc=1"}">${letters ? "Обычный код из цифр" : "Старый код с буквами?"}</a>
+        <a class="desk-abc" href="${base}?proof=1">По номеру подтверждения</a>`}
       ${result}
     </section>
+    ${journal}
     ${statsPanel}
     <section class="note">
       <p>Код действует один раз. Гость получает его, только когда сканирует карту в заведении, и не чаще раза в несколько недель.
@@ -358,19 +364,22 @@ async function renderDesk(request, env, { ids, base, owner, token, by, onRedeem 
 // Касса: заглавные буквы, русские буквы-двойники → латиница, тире после 3-го символа,
 // и проверка сама, как только набраны все 6 символов. Без скрипта всё тоже работает (сервер нормализует код).
 const DESK_SCRIPT = `(function () {
-  var input = document.querySelector(".desk-form input");
+  var input = document.querySelector(".desk-form input[name=code]");
   if (!input) return;
   var RU = { "А": "A", "В": "B", "Е": "E", "К": "K", "М": "M", "Н": "H", "О": "O", "Р": "P", "С": "C", "Т": "T", "Х": "X", "У": "Y" };
+  var proof = input.dataset.proof === "1";
+  var filled = proof ? 8 : 7;
   function format(value) {
-    var raw = value.toUpperCase().replace(/[А-ЯЁ]/g, function (ch) { return RU[ch] || ""; }).replace(/[^A-Z0-9]/g, "").slice(0, 6);
+    var raw = value.toUpperCase().replace(/[А-ЯЁ]/g, function (ch) { return RU[ch] || ""; }).replace(/[^A-Z0-9]/g, "").slice(0, proof ? 8 : 6);
+    if (proof) return raw;
     return raw.length > 3 ? raw.slice(0, 3) + "-" + raw.slice(3) : raw;
   }
   var sent = false;
   input.addEventListener("input", function () {
     var formatted = format(input.value);
     if (formatted !== input.value) input.value = formatted;
-    if (formatted.length === 7 && !sent) { sent = true; input.form.submit(); }
-    if (formatted.length < 7) sent = false;
+    if (formatted.length === filled && !sent) { sent = true; input.form.submit(); }
+    if (formatted.length < filled) sent = false;
   });
   // Сразу готово к вводу следующего кода: курсор в поле, старый код выделен
   if (!document.querySelector(".desk-redeem")) { input.focus(); input.select(); }
@@ -382,18 +391,42 @@ function prettyInput(value) {
   return code ? `${code.slice(0, 3)}-${code.slice(3)}` : String(value || "").slice(0, 12);
 }
 
-function deskState(found, input, names, base) {
-  if (!found) return `<div class="desk-res desk-bad"><p class="desk-title">Такого кода нет</p><p>Код «${esc(prettyInput(input))}» не найден в этом заведении. Проверьте, правильно ли он введён.</p></div>`;
+function deskState(found, names, base, byReceipt = false) {
+  if (!found) return `<div class="desk-res desk-bad"><p class="desk-title">${byReceipt ? "Запись не найдена" : "Такого кода нет"}</p><p>Проверьте номер или код для этого заведения.</p></div>`;
   const { row, state } = found;
   if (state === "ok") {
-    return `${deskResult("ok", row, names, "Код действует")}
-      <a class="desk-redeem" href="${base}?code=${esc(row.code)}&amp;redeem=1" rel="nofollow">Погасить код и выдать подарок</a>`;
+    return `${deskResult("ok", row, names, byReceipt ? "Код ещё не погашен" : "Код действует")}
+      ${byReceipt ? "" : `<a class="desk-redeem" href="${base}?code=${esc(row.code)}&amp;redeem=1" rel="nofollow">Погасить код и выдать подарок</a>`}`;
   }
   if (state === "soon") {
     return deskResult("soon", row, names, `Код начнёт действовать ${formatDayTime(row.valid_from)}`);
   }
   if (state === "expired") return deskResult("bad", row, names, "Срок действия кода истёк");
-  return deskResult("used", row, names, `Код уже погашен ${formatDayTime(row.redeemed_at)}`);
+  return deskResult("used", row, names, row.redeemed_by === GUEST_REDEEMED_BY ? "Код погашен гостем" : "Код уже погашен");
+}
+
+function bonusJournal(rows, { issued, page, pageSize, names, base, owner }) {
+  const pageUrl = (number) => `${base}?history=${issued ? "issued" : "redeemed"}&amp;page=${number}#bonus-history`;
+  const entries = rows.slice(0, pageSize).map((row) => `<li>
+    <a href="${base}?code=${esc(row.code)}"><strong>${esc(row.prize)}</strong> · ${esc(prettyInput(row.code))}</a>
+    ${names.size > 1 ? `<span>${esc(names.get(row.business_id) || "")}</span>` : ""}
+    <span>Код выдан ${esc(bonusDateTime(row.created_at))}</span>
+    ${row.redeemed_at ? `<span>Погашен ${esc(bonusDateTime(row.redeemed_at))}${row.redeemed_by ? ` · ${esc(row.redeemed_by)}` : ""}</span>` : "<span>Код не погашен</span>"}
+    ${row.guest_receipt ? `<span>Подтверждение <strong>${esc(row.guest_receipt)}</strong></span>` : ""}
+  </li>`).join("");
+  return `<section class="panel" id="bonus-history">
+    <h2>Журнал подарков</h2>
+    <nav class="desk-history-nav" aria-label="Журнал подарков">
+      <a href="${base}#bonus-history"${issued ? "" : ' aria-current="page"'}>Погашенные</a>
+      ${owner ? `<a href="${base}?history=issued#bonus-history"${issued ? ' aria-current="page"' : ""}>Выданные коды</a>` : ""}
+      <a href="${pageUrl(page)}">Обновить</a>
+    </nav>
+    ${entries ? `<ul class="desk-history">${entries}</ul>` : "<p>Записей пока нет.</p>"}
+    ${page > 1 || rows.length > pageSize ? `<nav class="desk-history-nav" aria-label="Страницы журнала">
+      ${page > 1 ? `<a href="${pageUrl(page - 1)}">← Новее</a>` : ""}
+      ${rows.length > pageSize ? `<a href="${pageUrl(page + 1)}">Старее →</a>` : ""}
+    </nav>` : ""}
+  </section>`;
 }
 
 function deskResult(kind, row, names, title) {
@@ -404,6 +437,8 @@ function deskResult(kind, row, names, title) {
       <p class="desk-prize">${esc(row.prize)}</p>
       <p>${esc(validityText(row))}${names.size > 1 ? ` · ${esc(names.get(row.business_id) || "")}` : ""}</p>
       ${row.conditions ? `<p>Условия: ${esc(row.conditions)}</p>` : ""}
+      ${row.redeemed_at ? `<p>Погашен ${esc(bonusDateTime(row.redeemed_at))}${row.redeemed_by ? ` · ${esc(row.redeemed_by)}` : ""}</p>` : ""}
+      ${row.guest_receipt ? `<p>Номер подтверждения <strong>${esc(row.guest_receipt)}</strong> · Код подарка ${esc(prettyInput(row.code))}</p>` : ""}
     </div>`;
 }
 
@@ -1250,6 +1285,11 @@ const CSS = `
   .desk-redeem { display: grid; place-items: center; min-height: 52px; margin-top: 10px; border-radius: 12px; background: var(--up);
     color: #fff; font-size: 15px; font-weight: 700; text-decoration: none; }
   .desk-redeem:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+  .desk-history-nav { display: flex; gap: 12px; flex-wrap: wrap; font-size: 14px; }
+  .desk-history-nav [aria-current] { font-weight: 700; }
+  .desk-history { list-style: none; margin: 12px 0; padding: 0; }
+  .desk-history li { display: grid; gap: 4px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .desk-history li span { color: var(--muted); }
   .desk-res { margin-top: 14px; padding: 14px 16px; border-radius: 14px; font-size: 14px; line-height: 1.5; }
   .desk-res p { margin: 0 0 4px; }
   .desk-title { font-size: 16px; font-weight: 700; }

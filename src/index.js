@@ -32,7 +32,7 @@ import { handleBusinessPage, handleCardPage, handleGroupPage, handleGo, handleGu
 import { handleApi } from "./admin-api.js";
 import { handleTelegramWebhook, handleTelegramRelay, weeklyReports } from "./telegram.js";
 import { handleStatsPage, handleBonusDesk, handleStaffDesk, handleFeedbackResolve } from "./stats-page.js";
-import { handleBonus } from "./bonus.js";
+import { handleBonus, handleBonusApply } from "./bonus.js";
 import { handleOwnerSettings } from "./owner-settings.js";
 import { purgeOldVisits } from "./guests.js";
 import { handleFriend } from "./friends.js";
@@ -133,6 +133,9 @@ export default {
 
     if (url.pathname === "/bonus") {
       return handleBonus(request, env);
+    }
+    if (url.pathname === "/bonus/apply") {
+      return handleBonusApply(request, env);
     }
 
     const deskMatch = url.pathname.match(/^\/s\/([^/]+)\/bonus\/?$/);

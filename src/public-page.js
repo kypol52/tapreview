@@ -170,14 +170,15 @@ function extraLinksBlock(business, top = false) {
 
 // «Бонусы и подарки» (сценарий «сначала оценка»): подарок со штампами, баллы и «Мои штампы и подарки» — одной карточкой.
 // Подарок по-прежнему появляется с задержкой; если кроме него в карточке ничего нет — с задержкой появляется вся карточка
-function perksCard({ gift = "", points = "", wallet = "" }) {
-  if (!gift && !points && !wallet) return "";
-  const late = gift && !points && !wallet;
+function perksCard({ gift = "", points = "", wallet = "", applyBonus = "" }) {
+  if (!gift && !points && !wallet && !applyBonus) return "";
+  const late = gift && !points && !wallet && !applyBonus;
   return `
     <section class="perks${late ? " perks-late" : ""}" aria-label="Бонусы и подарки">
       <p class="perks-title">🎁 Бонусы и подарки</p>
       ${gift}
       ${points}
+      ${applyBonus}
       ${wallet}
     </section>`;
 }
@@ -192,7 +193,7 @@ const HUB_GO = `<svg class="hub-go" viewBox="0 0 24 24" aria-hidden="true"><path
 const HUB_OUT = `<svg class="hub-go" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M9.5 14.5 15 9M10.5 9H15v4.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const HUB_HAND = LINK_ICON("M8 12.5V6a1.5 1.5 0 0 1 3 0v5M11 10.5V4.5a1.5 1.5 0 0 1 3 0v6M14 10.5V6a1.5 1.5 0 0 1 3 0v7.5c0 4-2.6 6.5-6.2 6.5-2.7 0-4.4-1.4-5.5-3.6L4 14a1.5 1.5 0 0 1 2.6-1.4L8 14.5");
 
-function hubBlock(business, { service = "", points = "", demo = false } = {}) {
+function hubBlock(business, { service = "", points = "", applyBonus = "", demo = false } = {}) {
   const links = has(business, "links")
     ? (Array.isArray(business.extra_links) ? business.extra_links : []).filter((l) => l && (isHttpsUrl(l.url) || (demo && l.own && l.url.startsWith("/b/demo/"))))
     : [];
@@ -203,7 +204,7 @@ function hubBlock(business, { service = "", points = "", demo = false } = {}) {
   if (business.menuUrl && !rows.some((l) => l.type === "menu")) rows.unshift({ type: "menu", url: business.menuUrl, own: true });
   // Wi-Fi (wifi.js): только гостю у карты
   const wifi = Boolean(wifiItem(business));
-  if (!tiles.length && !rows.length && !service && !points && !wifi) return "";
+  if (!tiles.length && !rows.length && !service && !points && !wifi && !applyBonus) return "";
 
   const label = (l) => escapeHtml(l.label || (EXTRA_LINKS[l.type] || EXTRA_LINKS.custom).label);
   const target = (l) => (l.own ? "" : ` target="_blank" rel="noopener nofollow"`);
@@ -230,12 +231,13 @@ function hubBlock(business, { service = "", points = "", demo = false } = {}) {
     : big
       ? `<div class="hub-tiles${items.length === 1 ? " hub-tiles-one" : ""}">${items.map(itemHtml).join("")}</div>`
       : items.map(itemHtml).join("");
-  const split = itemsHtml && points ? `<div class="hub-split"></div>` : "";
+  const split = itemsHtml && (points || applyBonus) ? `<div class="hub-split"></div>` : "";
   return `
     <nav class="hub" aria-label="Ещё в заведении">
       ${itemsHtml}
       ${split}
       ${points}
+      ${applyBonus}
     </nav>`;
 }
 
@@ -774,9 +776,15 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
   // Баллы (points.js): баланс и «Код для кассы» — на любом шаге, они про чек, а не про оценку
   const pointsBox = pointsBlock(business, source, cardCode, guest ? guest.points : null, demo?.href("points"));
   const pointsHtml = pointsBox ? `${pointsBox}<style>${POINTS_CSS}</style>` : "";
+  const applyBonus = !demo && (source === "nfc" || source === "qr") && has(business, "gifts") &&
+    (business.bonus_mode === "fixed" || business.bonus_mode === "wheel" || sorryOn(business))
+    ? `<a class="bonus-apply" href="/bonus/apply?b=${encodeURIComponent(business.slug)}">
+        <span class="hub-ico">${GIFT}</span><span class="hub-label">Применить бонус</span>${HUB_GO}
+      </a>`
+    : "";
 
   if (business.rating_first && has(business, "rating")) {
-    return ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline: taglineBase, wallet, discount, design, appLink, service, pointsHtml, demo });
+    return ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline: taglineBase, wallet, discount, design, appLink, service, pointsHtml, applyBonus, demo });
   }
 
   const wifi = wifiItem(business);
@@ -809,6 +817,7 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
       ${extraLinksBlock(business)}
       ${wifi ? `<nav class="hub" aria-label="Wi-Fi">${wifi}</nav>` : ""}
       ${pointsHtml}
+      ${applyBonus}
       ${discount}
       ${demo ? GUEST_DEMO_SWITCH : ""}`
   });
@@ -867,7 +876,7 @@ const FB_SCRIPT = `(function () {
   });
 })();`;
 
-function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, wallet = "", discount, design, appLink, service = "", pointsHtml = "", demo }) {
+function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, logo, nameClass, tagline, wallet = "", discount, design, appLink, service = "", pointsHtml = "", applyBonus = "", demo }) {
   const base = new URLSearchParams();
   if (source !== "direct") base.set("s", source);
   const link = (extra) => {
@@ -970,14 +979,14 @@ function ratingFlowPage(business, { source, cardCode, flow, buttons, accent, log
   const rated = Boolean(score || all);
   // Переходник (плитки, вызов, меню) — только на главном экране. После оценки вместо повтора — одна кнопка назад,
   // чтобы гость не путался в двух наборах кнопок. Тот же адрес без оценки, с меткой источника (NFC/QR)
-  const hub = hubBlock(business, { service, points: rated ? "" : pointsHtml, demo: Boolean(demo) });
+  const hub = hubBlock(business, { service, points: rated ? "" : pointsHtml, applyBonus: rated ? "" : applyBonus, demo: Boolean(demo) });
   const wifiShown = !rated && hub.includes("hub-wifi");
   const backHome = hub
     ? `<a class="hub-back" href="${link({})}" aria-label="Вернуться на главную" title="На главную"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>`
     : "";
   // Подарок-извинение включён — при 1–3 колеса нет, код уже показан над формой
   const sorryInstead = Boolean(score && score <= 3 && sorryOn(business));
-  const perks = perksCard({ gift: rated && !sorryInstead ? discount : "", points: pointsHtml });
+  const perks = perksCard({ gift: rated && !sorryInstead ? discount : "", points: pointsHtml, applyBonus });
   const tg = rated ? telegramBlock(wallet ? "/me-link" : "", appLink) : "";
 
   return renderPage({
@@ -1458,7 +1467,7 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
     .hub-tiles-one { grid-template-columns: 1fr; }
     .hub-tiles .hub-call[open] { grid-column: 1 / -1; }
     .hub-call > summary.hub-tile { list-style: none; }
-    .hub-tile, .hub-row {
+    .hub-tile, .hub-row, .bonus-apply {
       display: flex; align-items: center; gap: 12px; border-radius: 16px; border: 1px solid var(--btn-border);
       background: var(--btn-bg); color: var(--btn-text); text-decoration: none; cursor: pointer;
       -webkit-tap-highlight-color: transparent; transition: border-color 0.15s ease, transform 0.15s ease;
@@ -1466,10 +1475,10 @@ export function renderPage({ status, title, accent, body, extraCss = "", footer 
     .hub-tile { position: relative; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 18px; min-height: 104px; padding: 14px 14px 12px; }
     .hub-tile .hub-label { padding-right: 18px; font-size: 15px; font-weight: 650; line-height: 1.25; }
     .hub-tile .hub-go { position: absolute; right: 12px; bottom: 14px; }
-    .hub-row { min-height: 52px; padding: 10px 14px; list-style: none; }
-    .hub-row .hub-label { flex: 1; min-width: 0; font-size: 15px; font-weight: 550; line-height: 1.25; }
-    .hub-tile:hover, .hub-row:hover, .hub-tile:focus-visible, .hub-row:focus-visible { border-color: var(--accent); }
-    .hub-tile:active, .hub-row:active { transform: scale(0.98); }
+    .hub-row, .bonus-apply { min-height: 52px; padding: 10px 14px; list-style: none; }
+    :is(.hub-row, .bonus-apply) .hub-label { flex: 1; min-width: 0; font-size: 15px; font-weight: 550; line-height: 1.25; }
+    :is(.hub-tile, .hub-row, .bonus-apply):is(:hover, :focus-visible) { border-color: var(--accent); }
+    :is(.hub-tile, .hub-row, .bonus-apply):active { transform: scale(0.98); }
     .hub-ico { flex: none; width: 22px; height: 22px; color: var(--accent); }
     .hub-ico svg { display: block; width: 100%; height: 100%; }
     .hub-go { flex: none; width: 20px; height: 20px; color: var(--muted); }

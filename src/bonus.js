@@ -21,7 +21,7 @@ import { isBot, visitorHashOf } from "./analytics.js";
 import { renderPage, escapeHtml, GIFT, DEFAULT_ACCENT, BONUS_COLUMNS, customDesign } from "./public-page.js";
 import { isExpired } from "./billing.js";
 import { deviceFrom, visitorKeyOf, stampsOn, stampCount, vipOn, visitCount } from "./guests.js";
-import { friendOn, inviteFor, inviterRewards, inviteBlock } from "./friends.js";
+import { friendOn, inviteFor, inviterRewards, inviteBlock, rewardInviter } from "./friends.js";
 import { has } from "./tariffs.js";
 import { tapOf, ipAllow } from "./tap.js";
 
@@ -33,6 +33,10 @@ const CODE_DIGITS = "0123456789";
 const CODE_LENGTH = 6;
 const DAY = 24 * 60 * 60 * 1000;
 const MSK_OFFSET = 3 * 60 * 60 * 1000;
+const GUEST_RECEIPT_MS = 5 * 60 * 1000;
+export const GUEST_REDEEMED_BY = "гость";
+const RECEIPT_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const RECEIPT_RE = /^[A-Z2-9]{8}$/;
 export const BONUS_DELAY_SECONDS = 10;
 
 // Сектор колеса (bonus_prizes, jsonb): { label, weight, active, icon, tone, description, conditions, valid_days }.
@@ -622,6 +626,7 @@ function giftCard(business, c, { repeat, pending, prize, preview }) {
         ${preview ? "" : `<button class="gc-copy" type="button" data-copy="${escapeHtml(c.code)}" hidden>Копировать</button>`}
       </div>
       <p class="gc-how">Покажите код сотруднику на кассе</p>
+      ${!preview && !c.redeemed_at ? `<a class="br-back" href="/bonus/apply?b=${encodeURIComponent(business.slug)}">Применить бонус</a>` : ""}
       <p class="gc-shot">Код сохранён на этом телефоне: откройте подарок с карты ещё раз — он будет здесь.</p>
       <dl class="gc-meta">${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${escapeHtml(v)}</dd></div>`).join("")}</dl>
       ${status}
@@ -1090,34 +1095,195 @@ export function normalizeCode(value) {
   return code.length === CODE_LENGTH ? code : null;
 }
 
-// Код из заведений этой ссылки: { row, state: ok | soon | expired | used } или null
-export async function findCode(env, code, businessIds) {
+const DESK_FIELDS = "id,code,business_id,prize,conditions,valid_from,valid_until,redeemed_at,redeemed_by,created_at,reward_kind,invite_code,vip,guest_applied_at,guest_receipt";
+
+function bonusSameOriginPost(request) {
+  const site = request.headers.get("Sec-Fetch-Site");
+  return request.method === "POST" && (site
+    ? site === "same-origin"
+    : request.headers.get("Origin") === new URL(request.url).origin);
+}
+
+export function bonusDateTime(iso) {
+  return new Date(iso).toLocaleString("ru-RU", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Moscow"
+  }) + " МСК";
+}
+
+export function normalizeReceipt(value) {
+  const receipt = String(value || "").toUpperCase()
+    .replace(/[А-ЯЁ]/g, (ch) => RU_LOOKALIKE[ch] || ch).replace(/[\s-]/g, "");
+  return RECEIPT_RE.test(receipt) ? receipt : null;
+}
+
+function bonusState(row, now = Date.now()) {
+  if (row.redeemed_at) return "used";
+  if (now < Date.parse(row.valid_from)) return "soon";
+  if (now >= Date.parse(row.valid_until)) return "expired";
+  return "ok";
+}
+
+function guestApplyPage(business, status = 200, message = "", redeemed = null) {
+  const action = `/bonus/apply?b=${encodeURIComponent(business.slug)}`;
+  const until = redeemed ? Date.parse(redeemed.redeemed_at) + GUEST_RECEIPT_MS : 0;
+  const remaining = Math.max(0, until - Date.now());
+  return renderPage({
+    status,
+    title: `Применить бонус — ${business.name}`,
+    theme: business.theme,
+    design: customDesign(business),
+    extraCss: BONUS_PAGE_CSS + `
+      .apply-form { display: grid; gap: 12px; margin-top: 18px; text-align: left; }
+      .apply-form input { width: 100%; padding: 12px; border: 1px solid var(--btn-border); border-radius: 12px;
+        background: var(--btn-bg); color: var(--btn-text); font: inherit; font-size: 18px; text-transform: uppercase; }
+      .apply-form button { justify-content: center; }
+      .apply-clock { font-variant-numeric: tabular-nums; }
+    `,
+    script: remaining ? `(() => {
+      const timer = document.querySelector("#apply-clock");
+      const deadline = Date.now() + Number(timer.dataset.remaining);
+      function tick() {
+        const seconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+        if (!seconds) {
+          document.querySelector("#apply-title").textContent = "Подтверждение из истории";
+          timer.textContent = "Сотрудник может проверить эту запись в кабинете.";
+          return;
+        }
+        timer.textContent = "Свежая запись · " + Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0");
+        setTimeout(tick, 250);
+      }
+      tick();
+    })();` : "",
+    body: `
+      <h1 class="name name-long">${escapeHtml(business.name)}</h1>
+      <div class="divider"></div>
+      ${redeemed ? `
+        <section class="gc">
+          <p class="gc-kicker">Бонус погашен</p>
+          <h2 class="gc-title" id="apply-title">${remaining ? "Покажите сотруднику" : "Подтверждение из истории"}</h2>
+          <p class="gc-prize">${escapeHtml(redeemed.prize)}</p>
+          <div class="gc-code"><span class="gc-code-label">Номер подтверждения</span>
+            <span class="gc-code-value">${escapeHtml(redeemed.guest_receipt)}</span></div>
+          <dl class="gc-meta">
+            <div><dt>Код бонуса</dt><dd>${escapeHtml(formatCode(redeemed.code))}</dd></div>
+            <div><dt>Погашен</dt><dd>${escapeHtml(bonusDateTime(redeemed.redeemed_at))}</dd></div>
+            ${redeemed.conditions ? `<div><dt>Условия</dt><dd>${escapeHtml(redeemed.conditions)}</dd></div>` : ""}
+          </dl>
+        </section>
+        <p class="lead apply-clock" id="apply-clock" data-remaining="${remaining}">${remaining
+          ? `Свежая запись до ${escapeHtml(bonusDateTime(until))}`
+          : "Сотрудник может проверить эту запись в кабинете."}</p>
+      ` : `
+        <h2 class="thanks">Применить бонус</h2>
+        <p class="lead">Введите код с телефона, на котором вы получили бонус. Погашайте его, когда сотрудник рядом: код сразу будет использован.</p>
+        ${message ? `<p class="br-warn" role="alert">${escapeHtml(message)}</p>` : ""}
+        <form class="apply-form" method="post" action="${action}">
+          <label for="apply-code">Код бонуса</label>
+          <input id="apply-code" name="code" maxlength="12" placeholder="123-456" autocomplete="off" autocapitalize="characters" spellcheck="false" required>
+          <button class="button bonus-button" type="submit">Погасить бонус</button>
+        </form>
+      `}
+      <a class="br-back" href="/b/${encodeURIComponent(business.slug)}">← Вернуться к странице заведения</a>`
+  });
+}
+
+export async function handleBonusApply(request, env) {
+  try {
+    const url = new URL(request.url);
+    if (!["GET", "HEAD", "POST"].includes(request.method)) return infoPage(405, "Откройте страницу заведения");
+    const slug = url.searchParams.get("b") || "";
+    if (!/^[A-Za-z0-9]{4,32}$/.test(slug) || isBot(request)) return infoPage(404, "Бонус недоступен");
+    const [business] = await db(env,
+      `businesses?slug=eq.${slug}&is_active=eq.true&select=id,slug,name,theme,design,paid_until,tariff,modules&limit=1`);
+    if (!business || isExpired(business.paid_until) || !has(business, "gifts")) return infoPage(404, "Бонус недоступен");
+    if (request.method !== "POST") return guestApplyPage(business);
+    if (!bonusSameOriginPost(request)) return guestApplyPage(business, 403, "Откройте форму со страницы заведения.");
+    const { deviceId, setCookie } = deviceFrom(request);
+    if (setCookie || !await tapOf(request, env, business.id)) {
+      return guestApplyPage(business, 403, "Откройте карту заведения на том же телефоне, на котором получили бонус.");
+    }
+    if (Number(request.headers.get("Content-Length")) > 500) return guestApplyPage(business, 413, "Слишком большой запрос.");
+    const text = await request.text();
+    if (text.length > 500) return guestApplyPage(business, 413, "Слишком большой запрос.");
+    const code = normalizeCode(new URLSearchParams(text).get("code"));
+    if (!code) return guestApplyPage(business, 400, "Введите 6 символов кода бонуса.");
+    if (!await ipAllow(request, env, `apply-gift|${business.id}`, 30, 10 * 60 * 1000)) {
+      return guestApplyPage(business, 429, "Слишком много попыток. Попробуйте позже.");
+    }
+    const visitorKey = await visitorKeyOf(env, deviceId, business.id);
+    const path = `bonus_codes?business_id=eq.${business.id}&visitor_key=eq.${visitorKey}&code=eq.${code}&select=${DESK_FIELDS}`;
+    const [row] = await db(env, path);
+    if (!row) return guestApplyPage(business, 404, "Не нашли этот код на вашем телефоне в этом заведении.");
+    const state = bonusState(row);
+    if (state === "used") return row.redeemed_by === GUEST_REDEEMED_BY && row.guest_receipt
+      ? guestApplyPage(business, 200, "", row)
+      : guestApplyPage(business, 409, "Этот бонус уже погашен.");
+    if (state === "soon") return guestApplyPage(business, 409, `Бонус начнёт действовать ${bonusDateTime(row.valid_from)}.`);
+    if (state === "expired") return guestApplyPage(business, 409, "Срок действия бонуса истёк.");
+    const now = new Date().toISOString();
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const [redeemed] = await db(env,
+          `${path}&redeemed_at=is.null&valid_from=lte.${now}&valid_until=gt.${now}`, {
+            method: "PATCH",
+            body: {
+              redeemed_at: now, redeemed_by: GUEST_REDEEMED_BY,
+              guest_applied_at: row.guest_applied_at || now, guest_receipt: row.guest_receipt || randomString(RECEIPT_ALPHABET, 8)
+            },
+            prefer: "return=representation"
+          });
+        if (redeemed) {
+          await rewardInviter(env, redeemed);
+          return guestApplyPage(business, 200, "", redeemed);
+        }
+        const [updated] = await db(env, path);
+        if (updated?.redeemed_at && updated.redeemed_by === GUEST_REDEEMED_BY && updated.guest_receipt) {
+          return guestApplyPage(business, 200, "", updated);
+        }
+        return guestApplyPage(business, 409, "Статус бонуса изменился. Попросите сотрудника проверить код.");
+      } catch (error) {
+        if (error.code !== "23505") throw error;
+      }
+    }
+    return guestApplyPage(business, 503, "Не удалось получить номер подтверждения. Попробуйте снова.");
+  } catch (error) {
+    console.error("Guest bonus activation failed", error.code || "unknown");
+    return infoPage(500, "Не удалось применить бонус. Попробуйте снова или покажите код сотруднику.");
+  }
+}
+
+export async function bonusHistory(env, businessIds, { issued, limit, offset }) {
+  const filter = issued ? "" : "&redeemed_at=not.is.null";
+  const order = issued ? "created_at.desc,id.desc" : "redeemed_at.desc,id.desc";
+  return db(env, `bonus_codes?business_id=in.(${businessIds.join(",")})` +
+    `${filter}&select=id,business_id,code,prize,created_at,redeemed_at,redeemed_by,guest_receipt` +
+    `&order=${order}&limit=${limit}&offset=${offset}`);
+}
+
+// Код из заведений этой ссылки: { row, state } или null
+export async function findCode(env, code, businessIds, byReceipt = false) {
+  code = byReceipt ? normalizeReceipt(code) : normalizeCode(code);
+  if (!code) return null;
   const rows = await db(
     env,
-    `bonus_codes?code=eq.${code}&business_id=in.(${businessIds.join(",")})` +
-      `&select=id,code,business_id,prize,conditions,valid_from,valid_until,redeemed_at,created_at,reward_kind,invite_code,vip&limit=1`
+    `bonus_codes?${byReceipt ? "guest_receipt" : "code"}=eq.${code}&business_id=in.(${businessIds.join(",")})` +
+      `&select=${DESK_FIELDS}&limit=1`
   );
   if (!rows.length) return null;
   const row = rows[0];
-  const now = Date.now();
-  const state = row.redeemed_at
-    ? "used"
-    : now < Date.parse(row.valid_from)
-      ? "soon"
-      : now >= Date.parse(row.valid_until)
-        ? "expired"
-        : "ok";
-  return { row, state };
+  return { row, state: bonusState(row) };
 }
 
 // by — кто погасил: «владелец» или «персонал: <подпись ссылки>» (видно в админке)
 export async function redeemCode(env, id, by = null) {
-  const rows = await db(env, `bonus_codes?id=eq.${id}&redeemed_at=is.null&select=id,redeemed_at`, {
+  const at = new Date().toISOString();
+  const rows = await db(env, `bonus_codes?id=eq.${id}&redeemed_at=is.null&valid_from=lte.${at}&valid_until=gt.${at}&select=id,redeemed_at`, {
     method: "PATCH",
-    body: { redeemed_at: new Date().toISOString(), redeemed_by: by ? String(by).slice(0, 80) : null },
+    body: { redeemed_at: at, redeemed_by: by ? String(by).slice(0, 80) : null },
     prefer: "return=representation"
   });
-  return rows.length > 0;
+  return rows[0] || null;
 }
 
 export async function bonusCounts(env, businessIds, days = 30) {
