@@ -2009,7 +2009,8 @@ function staffGiftTab(box, token) {
       r.validity ? h("div", null, r.validity) : null,
       r.conditions ? h("div", null, `Условия: ${r.conditions}`) : null,
       r.guestReceipt ? h("div", null, "Номер подтверждения ", h("strong", null, r.guestReceipt)) : null,
-      r.redeemedTime ? h("div", null, `Погашен ${r.redeemedTime}`) : null)];
+      r.redeemedTime ? h("div", null, `Погашен ${r.redeemedTime}`) : null,
+      ...(r.cardLocations || []).map((location) => h("div", null, location)))];
     if (r.state === "ok") {
       const redeem = h("button", { class: "btn btn-gold btn-block" }, "Погасить код и выдать подарок");
       redeem.addEventListener("click", () => run(true, redeem));

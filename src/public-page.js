@@ -351,9 +351,9 @@ function withGuestCookie(response, guest) {
 }
 
 // Метка «гость у карты» (tap.js) — только при обычном открытии с карты, не на шагах оценки
-async function withTap(response, request, env, business, source, flow) {
+async function withTap(response, request, env, business, source, flow, cardCode = null) {
   if (flow.score || flow.sent || flow.all) return response;
-  const cookie = await tapCookie(request, env, business.id, source);
+  const cookie = await tapCookie(request, env, business.id, source, cardCode);
   if (cookie) response.headers.append("Set-Cookie", cookie);
   return response;
 }
@@ -435,7 +435,7 @@ export async function handleCardPage(request, env, ctx, rawCode) {
   try {
     const cards = await db(
       env,
-      `cards?code=eq.${code}&select=id,code,label,is_table,staff_id,business_id,is_active&limit=1`
+      `cards?code=eq.${code}&select=id,code,label,is_table,table_number,staff_id,business_id,is_active&limit=1`
     );
     if (!cards.length) return notFoundPage();
     card = cards[0];
@@ -510,8 +510,8 @@ export async function handleCardPage(request, env, ctx, rawCode) {
   const service = serviceBlock(business, card, source, { menu, pay }) ||
     (staff ? `<section class="svc"><p class="svc-place">Вас обслуживает: ${escapeHtml(staff.name)}</p></section>` : "");
   // Оценка 1–3 и подарок-извинение (миграция 050): код выдаём сразу — он будет над формой
-  if (business.rating_first && flow.score && flow.score <= 3 && tap) flow.sorry = await sorryCode(request, env, business, { source: tap, cardId: card.id }).catch((e) => { console.error(`Подарок-извинение: ${e.message}`); return null; });
-  return withTap(withGuestCookie(businessPage(withStaffTips(business, staff), source, card.code, flow, guest, appLink, service), guest), request, env, business, source, flow);
+  if (business.rating_first && flow.score && flow.score <= 3 && tap) flow.sorry = await sorryCode(request, env, business, { source: tap }).catch((e) => { console.error(`Подарок-извинение: ${e.message}`); return null; });
+  return withTap(withGuestCookie(businessPage(withStaffTips(business, staff), source, card.code, flow, guest, appLink, service), guest), request, env, business, source, flow, card.code);
 }
 
 // Кнопка «Отзыв в Telegram» (миграция 035): галочка в админке + заведение в каталоге + бот настроен.
@@ -778,7 +778,7 @@ function businessPage(business, source, cardCode = null, flow = { score: null, a
   const pointsHtml = pointsBox ? `${pointsBox}<style>${POINTS_CSS}</style>` : "";
   const applyBonus = !demo && (source === "nfc" || source === "qr") && has(business, "gifts") &&
     (business.bonus_mode === "fixed" || business.bonus_mode === "wheel" || sorryOn(business))
-    ? `<a class="bonus-apply" href="/bonus/apply?b=${encodeURIComponent(business.slug)}">
+    ? `<a class="bonus-apply" href="/bonus/apply?b=${encodeURIComponent(business.slug)}${cardCode ? `&amp;c=${encodeURIComponent(cardCode)}` : ""}">
         <span class="hub-ico">${GIFT}</span><span class="hub-label">Применить бонус</span>${HUB_GO}
       </a>`
     : "";

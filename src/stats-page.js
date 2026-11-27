@@ -6,7 +6,7 @@ import { db } from "./supabase.js";
 import { PERIODS, PLATFORMS, loadReports, loadDaily, sumTotals, formatDateRange, formatCardCode } from "./report.js";
 import { ICONS } from "./public-page.js";
 import { formatDay } from "./billing.js";
-import { normalizeCode, findCode, redeemCode, bonusCounts, bonusFunnel, validityText, bonusHistory, bonusDateTime, GUEST_REDEEMED_BY } from "./bonus.js";
+import { normalizeCode, findCode, redeemCode, bonusCounts, bonusFunnel, validityText, bonusHistory, bonusDateTime, bonusCardLocations, GUEST_REDEEMED_BY } from "./bonus.js";
 import { ratingStats, setFeedbackResolved, LIKES, PHONE_KEEP_DAYS, reasonLabels } from "./rating.js";
 import { refUrl, refStats } from "./referral.js";
 import { recentScore, scoreHtml, SCORE_CSS } from "./score.js";
@@ -413,6 +413,7 @@ function bonusJournal(rows, { issued, page, pageSize, names, base, owner }) {
     <span>Код выдан ${esc(bonusDateTime(row.created_at))}</span>
     ${row.redeemed_at ? `<span>Погашен ${esc(bonusDateTime(row.redeemed_at))}${row.redeemed_by ? ` · ${esc(row.redeemed_by)}` : ""}</span>` : "<span>Код не погашен</span>"}
     ${row.guest_receipt ? `<span>Подтверждение <strong>${esc(row.guest_receipt)}</strong></span>` : ""}
+    ${bonusCardLocations(row).map((location) => `<span>${esc(location)}</span>`).join("")}
   </li>`).join("");
   return `<section class="panel" id="bonus-history">
     <h2>Журнал подарков</h2>
@@ -439,6 +440,7 @@ function deskResult(kind, row, names, title) {
       ${row.conditions ? `<p>Условия: ${esc(row.conditions)}</p>` : ""}
       ${row.redeemed_at ? `<p>Погашен ${esc(bonusDateTime(row.redeemed_at))}${row.redeemed_by ? ` · ${esc(row.redeemed_by)}` : ""}</p>` : ""}
       ${row.guest_receipt ? `<p>Номер подтверждения <strong>${esc(row.guest_receipt)}</strong> · Код подарка ${esc(prettyInput(row.code))}</p>` : ""}
+      ${bonusCardLocations(row).map((location) => `<p>${esc(location)}</p>`).join("")}
     </div>`;
 }
 

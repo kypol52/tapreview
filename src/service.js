@@ -38,6 +38,7 @@ const CODE_RE = /^[A-Z0-9]{4,12}$/;
 
 // Название стола: подпись карты в админке («Стол 5»), иначе номер карты
 export function placeOf(card) {
+  if (card.is_table && card.table_number) return `Стол ${card.table_number}`;
   const label = String(card.label || "").trim();
   return label || `Стол ${card.code.length === 6 ? `${card.code.slice(0, 3)}-${card.code.slice(3)}` : card.code}`;
 }
@@ -131,7 +132,7 @@ export async function handleCall(request, env, ctx) {
     if (!CODE_RE.test(code) || !CALL_KINDS[kind]) return guestPage(404, null, "Ссылка повреждена — коснитесь карты на столе ещё раз");
     const split = kind === "bill" && Number.isInteger(n) && n >= 1 && n <= 10 ? n : null;
 
-    const cards = await db(env, `cards?code=eq.${code}&is_active=is.true&select=id,code,label,is_table,business_id&limit=1`);
+    const cards = await db(env, `cards?code=eq.${code}&is_active=is.true&select=id,code,label,is_table,table_number,business_id&limit=1`);
     const card = cards[0];
     const business = card && card.business_id
       ? (await db(env, `businesses?id=eq.${card.business_id}&is_active=eq.true&select=id,slug,name,theme,design,brand_color,paid_until,modules,tariff,pay_on&limit=1`))[0]

@@ -23,7 +23,8 @@ import { isExpired } from "./billing.js";
 import { deviceFrom, visitorKeyOf, stampsOn, stampCount, vipOn, visitCount } from "./guests.js";
 import { friendOn, inviteFor, inviterRewards, inviteBlock, rewardInviter } from "./friends.js";
 import { has } from "./tariffs.js";
-import { tapOf, ipAllow } from "./tap.js";
+import { tapDetails, ipAllow } from "./tap.js";
+import { formatCardCode } from "./report.js";
 
 // Подарков в сутки с одного адреса сети на заведение (dailyGuard)
 export const GIFTS_PER_IP = 10;
@@ -180,14 +181,16 @@ export async function handleBonus(request, env) {
     // по шансам, но в базу ничего не пишется, а код — заведомо ненастоящий «000-000» (касса его не примет).
     if (form.get("preview") === "1") return previewPage(business);
     // Только после касания карты (tap.js): пересланная ссылка /bonus?… без этого не работает
-    if (!(await tapOf(request, env, business.id))) {
+    const tap = await tapDetails(request, env, business.id);
+    if (!tap || (cardCode && tap.cardCode && tap.cardCode !== cardCode)) {
       return infoPage(403, "Поднесите телефон к карте или отсканируйте QR-код ещё раз — подарок выдаётся только в заведении");
     }
 
     // Устройство: случайный id в cookie; в базе — только хеш с секретом (guests.js)
     const { deviceId, setCookie } = deviceFrom(request);
     const visitorKey = await visitorKeyOf(env, deviceId, business.id);
-    const backUrl = cardCode ? `/c/${cardCode}?s=${source}` : `/b/${business.slug}?s=${source}`;
+    const returnCard = tap.cardCode || cardCode;
+    const backUrl = returnCard ? `/c/${returnCard}?s=${source}` : `/b/${business.slug}?s=${source}`;
 
     // Уже получал бонус за последние N дней — показываем тот же код, без нового розыгрыша.
     // Подарок «за друга» (reward_kind = inviter) сюда не входит: он показывается отдельно и не мешает обычному.
@@ -204,7 +207,7 @@ export async function handleBonus(request, env) {
       friendOn(business) ? inviterRewards(env, business, visitorKey) : [],
       friendOn(business) ? inviteFor(env, business, visitorKey) : null
     ]);
-    const extras = { stamps, rewards, invite };
+    const extras = { stamps, rewards, invite, cardCode: tap.cardCode };
     const prizes = prizesOf(business);
 
     const repeatResult = (code) => {
@@ -231,11 +234,8 @@ export async function handleBonus(request, env) {
     const wheel = business.bonus_mode === "wheel" && index >= 0 ? { prizes, index } : null;
     const prizeLabel = reward ? String(business.stamps_prize).slice(0, 60) : vip ? String(business.vip_gift).slice(0, 60) : prizes[index].label;
 
-    let cardId = null;
-    if (cardCode) {
-      const cards = await db(env, `cards?code=eq.${cardCode}&business_id=eq.${business.id}&select=id&limit=1`);
-      cardId = cards.length ? cards[0].id : null;
-    }
+    const card = await cardFromTap(env, business.id, tap);
+    if (tap.cardCode && !card) return infoPage(403, "Откройте действующую карту заведения");
 
     // У сектора могут быть свои условия и срок действия — иначе общие настройки заведения
     const own = index >= 0 ? prizes[index] : null;
@@ -243,7 +243,7 @@ export async function handleBonus(request, env) {
       prize: prizeLabel,
       visitorKey,
       deviceDay: guard.deviceDay,
-      cardId,
+      cardId: card?.id ?? null,
       extra: reward ? { stamp_reward: true } : vip ? { vip: true } : {},
       conditions: own && own.conditions ? own.conditions : undefined,
       validDays: own && own.valid_days ? own.valid_days : undefined,
@@ -282,7 +282,7 @@ export function sorryOn(business) {
 }
 
 // → строка bonus_codes или null (выключено, не с карты, робот, лимит)
-export async function sorryCode(request, env, business, { source, cardId = null }) {
+export async function sorryCode(request, env, business, { source }) {
   if (!sorryOn(business) || (source !== "nfc" && source !== "qr") || isBot(request)) return null;
   const { deviceId, setCookie } = deviceFrom(request);
   if (setCookie) return null; // телефон без метки — не выдаём (инкогнито, прямой заход на шаг оценки)
@@ -297,7 +297,14 @@ export async function sorryCode(request, env, business, { source, cardId = null 
   if (existing.length) return existing[0];
   const guard = await dailyGuard(request, env, business);
   if (guard.blocked) return null;
-  return issueCode(env, business, { prize: business.sorry_gift, visitorKey, deviceDay: guard.deviceDay, cardId, extra: { sorry: true } });
+  const card = await cardFromTap(env, business.id, await tapDetails(request, env, business.id));
+  return issueCode(env, business, { prize: business.sorry_gift, visitorKey, deviceDay: guard.deviceDay, cardId: card?.id ?? null, extra: { sorry: true } });
+}
+
+async function cardFromTap(env, businessId, tap) {
+  if (!tap?.cardCode) return null;
+  const [card] = await db(env, `cards?code=eq.${tap.cardCode}&business_id=eq.${businessId}&is_active=is.true&select=id,code,is_table,table_number&limit=1`);
+  return card || null;
 }
 
 // Блок над формой: подарок, крупный код, сроки
@@ -601,7 +608,7 @@ function validityShort(c) {
 }
 
 // Карточка подарка — как подарочный сертификат: приз, код с кнопкой «Копировать», как получить, сроки, условия
-function giftCard(business, c, { repeat, pending, prize, preview }) {
+function giftCard(business, c, { repeat, pending, prize, preview, cardCode }) {
   const kicker = c.stamp_reward ? "Подарок за штампы" : c.reward_kind === "friend" ? "Подарок от друга" : c.vip ? "⭐ VIP-подарок" : "Ваш подарок";
   const title = c.stamp_reward ? "Все штампы собраны!" : repeat ? "Ваш подарок уже ждёт вас" : "Для вас приготовлен подарок!";
   const nextAt = c.created_at ? Date.parse(c.created_at) + business.bonus_cooldown_days * DAY : null;
@@ -626,14 +633,14 @@ function giftCard(business, c, { repeat, pending, prize, preview }) {
         ${preview ? "" : `<button class="gc-copy" type="button" data-copy="${escapeHtml(c.code)}" hidden>Копировать</button>`}
       </div>
       <p class="gc-how">Покажите код сотруднику на кассе</p>
-      ${!preview && !c.redeemed_at ? `<a class="br-back" href="/bonus/apply?b=${encodeURIComponent(business.slug)}">Применить бонус</a>` : ""}
+      ${!preview && !c.redeemed_at ? `<a class="br-back" href="/bonus/apply?b=${encodeURIComponent(business.slug)}${cardCode ? `&amp;c=${encodeURIComponent(cardCode)}` : ""}">Применить бонус</a>` : ""}
       <p class="gc-shot">Код сохранён на этом телефоне: откройте подарок с карты ещё раз — он будет здесь.</p>
       <dl class="gc-meta">${rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${escapeHtml(v)}</dd></div>`).join("")}</dl>
       ${status}
     </section>`;
 }
 
-function resultPage(business, c, { repeat, backUrl, wheel = null, stamps = null, rewards = [], invite = null, preview = false }) {
+function resultPage(business, c, { repeat, backUrl, wheel = null, stamps = null, rewards = [], invite = null, preview = false, cardCode = null }) {
   // Штампы: приз за штампы — праздничная надпись; обычный код — прогресс и «штамп поставят на кассе»
   let stampBox = "";
   if (stampsOn(business) && stamps !== null) {
@@ -667,7 +674,7 @@ function resultPage(business, c, { repeat, backUrl, wheel = null, stamps = null,
       ${preview ? `<p class="gp-note">Предпросмотр: так колесо увидит гость. Приз выпадает по настоящим шансам, но код не настоящий и в базу ничего не записывается.</p>` : ""}
       ${rewardsHtml(rewards)}
       ${stage}
-      ${giftCard(business, c, { repeat, pending: spin, prize, preview })}
+      ${giftCard(business, c, { repeat, pending: spin, prize, preview, cardCode })}
       ${stampBox}
       ${invite ? inviteBlock(business, invite) : ""}
       <p class="br-rules">Подарок не зависит от отзыва. Один подарок на устройство за ${business.bonus_cooldown_days} ${plural(business.bonus_cooldown_days, "день", "дня", "дней")}.</p>
@@ -1095,7 +1102,7 @@ export function normalizeCode(value) {
   return code.length === CODE_LENGTH ? code : null;
 }
 
-const DESK_FIELDS = "id,code,business_id,prize,conditions,valid_from,valid_until,redeemed_at,redeemed_by,created_at,reward_kind,invite_code,vip,guest_applied_at,guest_receipt";
+const DESK_FIELDS = "id,code,business_id,prize,conditions,valid_from,valid_until,redeemed_at,redeemed_by,created_at,reward_kind,invite_code,vip,guest_applied_at,guest_receipt,issued_card,redeemed_card";
 
 function bonusSameOriginPost(request) {
   const site = request.headers.get("Sec-Fetch-Site");
@@ -1124,10 +1131,40 @@ function bonusState(row, now = Date.now()) {
   return "ok";
 }
 
-function guestApplyPage(business, status = 200, message = "", redeemed = null) {
-  const action = `/bonus/apply?b=${encodeURIComponent(business.slug)}`;
+const GUEST_CODE_INPUT_SCRIPT = `(() => {
+  const input = document.querySelector("#apply-code");
+  const digitsOnly = (value) => value.replace(/[^0-9]/g, "");
+  function format() {
+    const digits = digitsOnly(input.value).slice(0, 6);
+    const before = Math.min(digits.length, digitsOnly(input.value.slice(0, input.selectionStart)).length);
+    const value = digits.length < 3 ? digits : digits.slice(0, 3) + "-" + digits.slice(3);
+    if (input.value === value) return;
+    input.value = value;
+    const caret = before < 3 ? before : before + 1;
+    input.setSelectionRange(caret, caret);
+  }
+  input.addEventListener("input", format);
+  input.addEventListener("beforeinput", (event) => {
+    const pos = input.selectionStart;
+    if (!event.cancelable || pos !== input.selectionEnd) return;
+    if (event.inputType === "deleteContentBackward" && input.value[pos - 1] === "-") {
+      event.preventDefault();
+      input.setRangeText("", pos - 2, pos, "end");
+      format();
+    } else if (event.inputType === "deleteContentForward" && input.value[pos] === "-" && pos + 1 < input.value.length) {
+      event.preventDefault();
+      input.setRangeText("", pos + 1, pos + 2, "start");
+      format();
+    }
+  });
+  format();
+})();`;
+
+function guestApplyPage(business, status = 200, message = "", redeemed = null, cardCode = "") {
+  const action = `/bonus/apply?b=${encodeURIComponent(business.slug)}${cardCode ? `&amp;c=${encodeURIComponent(cardCode)}` : ""}`;
   const until = redeemed ? Date.parse(redeemed.redeemed_at) + GUEST_RECEIPT_MS : 0;
   const remaining = Math.max(0, until - Date.now());
+  const giftName = redeemed?.prize.trim().replace(/[.!?]+$/u, "").replace(/\s+в подарок$/iu, "");
   return renderPage({
     status,
     title: `Применить бонус — ${business.name}`,
@@ -1146,7 +1183,7 @@ function guestApplyPage(business, status = 200, message = "", redeemed = null) {
       function tick() {
         const seconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
         if (!seconds) {
-          document.querySelector("#apply-title").textContent = "Подтверждение из истории";
+          document.querySelector("#apply-instruction").textContent = "Подтверждение из истории";
           timer.textContent = "Сотрудник может проверить эту запись в кабинете.";
           return;
         }
@@ -1154,20 +1191,22 @@ function guestApplyPage(business, status = 200, message = "", redeemed = null) {
         setTimeout(tick, 250);
       }
       tick();
-    })();` : "",
+    })();` : redeemed ? "" : GUEST_CODE_INPUT_SCRIPT,
     body: `
       <h1 class="name name-long">${escapeHtml(business.name)}</h1>
       <div class="divider"></div>
       ${redeemed ? `
         <section class="gc">
           <p class="gc-kicker">Бонус погашен</p>
-          <h2 class="gc-title" id="apply-title">${remaining ? "Покажите сотруднику" : "Подтверждение из истории"}</h2>
-          <p class="gc-prize">${escapeHtml(redeemed.prize)}</p>
+          <h2 class="gc-title">Вам ${escapeHtml(giftName || redeemed.prize)} в подарок.</h2>
+          <p class="gc-desc" id="apply-instruction">${remaining ? "Покажите страницу сотруднику" : "Подтверждение из истории"}</p>
           <div class="gc-code"><span class="gc-code-label">Номер подтверждения</span>
             <span class="gc-code-value">${escapeHtml(redeemed.guest_receipt)}</span></div>
           <dl class="gc-meta">
             <div><dt>Код бонуса</dt><dd>${escapeHtml(formatCode(redeemed.code))}</dd></div>
             <div><dt>Погашен</dt><dd>${escapeHtml(bonusDateTime(redeemed.redeemed_at))}</dd></div>
+            ${redeemed.redeemed_card ? `<div><dt>Карта</dt><dd>${escapeHtml(formatCardCode(redeemed.redeemed_card.code))}</dd></div>` : ""}
+            ${redeemed.redeemed_card?.table_number ? `<div><dt>Номер стола</dt><dd>${escapeHtml(redeemed.redeemed_card.table_number)}</dd></div>` : ""}
             ${redeemed.conditions ? `<div><dt>Условия</dt><dd>${escapeHtml(redeemed.conditions)}</dd></div>` : ""}
           </dl>
         </section>
@@ -1180,11 +1219,12 @@ function guestApplyPage(business, status = 200, message = "", redeemed = null) {
         ${message ? `<p class="br-warn" role="alert">${escapeHtml(message)}</p>` : ""}
         <form class="apply-form" method="post" action="${action}">
           <label for="apply-code">Код бонуса</label>
-          <input id="apply-code" name="code" maxlength="12" placeholder="123-456" autocomplete="off" autocapitalize="characters" spellcheck="false" required>
+          <input id="apply-code" name="code" type="text" inputmode="numeric" pattern="[0-9]{3}-?[0-9]{3}"
+            maxlength="7" placeholder="123-456" autocomplete="off" spellcheck="false" required>
           <button class="button bonus-button" type="submit">Погасить бонус</button>
         </form>
       `}
-      <a class="br-back" href="/b/${encodeURIComponent(business.slug)}">← Вернуться к странице заведения</a>`
+      <a class="br-back" href="${cardCode ? `/c/${encodeURIComponent(cardCode)}` : `/b/${encodeURIComponent(business.slug)}`}">← Вернуться к странице заведения</a>`
   });
 }
 
@@ -1193,34 +1233,43 @@ export async function handleBonusApply(request, env) {
     const url = new URL(request.url);
     if (!["GET", "HEAD", "POST"].includes(request.method)) return infoPage(405, "Откройте страницу заведения");
     const slug = url.searchParams.get("b") || "";
+    const cardCode = url.searchParams.get("c") || "";
     if (!/^[A-Za-z0-9]{4,32}$/.test(slug) || isBot(request)) return infoPage(404, "Бонус недоступен");
+    if (cardCode && !/^[A-Z0-9]{4,12}$/.test(cardCode)) return infoPage(400, "Откройте карту заведения ещё раз");
     const [business] = await db(env,
       `businesses?slug=eq.${slug}&is_active=eq.true&select=id,slug,name,theme,design,paid_until,tariff,modules&limit=1`);
     if (!business || isExpired(business.paid_until) || !has(business, "gifts")) return infoPage(404, "Бонус недоступен");
-    if (request.method !== "POST") return guestApplyPage(business);
-    if (!bonusSameOriginPost(request)) return guestApplyPage(business, 403, "Откройте форму со страницы заведения.");
+    const page = (status, message, redeemed) => guestApplyPage(business, status, message, redeemed, cardCode);
+    if (request.method !== "POST") return page();
+    if (!bonusSameOriginPost(request)) return page(403, "Откройте форму со страницы заведения.");
     const { deviceId, setCookie } = deviceFrom(request);
-    if (setCookie || !await tapOf(request, env, business.id)) {
-      return guestApplyPage(business, 403, "Откройте карту заведения на том же телефоне, на котором получили бонус.");
+    const tap = await tapDetails(request, env, business.id);
+    if (setCookie || !tap || (cardCode && tap.cardCode !== cardCode)) {
+      return page(403, "Откройте карту заведения на том же телефоне, на котором получили бонус.");
     }
-    if (Number(request.headers.get("Content-Length")) > 500) return guestApplyPage(business, 413, "Слишком большой запрос.");
+    if (Number(request.headers.get("Content-Length")) > 500) return page(413, "Слишком большой запрос.");
     const text = await request.text();
-    if (text.length > 500) return guestApplyPage(business, 413, "Слишком большой запрос.");
-    const code = normalizeCode(new URLSearchParams(text).get("code"));
-    if (!code) return guestApplyPage(business, 400, "Введите 6 символов кода бонуса.");
+    if (text.length > 500) return page(413, "Слишком большой запрос.");
+    const input = (new URLSearchParams(text).get("code") || "").trim();
+    if (!/^[0-9]{3}-?[0-9]{3}$/.test(input)) {
+      return page(400, "Введите 6 цифр кода бонуса. Код с буквами можно показать сотруднику.");
+    }
+    const code = input.replace("-", "");
     if (!await ipAllow(request, env, `apply-gift|${business.id}`, 30, 10 * 60 * 1000)) {
-      return guestApplyPage(business, 429, "Слишком много попыток. Попробуйте позже.");
+      return page(429, "Слишком много попыток. Попробуйте позже.");
     }
     const visitorKey = await visitorKeyOf(env, deviceId, business.id);
     const path = `bonus_codes?business_id=eq.${business.id}&visitor_key=eq.${visitorKey}&code=eq.${code}&select=${DESK_FIELDS}`;
     const [row] = await db(env, path);
-    if (!row) return guestApplyPage(business, 404, "Не нашли этот код на вашем телефоне в этом заведении.");
+    if (!row) return page(404, "Не нашли этот код на вашем телефоне в этом заведении.");
     const state = bonusState(row);
     if (state === "used") return row.redeemed_by === GUEST_REDEEMED_BY && row.guest_receipt
-      ? guestApplyPage(business, 200, "", row)
-      : guestApplyPage(business, 409, "Этот бонус уже погашен.");
-    if (state === "soon") return guestApplyPage(business, 409, `Бонус начнёт действовать ${bonusDateTime(row.valid_from)}.`);
-    if (state === "expired") return guestApplyPage(business, 409, "Срок действия бонуса истёк.");
+      ? page(200, "", row)
+      : page(409, "Этот бонус уже погашен.");
+    if (state === "soon") return page(409, `Бонус начнёт действовать ${bonusDateTime(row.valid_from)}.`);
+    if (state === "expired") return page(409, "Срок действия бонуса истёк.");
+    const card = await cardFromTap(env, business.id, tap);
+    if (tap.cardCode && !card) return page(403, "Карта недоступна. Откройте действующую карту заведения.");
     const now = new Date().toISOString();
     for (let attempt = 0; attempt < 4; attempt++) {
       try {
@@ -1229,24 +1278,25 @@ export async function handleBonusApply(request, env) {
             method: "PATCH",
             body: {
               redeemed_at: now, redeemed_by: GUEST_REDEEMED_BY,
+              redeemed_card: card ? { code: card.code, table_number: card.is_table ? card.table_number : null } : null,
               guest_applied_at: row.guest_applied_at || now, guest_receipt: row.guest_receipt || randomString(RECEIPT_ALPHABET, 8)
             },
             prefer: "return=representation"
           });
         if (redeemed) {
           await rewardInviter(env, redeemed);
-          return guestApplyPage(business, 200, "", redeemed);
+          return page(200, "", redeemed);
         }
         const [updated] = await db(env, path);
         if (updated?.redeemed_at && updated.redeemed_by === GUEST_REDEEMED_BY && updated.guest_receipt) {
-          return guestApplyPage(business, 200, "", updated);
+          return page(200, "", updated);
         }
-        return guestApplyPage(business, 409, "Статус бонуса изменился. Попросите сотрудника проверить код.");
+        return page(409, "Статус бонуса изменился. Попросите сотрудника проверить код.");
       } catch (error) {
         if (error.code !== "23505") throw error;
       }
     }
-    return guestApplyPage(business, 503, "Не удалось получить номер подтверждения. Попробуйте снова.");
+    return page(503, "Не удалось получить номер подтверждения. Попробуйте снова.");
   } catch (error) {
     console.error("Guest bonus activation failed", error.code || "unknown");
     return infoPage(500, "Не удалось применить бонус. Попробуйте снова или покажите код сотруднику.");
@@ -1257,8 +1307,20 @@ export async function bonusHistory(env, businessIds, { issued, limit, offset }) 
   const filter = issued ? "" : "&redeemed_at=not.is.null";
   const order = issued ? "created_at.desc,id.desc" : "redeemed_at.desc,id.desc";
   return db(env, `bonus_codes?business_id=in.(${businessIds.join(",")})` +
-    `${filter}&select=id,business_id,code,prize,created_at,redeemed_at,redeemed_by,guest_receipt` +
+    `${filter}&select=id,business_id,code,prize,created_at,redeemed_at,redeemed_by,guest_receipt,issued_card,redeemed_card` +
     `&order=${order}&limit=${limit}&offset=${offset}`);
+}
+
+export function bonusCardLocations(row) {
+  const issued = row.issued_card;
+  const redeemed = row.redeemed_card;
+  const locations = [];
+  const line = (label, card) => `${label} №${formatCardCode(card.code)}${card.table_number ? ` · стол №${card.table_number}` : ""}`;
+  if (redeemed?.code) locations.push(line("Карта при погашении", redeemed));
+  if (issued?.code && (issued.code !== redeemed?.code || (issued.table_number ?? null) !== (redeemed?.table_number ?? null))) {
+    locations.push(line("Карта при выдаче", issued));
+  }
+  return locations;
 }
 
 // Код из заведений этой ссылки: { row, state } или null

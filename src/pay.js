@@ -105,7 +105,7 @@ async function notify(env, businessId, text) {
 // ---------- Гость: /pay ----------
 
 async function loadTable(env, code) {
-  const card = (await db(env, `cards?code=eq.${code}&is_active=is.true&select=id,code,label,is_table,business_id&limit=1`))[0];
+  const card = (await db(env, `cards?code=eq.${code}&is_active=is.true&select=id,code,label,is_table,table_number,business_id&limit=1`))[0];
   const business = card && card.business_id
     ? (await db(env, `businesses?id=eq.${card.business_id}&is_active=eq.true&select=id,slug,name,theme,design,brand_color,paid_until,modules,tariff,pay_on&limit=1`))[0]
     : null;
@@ -301,7 +301,7 @@ async function statusRoute(env, url) {
   if (!pay) return simple(404, null, "Платёж не найден");
   const bill = (await db(env, `table_bills?id=eq.${pay.bill_id}&select=id,card_id,place,amount,paid,status,staff_id&limit=1`))[0];
   const business = (await db(env, `businesses?id=eq.${pay.business_id}&select=id,slug,name,theme,design,brand_color&limit=1`))[0];
-  const card = bill && bill.card_id ? (await db(env, `cards?id=eq.${bill.card_id}&select=id,code,label&limit=1`))[0] : null;
+  const card = bill && bill.card_id ? (await db(env, `cards?id=eq.${bill.card_id}&select=id,code,label,is_table,table_number&limit=1`))[0] : null;
   const source = url.searchParams.get("s") === "qr" ? "qr" : "nfc";
   const table = card ? `/c/${card.code}?s=${source}` : null;
   const billUrl = card ? `/pay?c=${card.code}&s=${source}` : null;

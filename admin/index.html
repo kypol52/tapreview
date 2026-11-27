@@ -1124,9 +1124,14 @@
         </label>
         <label class="check">
           <input id="c-is-table" type="checkbox">
-          <span id="c-table-label">Карта лежит на столе: гости могут позвать официанта (нужен модуль «Сервис в зале»; название стола — в поле выше)</span>
+          <span id="c-table-label">Карта лежит на столе. Гости могут позвать официанта, если подключён модуль «Сервис в зале».</span>
         </label>
       </div>
+
+      <label class="field" id="c-table-number-field" hidden>
+        <span>Номер стола</span>
+        <input id="c-table-number" type="text" maxlength="24" placeholder="Например, 7 или 7А">
+      </label>
 
       <p id="c-stats" class="muted card-stats"></p>
 

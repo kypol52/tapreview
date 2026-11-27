@@ -15,7 +15,7 @@ import { db } from "./supabase.js";
 import { hasModule } from "./tariffs.js";
 import { TOKEN_RE } from "./stats-page.js";
 import { CALL_KINDS, activeCalls, staffCallAction } from "./service.js";
-import { normalizeCode, findCode, redeemCode, validityText, bonusDateTime, GUEST_REDEEMED_BY } from "./bonus.js";
+import { normalizeCode, findCode, redeemCode, validityText, bonusDateTime, bonusCardLocations, GUEST_REDEEMED_BY } from "./bonus.js";
 import { rewardInviter } from "./friends.js";
 import { POINTS_COLUMNS, pointsOn, balanceOf, rulesText, PointsError, findCode as findPointsCode, operate } from "./points.js";
 
@@ -126,6 +126,7 @@ export async function staffGift(env, input) {
     validity: validityText(r),
     conditions: r.conditions || null,
     guestReceipt: r.guest_receipt || null,
+    cardLocations: bonusCardLocations(r),
     guestRedeemed: r.redeemed_by === GUEST_REDEEMED_BY,
     redeemedTime: r.redeemed_at ? bonusDateTime(r.redeemed_at) : null,
     validFrom: r.valid_from,

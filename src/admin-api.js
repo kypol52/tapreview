@@ -106,7 +106,7 @@ const EXTRA_LINK_MAX = 6;
 const GROUP_COLUMNS = "id,slug,name,tagline,logo_url,business_ids,is_active,created_at,updated_at";
 const MAX_GROUP_SIZE = 50;
 
-const CARD_COLUMNS = "id,code,business_id,label,is_table,staff_id,is_active,assigned_at,created_at";
+const CARD_COLUMNS = "id,code,business_id,label,is_table,table_number,staff_id,is_active,assigned_at,created_at";
 // Код карты печатается на карте — только заглавные буквы и цифры без похожих (0/O, 1/I/L)
 const CARD_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const CARD_CODE_LENGTH = 6;
@@ -682,6 +682,13 @@ async function updateCard(request, env, id) {
     is_table: input.is_table === true,
     is_active: input.is_active !== false
   };
+  if ("table_number" in input) {
+    const number = cleanText(input.table_number, 24, "Номер стола");
+    if (number && !/^[\p{L}\p{N}][\p{L}\p{N} ./-]*$/u.test(number)) {
+      throw new HttpError(400, "Номер стола может содержать буквы, цифры, пробел, точку, дефис и косую черту");
+    }
+    data.table_number = number || null;
+  }
   // Карта стола не бывает личной картой сотрудника; карту отвязали от заведения — и от сотрудника тоже
   if (data.is_table || current[0].business_id !== businessId) data.staff_id = null;
   // Время привязки меняем, только когда карту привязали к другому заведению

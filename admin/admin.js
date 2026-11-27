@@ -224,6 +224,9 @@ function bindEvents() {
   }
   $("card-form").addEventListener("submit", onSaveCard);
   $("c-editor-close").addEventListener("click", closeCardEditor);
+  $("c-is-table").addEventListener("change", () => {
+    $("c-table-number-field").hidden = !$("c-is-table").checked;
+  });
   $("c-cancel-button").addEventListener("click", closeCardEditor);
   $("c-delete-button").addEventListener("click", onDeleteCard);
   $("c-link-copy").addEventListener("click", () => copyText($("c-link-url").value));
@@ -3211,7 +3214,9 @@ function renderCardRow(card) {
     businessCell.append(el("span", "muted", "—"));
   }
 
-  const labelCell = el("td", "cell-sub", (card.label || "—") + (card.is_table ? " · стол" : ""));
+  const table = card.table_number ? `Стол №${card.table_number}` : "стол";
+  const place = [card.label, card.is_table ? table : null].filter(Boolean).join(" · ");
+  const labelCell = el("td", "cell-sub", place || "—");
 
   const status = cardStatus(card);
   const statusCell = document.createElement("td");
@@ -3265,7 +3270,7 @@ function openCardEditor(card) {
   $("c-editor-title").textContent = `${platform ? "Платформа" : "Карта"} ${formatCardCode(card.code)}`;
   $("c-active-label").textContent = platform ? "Платформа работает" : "Карта работает (снимите, если карту потеряли или украли)";
   $("c-table-label").textContent = (platform ? "Платформа стоит на столе" : "Карта лежит на столе") +
-    ": гости могут позвать официанта (нужен модуль «Сервис в зале»; название стола — в поле выше)";
+    ". Гости могут позвать официанта, если подключён модуль «Сервис в зале».";
   $("c-link-url").value = cardUrl(card, "nfc");
   $("c-link-open").href = cardUrl(card);
   $("c-qr-preview").src =
@@ -3288,6 +3293,8 @@ function openCardEditor(card) {
   $("c-label").value = card.label || "";
   $("c-active").checked = card.is_active;
   $("c-is-table").checked = Boolean(card.is_table);
+  $("c-table-number").value = card.table_number || "";
+  $("c-table-number-field").hidden = !card.is_table;
 
   const stats = state.cardStats[card.id];
   const assigned = card.assigned_at
@@ -3326,6 +3333,7 @@ async function onSaveCard(event) {
         business_id: $("c-business").value || null,
         label: $("c-label").value,
         is_table: $("c-is-table").checked,
+        table_number: $("c-table-number").value,
         is_active: $("c-active").checked
       }
     });

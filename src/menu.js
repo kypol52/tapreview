@@ -164,7 +164,7 @@ async function loadVenue(env, slug) {
 
 async function loadTableCard(env, code, businessId) {
   if (!CODE_RE.test(code)) return null;
-  const rows = await db(env, `cards?code=eq.${code}&business_id=eq.${businessId}&is_active=is.true&select=id,code,label,is_table,business_id&limit=1`);
+  const rows = await db(env, `cards?code=eq.${code}&business_id=eq.${businessId}&is_active=is.true&select=id,code,label,is_table,table_number,business_id&limit=1`);
   return rows[0] || null;
 }
 
@@ -351,7 +351,7 @@ export async function handleOrder(request, env, ctx) {
     const code = String(form.get("c") || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
     const source = form.get("s") === "qr" ? "qr" : "nfc";
     if (!CODE_RE.test(code)) return infoPage(404, null, "Откройте меню с карты на столе ещё раз");
-    const cards = await db(env, `cards?code=eq.${code}&is_active=is.true&select=id,code,label,is_table,business_id&limit=1`);
+    const cards = await db(env, `cards?code=eq.${code}&is_active=is.true&select=id,code,label,is_table,table_number,business_id&limit=1`);
     const card = cards[0];
     const business = card && card.business_id ? (await db(env, `businesses?id=eq.${card.business_id}&is_active=eq.true&select=${BUSINESS_SELECT}&limit=1`))[0] : null;
     if (!business || !has(business, "menu") || !callsOn(business, card, source) || isExpired(business.paid_until)) {

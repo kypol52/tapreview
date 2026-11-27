@@ -31,26 +31,31 @@ async function sign(env, message) {
 }
 
 // Set-Cookie для гостя, открывшего страницу с карты (или null — робот, прямая ссылка)
-export async function tapCookie(request, env, businessId, source) {
+export async function tapCookie(request, env, businessId, source, cardCode = null) {
   if ((source !== "nfc" && source !== "qr") || isBot(request) || !secret(env)) return null;
-  const body = `${Number(businessId).toString(36)}.${source}.${Math.floor(Date.now() / 1000).toString(36)}`;
+  const card = /^[A-Z0-9]{4,12}$/.test(cardCode || "") ? `.${cardCode}` : "";
+  const body = `${Number(businessId).toString(36)}.${source}.${Math.floor(Date.now() / 1000).toString(36)}${card}`;
   const value = `${body}.${await sign(env, body)}`;
   return `${COOKIE}=${value}; Max-Age=${TAP_HOURS * 3600}; Path=/; HttpOnly; Secure; SameSite=Lax`;
 }
 
 // → "nfc" | "qr", если запрос пришёл с действующей меткой этого заведения, иначе null
 export async function tapOf(request, env, businessId) {
+  return (await tapDetails(request, env, businessId))?.source ?? null;
+}
+
+export async function tapDetails(request, env, businessId) {
   if (!secret(env)) return null;
-  const match = (request.headers.get("Cookie") || "").match(/(?:^|;\s*)tr_tap=([a-z0-9]+)\.(nfc|qr)\.([a-z0-9]+)\.([0-9a-f]{24})(?:;|$)/);
+  const match = (request.headers.get("Cookie") || "").match(/(?:^|;\s*)tr_tap=([a-z0-9]+)\.(nfc|qr)\.([a-z0-9]+)(?:\.([A-Z0-9]{4,12}))?\.([0-9a-f]{24})(?:;|$)/);
   if (!match) return null;
-  const [, bid, source, ts, sig] = match;
+  const [, bid, source, ts, cardCode, sig] = match;
   if (parseInt(bid, 36) !== Number(businessId)) return null;
   const age = Date.now() / 1000 - parseInt(ts, 36);
   if (!(age >= -60 && age <= TAP_HOURS * 3600)) return null;
-  const expected = await sign(env, `${bid}.${source}.${ts}`);
+  const expected = await sign(env, `${bid}.${source}.${ts}${cardCode ? `.${cardCode}` : ""}`);
   let diff = 0;
   for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ sig.charCodeAt(i);
-  return diff === 0 ? source : null;
+  return diff === 0 ? { source, cardCode: cardCode ?? null } : null;
 }
 
 // ---------- Лимиты по сети (в памяти) ----------
